@@ -1,0 +1,93 @@
+{
+  "name": "@jazzmind/busibox-app",
+  "version": "0.0.0-local",
+  "description": "Reusable components for Busibox applications (LOCAL DEV)",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./components": {
+      "types": "./src/components/index.ts",
+      "default": "./src/components/index.ts"
+    },
+    "./contexts": {
+      "types": "./src/contexts/index.ts",
+      "default": "./src/contexts/index.ts"
+    },
+    "./layout": {
+      "types": "./src/layout/index.ts",
+      "default": "./src/layout/index.ts"
+    },
+    "./types": {
+      "types": "./src/types/index.ts",
+      "default": "./src/types/index.ts"
+    },
+    "./lib": {
+      "types": "./src/lib/index.ts",
+      "default": "./src/lib/index.ts"
+    },
+    "./lib/agent": {
+      "types": "./src/lib/agent/index.ts",
+      "default": "./src/lib/agent/index.ts"
+    },
+    "./lib/audit": {
+      "types": "./src/lib/audit/index.ts",
+      "default": "./src/lib/audit/index.ts"
+    },
+    "./lib/auth": {
+      "types": "./src/lib/auth/index.ts",
+      "default": "./src/lib/auth/index.ts"
+    },
+    "./lib/authz": {
+      "types": "./src/lib/authz/index.ts",
+      "default": "./src/lib/authz/index.ts"
+    },
+    "./lib/data": {
+      "types": "./src/lib/data/index.ts",
+      "default": "./src/lib/data/index.ts"
+    },
+    "./lib/insights": {
+      "types": "./src/lib/insights/index.ts",
+      "default": "./src/lib/insights/index.ts"
+    },
+    "./lib/rbac": {
+      "types": "./src/lib/rbac/index.ts",
+      "default": "./src/lib/rbac/index.ts"
+    },
+    "./lib/search": {
+      "types": "./src/lib/search/index.ts",
+      "default": "./src/lib/search/index.ts"
+    },
+    "./sso": {
+      "types": "./src/sso/index.ts",
+      "default": "./src/sso/index.ts"
+    }
+  },
+  "peerDependencies": {
+    "next": "^16.0.10",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "dependencies": {
+    "@radix-ui/react-dropdown-menu": "^2.1.4",
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-slot": "^1.2.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "jose": "^6.1.0",
+    "katex": "^0.16.25",
+    "lucide-react": "^0.546.0",
+    "react-dropzone": "^14.3.5",
+    "react-hot-toast": "^2.6.0",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "tailwind-merge": "^3.4.0"
+  }
+}

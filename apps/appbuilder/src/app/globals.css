@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+/* Scan busibox-app package for Tailwind classes (not scanned by default since it's in node_modules) */
+/* Include both dist (published) and src (npm linked local dev) */
+@source "../node_modules/@jazzmind/busibox-app/dist";
+@source "../node_modules/@jazzmind/busibox-app/src";
+
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Configure dark mode to use class strategy */
+@variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+/* Dark mode via class (for theme toggle) */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+/* Dark mode via system preference (only when no explicit theme class is set) */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark) {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Hide footer on pages that need full height */
+body.hide-footer footer,
+body.hide-footer [data-version-bar] {
+  display: none !important;
+}

@@ -1,0 +1,54 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+.next
+dist
+build
+out
+storybook-static
+
+# Environment
+.env
+.env.local
+.env.*.local
+!env.example
+
+# Package manager
+.pnpm-store
+package-lock.json
+
+# Turbo
+.turbo
+
+# Testing
+coverage
+.nyc_output
+
+# Debug
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor
+.DS_Store
+*.pem
+.idea
+.vscode/settings.json
+
+# Next.js
+.next/
+out/
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Prisma
+prisma/generated/

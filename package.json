@@ -1,0 +1,35 @@
+{
+  "name": "busibox-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "dev:portal": "turbo run dev --filter=@busibox/portal",
+    "dev:agents": "turbo run dev --filter=@busibox/agents",
+    "dev:admin": "turbo run dev --filter=@busibox/admin",
+    "dev:chat": "turbo run dev --filter=@busibox/chat",
+    "dev:appbuilder": "turbo run dev --filter=@busibox/appbuilder",
+    "dev:media": "turbo run dev --filter=@busibox/media",
+    "dev:documents": "turbo run dev --filter=@busibox/documents",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "type-check": "turbo run type-check",
+    "publish:busibox-app": "cd packages/app && bash publish.sh",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "turbo": "^2.8.10"
+  },
+  "packageManager": "pnpm@10.30.1",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=10"
+  },
+  "pnpm": {
+    "overrides": {
+      "react": "^19.2.3",
+      "react-dom": "^19.2.3"
+    }
+  }
+}

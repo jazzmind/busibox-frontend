@@ -1,0 +1,20 @@
+{
+  "$schema": "https://busibox.io/schemas/app-manifest-v1.json",
+  "name": "Busibox App Builder",
+  "id": "busibox-appbuilder",
+  "version": "1.0.0",
+  "description": "Lovable-style AI app builder for Busibox with conversational project generation, live preview, and deployment workflows.",
+  "icon": "Boxes",
+  "defaultPath": "/builder",
+  "defaultPort": 3004,
+  "healthEndpoint": "/api/health",
+  "buildCommand": "npm run build",
+  "startCommand": "npm start",
+  "appMode": "frontend",
+  "requiredEnvVars": [],
+  "optionalEnvVars": [
+    "NEXT_PUBLIC_DEBUG",
+    "DEMO_AGENT_API_URL"
+  ],
+  "busiboxAppVersion": "^2.1.17"
+}

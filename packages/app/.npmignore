@@ -1,0 +1,19 @@
+# Source files (we publish dist/ only)
+src/
+tsconfig.json
+tsup.config.ts
+
+# Documentation (keep README.md)
+SUMMARY.md
+INSTALLATION.md
+
+# Development files
+node_modules/
+*.log
+.DS_Store
+.env
+.env.local
+
+# Git files
+.git/
+.gitignore

@@ -1,0 +1,46 @@
+{
+  "name": "@busibox/appbuilder",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Busibox App Builder - AI-native application builder for Busibox",
+  "scripts": {
+    "dev": "next dev -p 3004",
+    "build": "next build",
+    "start": "next start -p 3004",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "next lint",
+    "update:busibox-app": "./scripts/update-busibox-app.sh",
+    "link:busibox": "./scripts/link-local-busibox.sh",
+    "unlink:busibox": "./scripts/unlink-local-busibox.sh"
+  },
+  "dependencies": {
+    "@jazzmind/busibox-app": "workspace:*",
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "jose": "^6.1.2",
+    "lucide-react": "^0.469.0",
+    "next": "^16.0.10",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/typography": "^0.5.19",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5.1.2",
+    "@vitest/coverage-v8": "^4.0.15",
+    "@vitest/ui": "^4.0.15",
+    "eslint": "^8",
+    "eslint-config-next": "^15",
+    "jsdom": "^25.0.1",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^4.0.15"
+  }
+}
