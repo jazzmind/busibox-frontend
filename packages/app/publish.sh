@@ -215,8 +215,9 @@ npm config set "//npm.pkg.github.com/:_authToken" "$GITHUB_TOKEN" || {
     echo "Fix: Check npm is installed and accessible"
     exit 1
 }
-# Also export as environment variable (for .npmrc file that uses ${GITHUB_TOKEN})
+# Also export as environment variables (for .npmrc files that use ${GITHUB_TOKEN} or ${GITHUB_AUTH_TOKEN})
 export GITHUB_TOKEN="$GITHUB_TOKEN"
+export GITHUB_AUTH_TOKEN="$GITHUB_TOKEN"
 
 # Verify token is set (can't read protected token, but can check it's configured)
 TOKEN_PREFIX=$(echo "$GITHUB_TOKEN" | head -c 10)

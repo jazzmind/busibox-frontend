@@ -473,8 +473,21 @@ export function MediaPlaygroundSTT({ primaryColor = '#6366f1', transcribeServerR
 
   const formatRecordTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
+  useEffect(() => {
+    return () => {
+      if (liveRef.current) {
+        liveRef.current.scriptNode.disconnect();
+        liveRef.current.stream.getTracks().forEach(t => t.stop());
+        void liveRef.current.audioCtx.close();
+        try { liveRef.current.ws.close(); } catch { /* ok */ }
+        liveRef.current = null;
+      }
+      if (liveTimerRef.current) clearInterval(liveTimerRef.current);
+    };
+  }, []);
+
   const sd = STATUS_DISPLAY[serverStatus];
-  const isBusy = loading || serverStatus === 'starting' || serverStatus === 'stopping';
+  const isBusy = loading || serverStatus === 'starting' || serverStatus === 'stopping' || liveWsState === 'connecting';
 
   return (
     <div className="space-y-4">
@@ -499,7 +512,7 @@ export function MediaPlaygroundSTT({ primaryColor = '#6366f1', transcribeServerR
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* File upload area */}
         <div
           className={`relative border-2 rounded-lg p-4 text-center cursor-pointer transition-colors ${
@@ -543,12 +556,12 @@ export function MediaPlaygroundSTT({ primaryColor = '#6366f1', transcribeServerR
           )}
         </div>
 
-        {/* Record from mic */}
+        {/* Record from mic (batch) */}
         <div className="flex flex-col items-center justify-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <div className="text-sm text-gray-500">Or record from microphone</div>
+          <div className="text-sm text-gray-500">Record &amp; transcribe</div>
           <button
             onClick={isRecording ? stopRecording : startRecording}
-            disabled={isBusy && !isRecording}
+            disabled={(isBusy && !isRecording) || isLive}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
               isRecording
                 ? 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-300'
@@ -563,7 +576,7 @@ export function MediaPlaygroundSTT({ primaryColor = '#6366f1', transcribeServerR
             ) : (
               <>
                 <Mic className="w-4 h-4" />
-                Start Recording
+                Record
               </>
             )}
           </button>
@@ -571,6 +584,52 @@ export function MediaPlaygroundSTT({ primaryColor = '#6366f1', transcribeServerR
             <div className="flex items-center gap-1.5 text-xs text-red-600">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
               Recording...
+            </div>
+          )}
+        </div>
+
+        {/* Live transcribe */}
+        <div className="flex flex-col items-center justify-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="flex items-center gap-1.5 text-sm text-gray-500">
+            <Radio className="w-3.5 h-3.5" />
+            Live transcribe
+          </div>
+          <button
+            onClick={isLive ? stopLiveTranscribe : startLiveTranscribe}
+            disabled={(isBusy && !isLive) || isRecording}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+              isLive
+                ? 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-300'
+                : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 disabled:opacity-50'
+            }`}
+          >
+            {isLive ? (
+              <>
+                <Square className="w-4 h-4" />
+                Stop ({formatRecordTime(liveTime)})
+              </>
+            ) : liveWsState === 'connecting' ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Connecting...
+              </>
+            ) : (
+              <>
+                <Wifi className="w-4 h-4" />
+                Start Live
+              </>
+            )}
+          </button>
+          {isLive && (
+            <div className="flex items-center gap-1.5 text-xs text-emerald-600">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Streaming...
+            </div>
+          )}
+          {liveWsState === 'error' && !isLive && (
+            <div className="flex items-center gap-1 text-xs text-red-500">
+              <WifiOff className="w-3 h-3" />
+              Connection failed
             </div>
           )}
         </div>
@@ -602,6 +661,38 @@ export function MediaPlaygroundSTT({ primaryColor = '#6366f1', transcribeServerR
           </button>
         </div>
       </div>
+
+      {/* Live transcript */}
+      {(isLive || liveFinals.length > 0 || livePartial) && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-700">
+              <Radio className="w-4 h-4" />
+              Live Transcript
+              {isLive && <span className="text-xs text-gray-400 font-normal">(streaming)</span>}
+            </div>
+            {liveFinals.length > 0 && (
+              <button
+                onClick={() => navigator.clipboard.writeText(liveFinals.join(' '))}
+                className="text-xs text-gray-400 hover:text-gray-600"
+              >
+                Copy
+              </button>
+            )}
+          </div>
+          <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 min-h-[80px] max-h-[200px] overflow-y-auto">
+            {liveFinals.map((text, i) => (
+              <span key={i}>{text} </span>
+            ))}
+            {livePartial && (
+              <span className="text-gray-400 italic">{livePartial}</span>
+            )}
+            {liveFinals.length === 0 && !livePartial && isLive && (
+              <span className="text-gray-400 italic">Listening...</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Result */}
       {error && (

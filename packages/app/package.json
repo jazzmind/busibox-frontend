@@ -186,7 +186,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jazzmind/busibox-app.git"
+    "url": "git+https://github.com/jazzmind/busibox-frontend.git"
   },
   "keywords": [
     "react",
