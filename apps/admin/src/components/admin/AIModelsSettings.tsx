@@ -27,6 +27,7 @@ import {
   ImageIcon,
 } from 'lucide-react';
 import { MediaServerStatus } from './MediaServerStatus';
+import { VLLMServerStatus } from './VLLMServerStatus';
 import { MediaPlaygroundSTT } from './MediaPlaygroundSTT';
 import { MediaPlaygroundTTS } from './MediaPlaygroundTTS';
 import { MediaPlaygroundImage } from './MediaPlaygroundImage';
@@ -786,6 +787,20 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
           primaryColor={customization.primaryColor}
           onStatusChange={fetchMediaStatus}
         />
+      </div>
+
+      {/* vLLM GPU Servers Status (Proxmox) */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 rounded-lg bg-emerald-50">
+            <Cpu className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">vLLM Servers</h2>
+            <p className="text-sm text-gray-500">GPU model servers, VRAM usage, and on-demand media models (Proxmox only)</p>
+          </div>
+        </div>
+        <VLLMServerStatus primaryColor={customization.primaryColor} />
       </div>
 
       </>}
