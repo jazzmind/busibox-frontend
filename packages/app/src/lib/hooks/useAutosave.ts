@@ -18,7 +18,7 @@ import { useState, useRef, useCallback } from 'react';
  * .autosave-flash { animation: autosave-flash 1s ease-out; }
  * ```
  */
-export function useAutosave<T extends Record<string, unknown>>(
+export function useAutosave<T extends object>(
   saveFn: (data: T) => Promise<boolean>,
 ) {
   const [saving, setSaving] = useState(false);

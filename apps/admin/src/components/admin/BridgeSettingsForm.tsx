@@ -173,7 +173,7 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
   }, []);
 
   const { saving, error: autosaveError, lastSaved, markDirty, triggerSave, triggerBlurSave } =
-    useAutosave<BridgeSettingsData>(persistViaHook);
+    useAutosave(persistViaHook);
 
   const updateText = <K extends keyof BridgeSettingsData>(key: K, value: BridgeSettingsData[K]) => {
     setFormData((prev) => {
