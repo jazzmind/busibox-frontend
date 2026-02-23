@@ -364,7 +364,6 @@ export default function AdminSettingsPage() {
                     <BridgeSettingsForm
                       settings={bridgeSettings}
                       bridgeHealth={bridgeHealth}
-                      onSuccess={fetchData}
                       section="status"
                     />
                   ) : (
@@ -397,7 +396,6 @@ export default function AdminSettingsPage() {
                         emailInboundPollInterval: (bridgeSettings as any).emailInboundPollInterval ?? null,
                         emailAllowedSenders: (bridgeSettings as any).emailAllowedSenders ?? null,
                       } as ImapSettingsData : null}
-                      onSuccess={fetchData}
                     />
                   ) : (
                     <div className="text-center py-8">
@@ -418,7 +416,6 @@ export default function AdminSettingsPage() {
                     <BridgeSettingsForm
                       settings={bridgeSettings}
                       bridgeHealth={bridgeHealth}
-                      onSuccess={fetchData}
                       section={bridgeSubTab}
                     />
                   ) : (

@@ -414,6 +414,16 @@ body {
   border-color: #374151;
 }
 
+/* Autosave border flash */
+@keyframes autosave-flash {
+  0%   { box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.8); }
+  100% { box-shadow: 0 0 0 2px rgba(34, 197, 94, 0); }
+}
+
+.autosave-flash {
+  animation: autosave-flash 1s ease-out;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

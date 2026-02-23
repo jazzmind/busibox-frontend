@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { RefreshCw, Check } from 'lucide-react';
 import type { DataSettingsRecord as DataSettings } from '@jazzmind/busibox-app/lib/data/settings';
+import { useAutosave } from '@jazzmind/busibox-app';
 
 type DataSection = 'features' | 'strategies' | 'chunking' | 'timeouts';
 
@@ -12,9 +13,7 @@ interface DataSettingsFormProps {
   section?: DataSection;
 }
 
-const AUTOSAVE_DELAY = 800;
-
-export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsFormProps) {
+export function DataSettingsForm({ settings, section }: DataSettingsFormProps) {
   const [formData, setFormData] = useState({
     llmCleanupEnabled: settings.llmCleanupEnabled,
     multiFlowEnabled: settings.multiFlowEnabled,
@@ -30,44 +29,38 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
     timeoutLarge: settings.timeoutLarge,
   });
 
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => { if (timer.current) clearTimeout(timer.current); };
+  const saveFn = useCallback(async (data: typeof formData) => {
+    const response = await fetch('/api/data-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Failed to update settings');
+    return true;
   }, []);
 
-  const save = useCallback(async (data: typeof formData) => {
-    setSaving(true);
-    setError(null);
-    setSaved(false);
-    try {
-      const response = await fetch('/api/data-settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to update settings');
-      setSaved(true);
-      if (onSuccess) onSuccess();
-      setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }, [onSuccess]);
+  const { saving, error, lastSaved, markDirty, triggerSave, triggerBlurSave } =
+    useAutosave(saveFn);
 
-  const update = <K extends keyof typeof formData>(key: K, value: (typeof formData)[K]) => {
-    setFormData((prev) => {
-      const next = { ...prev, [key]: value };
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => save(next), AUTOSAVE_DELAY);
-      return next;
-    });
+  const updateText = <K extends keyof typeof formData>(key: K, value: (typeof formData)[K]) => {
+    const next = { ...formData, [key]: value };
+    setFormData(next);
+    markDirty(next);
+  };
+
+  const updateImmediate = <K extends keyof typeof formData>(
+    key: K,
+    value: (typeof formData)[K],
+    el?: HTMLElement | null,
+  ) => {
+    const next = { ...formData, [key]: value };
+    setFormData(next);
+    triggerSave(next, el);
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    triggerBlurSave(e.target);
   };
 
   const show = (s: DataSection) => !section || section === s;
@@ -84,7 +77,7 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
                 id="llmCleanupEnabled"
                 type="checkbox"
                 checked={formData.llmCleanupEnabled}
-                onChange={(e) => update('llmCleanupEnabled', e.target.checked)}
+                onChange={(e) => updateImmediate('llmCleanupEnabled', e.target.checked, e.target)}
                 className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
             </div>
@@ -102,7 +95,7 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
                 id="multiFlowEnabled"
                 type="checkbox"
                 checked={formData.multiFlowEnabled}
-                onChange={(e) => update('multiFlowEnabled', e.target.checked)}
+                onChange={(e) => updateImmediate('multiFlowEnabled', e.target.checked, e.target)}
                 className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
             </div>
@@ -125,7 +118,8 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
                 min="1"
                 max="3"
                 value={formData.maxParallelStrategies}
-                onChange={(e) => update('maxParallelStrategies', parseInt(e.target.value) || 3)}
+                onChange={(e) => updateText('maxParallelStrategies', parseInt(e.target.value) || 3)}
+                onBlur={handleBlur}
                 className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               />
               <p className="text-xs text-gray-500 mt-1">Number of strategies to run concurrently (1-3)</p>
@@ -144,7 +138,7 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
                 id="markerEnabled"
                 type="checkbox"
                 checked={formData.markerEnabled}
-                onChange={(e) => update('markerEnabled', e.target.checked)}
+                onChange={(e) => updateImmediate('markerEnabled', e.target.checked, e.target)}
                 className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
             </div>
@@ -163,7 +157,7 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
                 id="colpaliEnabled"
                 type="checkbox"
                 checked={formData.colpaliEnabled}
-                onChange={(e) => update('colpaliEnabled', e.target.checked)}
+                onChange={(e) => updateImmediate('colpaliEnabled', e.target.checked, e.target)}
                 className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
             </div>
@@ -182,7 +176,7 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
                 id="entityExtractionEnabled"
                 type="checkbox"
                 checked={formData.entityExtractionEnabled}
-                onChange={(e) => update('entityExtractionEnabled', e.target.checked)}
+                onChange={(e) => updateImmediate('entityExtractionEnabled', e.target.checked, e.target)}
                 className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
             </div>
@@ -208,7 +202,8 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
               min="100"
               max="1000"
               value={formData.chunkSizeMin}
-              onChange={(e) => update('chunkSizeMin', parseInt(e.target.value) || 400)}
+              onChange={(e) => updateText('chunkSizeMin', parseInt(e.target.value) || 400)}
+              onBlur={handleBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             />
             <p className="text-xs text-gray-500 mt-1">Minimum characters per chunk (100-1000)</p>
@@ -221,7 +216,8 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
               min="200"
               max="2000"
               value={formData.chunkSizeMax}
-              onChange={(e) => update('chunkSizeMax', parseInt(e.target.value) || 800)}
+              onChange={(e) => updateText('chunkSizeMax', parseInt(e.target.value) || 800)}
+              onBlur={handleBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             />
             <p className="text-xs text-gray-500 mt-1">Maximum characters per chunk (200-2000)</p>
@@ -235,7 +231,8 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
               max="0.5"
               step="0.01"
               value={formData.chunkOverlapPct}
-              onChange={(e) => update('chunkOverlapPct', parseFloat(e.target.value) || 0.12)}
+              onChange={(e) => updateText('chunkOverlapPct', parseFloat(e.target.value) || 0.12)}
+              onBlur={handleBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             />
             <p className="text-xs text-gray-500 mt-1">Chunk overlap as decimal (0-0.5, e.g., 0.12 = 12%)</p>
@@ -256,7 +253,8 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
               max="600"
               step="30"
               value={formData.timeoutSmall}
-              onChange={(e) => update('timeoutSmall', parseInt(e.target.value) || 300)}
+              onChange={(e) => updateText('timeoutSmall', parseInt(e.target.value) || 300)}
+              onBlur={handleBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             />
             <p className="text-xs text-gray-500 mt-1">Seconds (60-600)</p>
@@ -270,7 +268,8 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
               max="1200"
               step="60"
               value={formData.timeoutMedium}
-              onChange={(e) => update('timeoutMedium', parseInt(e.target.value) || 600)}
+              onChange={(e) => updateText('timeoutMedium', parseInt(e.target.value) || 600)}
+              onBlur={handleBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             />
             <p className="text-xs text-gray-500 mt-1">Seconds (120-1200)</p>
@@ -284,7 +283,8 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
               max="3600"
               step="60"
               value={formData.timeoutLarge}
-              onChange={(e) => update('timeoutLarge', parseInt(e.target.value) || 1200)}
+              onChange={(e) => updateText('timeoutLarge', parseInt(e.target.value) || 1200)}
+              onBlur={handleBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             />
             <p className="text-xs text-gray-500 mt-1">Seconds (300-3600)</p>
@@ -302,7 +302,7 @@ export function DataSettingsForm({ settings, onSuccess, section }: DataSettingsF
       <div className="flex justify-end">
         <div className="flex items-center gap-2 text-xs text-gray-500">
           {saving && <><RefreshCw className="w-3 h-3 animate-spin" /> Saving...</>}
-          {!saving && saved && <><Check className="w-3 h-3 text-green-500" /> Saved</>}
+          {!saving && lastSaved && <><Check className="w-3 h-3 text-green-500" /> Saved</>}
         </div>
       </div>
     </div>

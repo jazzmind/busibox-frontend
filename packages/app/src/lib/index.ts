@@ -77,6 +77,7 @@ export * from './icons';
 
 // Hooks
 export * from './hooks/useIsMobile';
+export * from './hooks/useAutosave';
 
 // Media (video upload/expiration - client-safe)
 export * from './media/upload';

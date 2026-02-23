@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Button } from '@jazzmind/busibox-app';
 import { Eye, EyeOff, RefreshCw, PlugZap, HelpCircle, Radio, Check } from 'lucide-react';
+import { useAutosave } from '@jazzmind/busibox-app';
 
 export interface BridgeSettingsData {
   signalEnabled: boolean;
@@ -83,15 +84,14 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
 
   const [formData, setFormData] = useState<BridgeSettingsData>(settings);
   const [liveBridgeHealth, setLiveBridgeHealth] = useState<Record<string, unknown> | null>(bridgeHealth);
-  const [saving, setSaving] = useState(false);
   const [agentOptions, setAgentOptions] = useState<AgentOption[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [showSecrets, setShowSecrets] = useState<Set<string>>(new Set());
   const [testing, setTesting] = useState<string | null>(null);
   const [channelTestResults, setChannelTestResults] = useState<ChannelTestResults>({});
   const [testSummary, setTestSummary] = useState<ConnectivitySummaryItem[] | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setFormData(settings);
@@ -120,7 +120,7 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
           .filter((v: AgentOption | null): v is AgentOption => Boolean(v));
         setAgentOptions(mapped);
       } catch {
-        // non-fatal: keep default option
+        // non-fatal
       } finally {
         setLoadingAgents(false);
       }
@@ -136,7 +136,6 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
     const chatLike = agentOptions.find((agent) => isChatAgentName(agent.name))
       ?? agentOptions.find((agent) => agent.id.toLowerCase() === 'chat-agent');
 
-    // Reconcile placeholder or missing values to a real selectable agent ID.
     if (!currentExists || currentId === 'chat-agent') {
       const fallback = chatLike ?? agentOptions[0];
       if (fallback?.id && fallback.id !== currentId) {
@@ -154,54 +153,39 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
     });
   };
 
-  const persistSettings = async (
-    payload: BridgeSettingsData,
-    options?: { successMessage?: string; notifyParent?: boolean },
-  ) => {
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const response = await fetch('/api/bridge-settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to save bridge settings');
+  // ── Autosave via hook ─────────────────────────────────────────────────────
+  const persistViaHook = useCallback(async (data: BridgeSettingsData) => {
+    const response = await fetch('/api/bridge-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Failed to save bridge settings');
 
-      if (data.data?.config) {
-        setFormData(data.data.config as BridgeSettingsData);
-      }
-      if (data.data?.bridgeHealth) {
-        setLiveBridgeHealth(data.data.bridgeHealth as Record<string, unknown>);
-      }
-
-      setSuccess(options?.successMessage || data.data?.message || 'Bridge settings saved.');
-      if (options?.notifyParent !== false && onSuccess) onSuccess();
-      setTimeout(() => setSuccess(null), 6000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to save bridge settings');
-    } finally {
-      setSaving(false);
+    if (result.data?.config) {
+      setFormData(result.data.config as BridgeSettingsData);
     }
+    if (result.data?.bridgeHealth) {
+      setLiveBridgeHealth(result.data.bridgeHealth as Record<string, unknown>);
+    }
+    return true;
+  }, []);
+
+  const { saving, error: autosaveError, lastSaved, markDirty, triggerSave, triggerBlurSave } =
+    useAutosave(persistViaHook);
+
+  const updateText = <K extends keyof BridgeSettingsData>(key: K, value: BridgeSettingsData[K]) => {
+    setFormData((prev) => {
+      const next: BridgeSettingsData = { ...prev, [key]: value };
+      markDirty(next);
+      return next;
+    });
   };
 
-  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isFirstRender = useRef(true);
-
-  const autosave = useCallback((data: BridgeSettingsData) => {
-    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(() => {
-      void persistSettings(data, { notifyParent: true });
-    }, 800);
-  }, []);
-
-  useEffect(() => {
-    return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
-  }, []);
-
-  const updateField = <K extends keyof BridgeSettingsData>(key: K, value: BridgeSettingsData[K]) => {
+  const updateImmediate = <K extends keyof BridgeSettingsData>(
+    key: K, value: BridgeSettingsData[K], el?: HTMLElement | null,
+  ) => {
     setFormData((prev) => {
       const next: BridgeSettingsData = { ...prev, [key]: value };
       const enableKey = CREDENTIAL_TO_ENABLE[key];
@@ -211,33 +195,59 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
         if (enableKey === 'discordEnabled') next.discordEnabled = true;
         if (enableKey === 'whatsappEnabled') next.whatsappEnabled = true;
       }
-      autosave(next);
+      triggerSave(next, el);
       return next;
     });
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    triggerBlurSave(e.target);
+  };
+
+  const handleBlurWithCredential = (key: keyof BridgeSettingsData, e: React.FocusEvent<HTMLInputElement>) => {
+    const enableKey = CREDENTIAL_TO_ENABLE[key];
+    if (enableKey) {
+      setFormData((prev) => {
+        const val = prev[key];
+        if (typeof val === 'string' && val.trim().length > 0) {
+          const next = { ...prev };
+          if (enableKey === 'signalEnabled') next.signalEnabled = true;
+          if (enableKey === 'telegramEnabled') next.telegramEnabled = true;
+          if (enableKey === 'discordEnabled') next.discordEnabled = true;
+          if (enableKey === 'whatsappEnabled') next.whatsappEnabled = true;
+          markDirty(next);
+          triggerBlurSave(e.target);
+          return next;
+        }
+        triggerBlurSave(e.target);
+        return prev;
+      });
+    } else {
+      triggerBlurSave(e.target);
+    }
+  };
+
+  // ── Direct persist for agent change (immediate, not via hook) ─────────────
+  const handleDefaultAgentChange = async (value: string | null, el?: HTMLElement | null) => {
+    const next = { ...formData, defaultAgentId: value || null };
+    setFormData(next);
+    triggerSave(next, el);
   };
 
   const resetForm = () => {
     setFormData(settings);
     setLiveBridgeHealth(bridgeHealth);
-    setError(null);
-    setSuccess(null);
+    setErrorMsg(null);
+    setSuccessMsg(null);
     setChannelTestResults({});
     setTestSummary(null);
   };
 
-  const handleDefaultAgentChange = async (value: string | null) => {
-    const next = { ...formData, defaultAgentId: value || null };
-    setFormData(next);
-    await persistSettings(next, {
-      successMessage: 'Default agent updated.',
-      notifyParent: false,
-    });
-  };
-
+  // ── Connectivity tests ────────────────────────────────────────────────────
   const runConnectivityTest = async (target: ChannelTestTarget) => {
     setTesting(target);
-    setError(null);
-    setSuccess(null);
+    setErrorMsg(null);
+    setSuccessMsg(null);
     setTestSummary(null);
     try {
       const response = await fetch('/api/bridge-settings/test', {
@@ -262,7 +272,7 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
         },
       }));
     } catch (err: any) {
-      setError(err.message || `Connectivity test failed for ${target}`);
+      setErrorMsg(err.message || `Connectivity test failed for ${target}`);
     } finally {
       setTesting(null);
     }
@@ -270,8 +280,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
 
   const runAllEnabledConnectivityTests = async () => {
     setTesting('all');
-    setError(null);
-    setSuccess(null);
+    setErrorMsg(null);
+    setSuccessMsg(null);
     setChannelTestResults({});
     setTestSummary(null);
     try {
@@ -295,14 +305,15 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
         }
       }
       setChannelTestResults(mapped);
-      setSuccess(data.data?.message || 'Connectivity checks completed.');
+      setSuccessMsg(data.data?.message || 'Connectivity checks completed.');
     } catch (err: any) {
-      setError(err.message || 'Connectivity checks failed');
+      setErrorMsg(err.message || 'Connectivity checks failed');
     } finally {
       setTesting(null);
     }
   };
 
+  // ── Render helpers ────────────────────────────────────────────────────────
   const renderHelp = (label: string) => (
     <a
       href={BRIDGE_DOC_URL}
@@ -393,6 +404,9 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
 
   const show = (s: BridgeSection) => !section || section === s;
 
+  const error = autosaveError || errorMsg;
+  const success = successMsg;
+
   return (
     <div className="space-y-8">
       {show('status') && <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
@@ -432,7 +446,7 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             <label className="block text-sm font-medium text-gray-700 mb-1">Default Agent</label>
             <select
               value={selectedDefaultAgentId}
-              onChange={(e) => void handleDefaultAgentChange(e.target.value || null)}
+              onChange={(e) => void handleDefaultAgentChange(e.target.value || null, e.target)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
               disabled={loadingAgents || saving}
             >
@@ -489,7 +503,7 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             id="signalEnabled"
             type="checkbox"
             checked={formData.signalEnabled}
-            onChange={(e) => updateField('signalEnabled', e.target.checked)}
+            onChange={(e) => updateImmediate('signalEnabled', e.target.checked, e.target)}
             className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600"
           />
           <label htmlFor="signalEnabled" className="ml-3 text-sm text-gray-700">
@@ -502,7 +516,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             <input
               type="text"
               value={formData.signalPhoneNumber || ''}
-              onChange={(e) => updateField('signalPhoneNumber', e.target.value || null)}
+              onChange={(e) => updateText('signalPhoneNumber', e.target.value || null)}
+              onBlur={(e) => handleBlurWithCredential('signalPhoneNumber', e)}
               placeholder="+15551234567"
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
@@ -512,7 +527,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             <input
               type="text"
               value={formData.allowedPhoneNumbers || ''}
-              onChange={(e) => updateField('allowedPhoneNumbers', e.target.value || null)}
+              onChange={(e) => updateText('allowedPhoneNumbers', e.target.value || null)}
+              onBlur={handleBlur}
               placeholder="+15550000001,+15550000002"
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
@@ -544,7 +560,7 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             id="telegramEnabled"
             type="checkbox"
             checked={formData.telegramEnabled}
-            onChange={(e) => updateField('telegramEnabled', e.target.checked)}
+            onChange={(e) => updateImmediate('telegramEnabled', e.target.checked, e.target)}
             className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600"
           />
           <label htmlFor="telegramEnabled" className="ml-3 text-sm text-gray-700">
@@ -559,7 +575,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             <input
               type={showSecrets.has('telegramBotToken') ? 'text' : 'password'}
               value={formData.telegramBotToken || ''}
-              onChange={(e) => updateField('telegramBotToken', e.target.value || null)}
+              onChange={(e) => updateText('telegramBotToken', e.target.value || null)}
+              onBlur={(e) => handleBlurWithCredential('telegramBotToken', e)}
               placeholder="123456:ABC..."
               autoComplete="off"
               data-1p-ignore
@@ -582,7 +599,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
               type="number"
               step="0.1"
               value={formData.telegramPollInterval ?? ''}
-              onChange={(e) => updateField('telegramPollInterval', e.target.value ? Number.parseFloat(e.target.value) : null)}
+              onChange={(e) => updateText('telegramPollInterval', e.target.value ? Number.parseFloat(e.target.value) : null)}
+              onBlur={handleBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
@@ -591,7 +609,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             <input
               type="number"
               value={formData.telegramPollTimeout ?? ''}
-              onChange={(e) => updateField('telegramPollTimeout', e.target.value ? Number.parseInt(e.target.value, 10) : null)}
+              onChange={(e) => updateText('telegramPollTimeout', e.target.value ? Number.parseInt(e.target.value, 10) : null)}
+              onBlur={handleBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
@@ -600,7 +619,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             <input
               type="text"
               value={formData.telegramAllowedChatIds || ''}
-              onChange={(e) => updateField('telegramAllowedChatIds', e.target.value || null)}
+              onChange={(e) => updateText('telegramAllowedChatIds', e.target.value || null)}
+              onBlur={handleBlur}
               placeholder="1234,5678"
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
@@ -633,7 +653,7 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             id="discordEnabled"
             type="checkbox"
             checked={formData.discordEnabled}
-            onChange={(e) => updateField('discordEnabled', e.target.checked)}
+            onChange={(e) => updateImmediate('discordEnabled', e.target.checked, e.target)}
             className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600"
           />
           <label htmlFor="discordEnabled" className="ml-3 text-sm text-gray-700">
@@ -648,7 +668,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             <input
               type={showSecrets.has('discordBotToken') ? 'text' : 'password'}
               value={formData.discordBotToken || ''}
-              onChange={(e) => updateField('discordBotToken', e.target.value || null)}
+              onChange={(e) => updateText('discordBotToken', e.target.value || null)}
+              onBlur={(e) => handleBlurWithCredential('discordBotToken', e)}
               placeholder="Bot token"
               autoComplete="off"
               data-1p-ignore
@@ -671,7 +692,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
               type="number"
               step="0.1"
               value={formData.discordPollInterval ?? ''}
-              onChange={(e) => updateField('discordPollInterval', e.target.value ? Number.parseFloat(e.target.value) : null)}
+              onChange={(e) => updateText('discordPollInterval', e.target.value ? Number.parseFloat(e.target.value) : null)}
+              onBlur={handleBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
@@ -680,7 +702,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             <input
               type="text"
               value={formData.discordChannelIds || ''}
-              onChange={(e) => updateField('discordChannelIds', e.target.value || null)}
+              onChange={(e) => updateText('discordChannelIds', e.target.value || null)}
+              onBlur={handleBlur}
               placeholder="1234567890,0987654321"
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
@@ -713,7 +736,7 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             id="whatsappEnabled"
             type="checkbox"
             checked={formData.whatsappEnabled}
-            onChange={(e) => updateField('whatsappEnabled', e.target.checked)}
+            onChange={(e) => updateImmediate('whatsappEnabled', e.target.checked, e.target)}
             className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600"
           />
           <label htmlFor="whatsappEnabled" className="ml-3 text-sm text-gray-700">
@@ -729,7 +752,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
               <input
                 type={showSecrets.has('whatsappVerifyToken') ? 'text' : 'password'}
                 value={formData.whatsappVerifyToken || ''}
-                onChange={(e) => updateField('whatsappVerifyToken', e.target.value || null)}
+                onChange={(e) => updateText('whatsappVerifyToken', e.target.value || null)}
+                onBlur={(e) => handleBlurWithCredential('whatsappVerifyToken', e)}
                 autoComplete="off"
                 data-1p-ignore
                 data-lpignore="true"
@@ -752,7 +776,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
               <input
                 type={showSecrets.has('whatsappAccessToken') ? 'text' : 'password'}
                 value={formData.whatsappAccessToken || ''}
-                onChange={(e) => updateField('whatsappAccessToken', e.target.value || null)}
+                onChange={(e) => updateText('whatsappAccessToken', e.target.value || null)}
+                onBlur={(e) => handleBlurWithCredential('whatsappAccessToken', e)}
                 autoComplete="off"
                 data-1p-ignore
                 data-lpignore="true"
@@ -774,7 +799,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             <input
               type="text"
               value={formData.whatsappPhoneNumberId || ''}
-              onChange={(e) => updateField('whatsappPhoneNumberId', e.target.value || null)}
+              onChange={(e) => updateText('whatsappPhoneNumberId', e.target.value || null)}
+              onBlur={handleBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
@@ -783,7 +809,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             <input
               type="text"
               value={formData.whatsappApiVersion || ''}
-              onChange={(e) => updateField('whatsappApiVersion', e.target.value || null)}
+              onChange={(e) => updateText('whatsappApiVersion', e.target.value || null)}
+              onBlur={handleBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
@@ -792,7 +819,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             <input
               type="text"
               value={formData.whatsappAllowedPhoneNumbers || ''}
-              onChange={(e) => updateField('whatsappAllowedPhoneNumbers', e.target.value || null)}
+              onChange={(e) => updateText('whatsappAllowedPhoneNumbers', e.target.value || null)}
+              onBlur={handleBlur}
               placeholder="15550000001,15550000002"
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
@@ -845,7 +873,7 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
 
         <div className="flex items-center gap-2 text-xs text-gray-500">
           {saving && <><RefreshCw className="w-3 h-3 animate-spin" /> Saving...</>}
-          {!saving && success && <><Check className="w-3 h-3 text-green-500" /> Saved</>}
+          {!saving && lastSaved && <><Check className="w-3 h-3 text-green-500" /> Saved</>}
         </div>
       </div>
     </div>

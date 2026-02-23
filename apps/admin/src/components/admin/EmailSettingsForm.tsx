@@ -8,8 +8,9 @@
 
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Eye, EyeOff, Send, RefreshCw, Check } from 'lucide-react';
+import { useAutosave } from '@jazzmind/busibox-app';
 
 export interface EmailSettingsData {
   smtpHost: string | null;
@@ -40,8 +41,6 @@ interface EmailSettingsFormProps {
   onSuccess?: () => void;
 }
 
-const AUTOSAVE_DELAY = 800;
-
 export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSuccess }: EmailSettingsFormProps) {
   const [formData, setFormData] = useState<EmailSettingsData>({ ...settings });
   const [imapData, setImapData] = useState<ImapSettingsData>(imapSettings ?? {
@@ -56,21 +55,9 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
     emailAllowedSenders: null,
   });
 
-  const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<string | null>(null);
   const [showPasswords, setShowPasswords] = useState<Set<string>>(new Set());
-
-  const emailTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const imapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (emailTimer.current) clearTimeout(emailTimer.current);
-      if (imapTimer.current) clearTimeout(imapTimer.current);
-    };
-  }, []);
 
   const togglePasswordVisibility = (key: string) => {
     setShowPasswords((prev) => {
@@ -81,73 +68,75 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
     });
   };
 
-  // ── Autosave: outbound email settings ────────────────────────────────────
-  const saveEmail = useCallback(async (data: EmailSettingsData) => {
-    setSaving(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/email-settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to save email settings');
-      setSuccess('Saved');
-      if (onSuccess) onSuccess();
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }, [onSuccess]);
-
-  const updateEmail = <K extends keyof EmailSettingsData>(key: K, value: EmailSettingsData[K]) => {
-    setFormData((prev) => {
-      const next = { ...prev, [key]: value };
-      if (emailTimer.current) clearTimeout(emailTimer.current);
-      emailTimer.current = setTimeout(() => saveEmail(next), AUTOSAVE_DELAY);
-      return next;
+  // ── Email autosave ────────────────────────────────────────────────────────
+  const saveEmailFn = useCallback(async (data: EmailSettingsData) => {
+    const response = await fetch('/api/email-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
     });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Failed to save email settings');
+    return true;
+  }, []);
+
+  const email = useAutosave(saveEmailFn);
+
+  const updateEmailText = <K extends keyof EmailSettingsData>(key: K, value: EmailSettingsData[K]) => {
+    const next = { ...formData, [key]: value };
+    setFormData(next);
+    email.markDirty(next);
   };
 
-  // ── Autosave: IMAP inbound settings (via bridge-settings API) ────────────
-  const saveImap = useCallback(async (data: ImapSettingsData) => {
-    setSaving(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/bridge-settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to save IMAP settings');
-      setSuccess('Saved');
-      if (onSuccess) onSuccess();
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }, [onSuccess]);
-
-  const updateImap = <K extends keyof ImapSettingsData>(key: K, value: ImapSettingsData[K]) => {
-    setImapData((prev) => {
-      const next = { ...prev, [key]: value };
-      if (imapTimer.current) clearTimeout(imapTimer.current);
-      imapTimer.current = setTimeout(() => saveImap(next), AUTOSAVE_DELAY);
-      return next;
-    });
+  const updateEmailImmediate = <K extends keyof EmailSettingsData>(
+    key: K, value: EmailSettingsData[K], el?: HTMLElement | null,
+  ) => {
+    const next = { ...formData, [key]: value };
+    setFormData(next);
+    email.triggerSave(next, el);
   };
 
-  // ── Test email (still manual) ────────────────────────────────────────────
+  const handleEmailBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    email.triggerBlurSave(e.target);
+  };
+
+  // ── IMAP autosave ─────────────────────────────────────────────────────────
+  const saveImapFn = useCallback(async (data: ImapSettingsData) => {
+    const response = await fetch('/api/bridge-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Failed to save IMAP settings');
+    return true;
+  }, []);
+
+  const imap = useAutosave(saveImapFn);
+
+  const updateImapText = <K extends keyof ImapSettingsData>(key: K, value: ImapSettingsData[K]) => {
+    const next = { ...imapData, [key]: value };
+    setImapData(next);
+    imap.markDirty(next);
+  };
+
+  const updateImapImmediate = <K extends keyof ImapSettingsData>(
+    key: K, value: ImapSettingsData[K], el?: HTMLElement | null,
+  ) => {
+    const next = { ...imapData, [key]: value };
+    setImapData(next);
+    imap.triggerSave(next, el);
+  };
+
+  const handleImapBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    imap.triggerBlurSave(e.target);
+  };
+
+  // ── Test email (still manual) ─────────────────────────────────────────────
   const handleTestEmail = async () => {
     setTesting(true);
-    setError(null);
-    setSuccess(null);
+    setTestResult(null);
+    email.setError(null);
     try {
       const response = await fetch('/api/email-settings/test', {
         method: 'POST',
@@ -155,10 +144,10 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to send test email');
-      setSuccess(data.data?.message || 'Test email sent! Check your inbox.');
-      setTimeout(() => setSuccess(null), 8000);
+      setTestResult(data.data?.message || 'Test email sent! Check your inbox.');
+      setTimeout(() => setTestResult(null), 8000);
     } catch (err: any) {
-      setError(err.message);
+      email.setError(err.message);
     } finally {
       setTesting(false);
     }
@@ -171,6 +160,10 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
     unknown: 'Unknown',
     unreachable: 'Bridge API unreachable',
   };
+
+  const saving = email.saving || imap.saving;
+  const error = email.error || imap.error;
+  const saved = email.lastSaved || imap.lastSaved;
 
   return (
     <div className="space-y-8">
@@ -211,7 +204,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
               id="emailFrom"
               type="text"
               value={formData.emailFrom || ''}
-              onChange={(e) => updateEmail('emailFrom', e.target.value || null)}
+              onChange={(e) => updateEmailText('emailFrom', e.target.value || null)}
+              onBlur={handleEmailBlur}
               placeholder="Portal <noreply@example.com>"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             />
@@ -236,7 +230,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
                 id="smtpHost"
                 type="text"
                 value={formData.smtpHost || ''}
-                onChange={(e) => updateEmail('smtpHost', e.target.value || null)}
+                onChange={(e) => updateEmailText('smtpHost', e.target.value || null)}
+                onBlur={handleEmailBlur}
                 placeholder="smtp.example.com"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               />
@@ -247,7 +242,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
                 id="smtpPort"
                 type="number"
                 value={formData.smtpPort ?? ''}
-                onChange={(e) => updateEmail('smtpPort', e.target.value ? parseInt(e.target.value, 10) : null)}
+                onChange={(e) => updateEmailText('smtpPort', e.target.value ? parseInt(e.target.value, 10) : null)}
+                onBlur={handleEmailBlur}
                 placeholder="587"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               />
@@ -261,7 +257,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
                 id="smtpUser"
                 type="text"
                 value={formData.smtpUser || ''}
-                onChange={(e) => updateEmail('smtpUser', e.target.value || null)}
+                onChange={(e) => updateEmailText('smtpUser', e.target.value || null)}
+                onBlur={handleEmailBlur}
                 placeholder="user@example.com"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               />
@@ -273,7 +270,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
                   id="smtpPassword"
                   type={showPasswords.has('smtpPassword') ? 'text' : 'password'}
                   value={formData.smtpPassword || ''}
-                  onChange={(e) => updateEmail('smtpPassword', e.target.value || null)}
+                  onChange={(e) => updateEmailText('smtpPassword', e.target.value || null)}
+                  onBlur={handleEmailBlur}
                   placeholder="••••••••"
                   className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -293,7 +291,7 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
                 id="smtpSecure"
                 type="checkbox"
                 checked={formData.smtpSecure}
-                onChange={(e) => updateEmail('smtpSecure', e.target.checked)}
+                onChange={(e) => updateEmailImmediate('smtpSecure', e.target.checked, e.target)}
                 className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
             </div>
@@ -319,7 +317,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
                 id="resendApiKey"
                 type={showPasswords.has('resendApiKey') ? 'text' : 'password'}
                 value={formData.resendApiKey || ''}
-                onChange={(e) => updateEmail('resendApiKey', e.target.value || null)}
+                onChange={(e) => updateEmailText('resendApiKey', e.target.value || null)}
+                onBlur={handleEmailBlur}
                 placeholder="re_xxxxxxxxxxxx"
                 className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               />
@@ -351,7 +350,7 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
             id="emailInboundEnabled"
             type="checkbox"
             checked={imapData.emailInboundEnabled}
-            onChange={(e) => updateImap('emailInboundEnabled', e.target.checked)}
+            onChange={(e) => updateImapImmediate('emailInboundEnabled', e.target.checked, e.target)}
             className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600"
           />
           <label htmlFor="emailInboundEnabled" className="ml-3 text-sm text-gray-700">
@@ -364,7 +363,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
             <input
               type="text"
               value={imapData.imapHost || ''}
-              onChange={(e) => updateImap('imapHost', e.target.value || null)}
+              onChange={(e) => updateImapText('imapHost', e.target.value || null)}
+              onBlur={handleImapBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
@@ -373,7 +373,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
             <input
               type="number"
               value={imapData.imapPort ?? ''}
-              onChange={(e) => updateImap('imapPort', e.target.value ? parseInt(e.target.value, 10) : null)}
+              onChange={(e) => updateImapText('imapPort', e.target.value ? parseInt(e.target.value, 10) : null)}
+              onBlur={handleImapBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
@@ -382,7 +383,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
             <input
               type="text"
               value={imapData.imapFolder || ''}
-              onChange={(e) => updateImap('imapFolder', e.target.value || null)}
+              onChange={(e) => updateImapText('imapFolder', e.target.value || null)}
+              onBlur={handleImapBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
@@ -393,7 +395,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
             <input
               type="text"
               value={imapData.imapUser || ''}
-              onChange={(e) => updateImap('imapUser', e.target.value || null)}
+              onChange={(e) => updateImapText('imapUser', e.target.value || null)}
+              onBlur={handleImapBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
@@ -403,7 +406,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
               <input
                 type={showPasswords.has('imapPassword') ? 'text' : 'password'}
                 value={imapData.imapPassword || ''}
-                onChange={(e) => updateImap('imapPassword', e.target.value || null)}
+                onChange={(e) => updateImapText('imapPassword', e.target.value || null)}
+                onBlur={handleImapBlur}
                 autoComplete="off"
                 data-1p-ignore
                 data-lpignore="true"
@@ -424,7 +428,7 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
             <input
               type="checkbox"
               checked={imapData.imapUseSsl}
-              onChange={(e) => updateImap('imapUseSsl', e.target.checked)}
+              onChange={(e) => updateImapImmediate('imapUseSsl', e.target.checked, e.target)}
               className="h-4 w-4 rounded border-gray-300 text-blue-600"
             />
             Use SSL
@@ -435,7 +439,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
               type="number"
               step="0.1"
               value={imapData.emailInboundPollInterval ?? ''}
-              onChange={(e) => updateImap('emailInboundPollInterval', e.target.value ? parseFloat(e.target.value) : null)}
+              onChange={(e) => updateImapText('emailInboundPollInterval', e.target.value ? parseFloat(e.target.value) : null)}
+              onBlur={handleImapBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
@@ -444,7 +449,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
             <input
               type="text"
               value={imapData.emailAllowedSenders || ''}
-              onChange={(e) => updateImap('emailAllowedSenders', e.target.value || null)}
+              onChange={(e) => updateImapText('emailAllowedSenders', e.target.value || null)}
+              onBlur={handleImapBlur}
               placeholder="user@example.com,ops@example.com"
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
@@ -472,7 +478,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
 
         <div className="flex items-center gap-2 text-xs text-gray-500">
           {saving && <><RefreshCw className="w-3 h-3 animate-spin" /> Saving...</>}
-          {!saving && success && <><Check className="w-3 h-3 text-green-500" /> {success}</>}
+          {!saving && saved && <><Check className="w-3 h-3 text-green-500" /> Saved</>}
+          {!saving && !saved && testResult && <><Check className="w-3 h-3 text-green-500" /> {testResult}</>}
         </div>
       </div>
     </div>
