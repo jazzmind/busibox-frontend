@@ -20,7 +20,7 @@ If token exchange fails:
 
 This error indicates auth token exchange failed.
 
-- Check the `/api/authz/token` endpoint
+- Check the `/api/auth/token-exchange` endpoint
 - Verify the user is authenticated
 - Confirm agent-api is running and reachable
 

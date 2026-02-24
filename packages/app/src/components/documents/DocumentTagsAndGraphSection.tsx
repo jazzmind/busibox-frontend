@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Tag, Pencil, X, Plus, Loader2, Network, ChevronRight } from 'lucide-react';
 import { Button } from '@jazzmind/busibox-app';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 interface GraphNode {
   node_id: string;
@@ -111,6 +112,8 @@ export function DocumentTagsAndGraphSection({
   const [graphLoading, setGraphLoading] = useState(false);
   const [graphAvailable, setGraphAvailable] = useState(true);
 
+  const resolve = useCrossAppApiPath();
+
   useEffect(() => {
     setTags(extractedKeywords || []);
   }, [extractedKeywords]);
@@ -119,7 +122,7 @@ export function DocumentTagsAndGraphSection({
     setSaving(true);
     setSaveError(null);
     try {
-      const res = await fetch(`/documents/api/documents/${fileId}/tags`, {
+      const res = await fetch(resolve('documents', `/api/documents/${fileId}/tags`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ extractedKeywords: tags }),
@@ -135,7 +138,7 @@ export function DocumentTagsAndGraphSection({
     } finally {
       setSaving(false);
     }
-  }, [fileId, tags, onTagsUpdated]);
+  }, [fileId, tags, onTagsUpdated, resolve]);
 
   const addTag = () => {
     const t = newTag.trim();
@@ -157,7 +160,7 @@ export function DocumentTagsAndGraphSection({
     }
     let cancelled = false;
     setGraphLoading(true);
-    fetch(`/api/graph/document/${fileId}`)
+    fetch(resolve('graph', `/api/graph/document/${fileId}`))
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
@@ -174,7 +177,7 @@ export function DocumentTagsAndGraphSection({
     return () => {
       cancelled = true;
     };
-  }, [fileId, refreshKey, mode]);
+  }, [fileId, refreshKey, mode, resolve]);
 
   const entityGroups = graphNodes.reduce<Record<string, string[]>>((acc, n) => {
     const type = n.entity_type || (n.labels && n.labels[0]) || 'Other';

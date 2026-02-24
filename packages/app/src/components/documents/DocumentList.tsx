@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import type { DocumentWithUser } from '../../types/documents';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppApiPath, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 
 interface DocumentListProps {
@@ -12,6 +12,8 @@ interface DocumentListProps {
 
 export function DocumentList({ libraryId, onDocumentClick }: DocumentListProps) {
   const api = useBusiboxApi();
+  const resolve = useCrossAppApiPath();
+  const documentsBase = useCrossAppBasePath('documents');
 
   const [documents, setDocuments] = useState<DocumentWithUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,7 +94,7 @@ export function DocumentList({ libraryId, onDocumentClick }: DocumentListProps) 
           init: { method: 'GET' },
         },
         next: {
-          nextApiBasePath: api.nextApiBasePath,
+          nextApiBasePath: documentsBase,
           path: endpoint,
           init: { method: 'GET' },
         },

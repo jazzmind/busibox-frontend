@@ -9,17 +9,23 @@
  * - Automatic 401 retry via FetchWrapper integration (setGlobalAuthManager)
  * - Redirect to portal when re-authentication is required
  * 
+ * All auth operations (session check, token exchange, token refresh) are
+ * handled by a single /api/auth/session endpoint:
+ *   GET  — Return current session from app-scoped cookie
+ *   POST {token} — SSO token exchange (set app-scoped cookies)
+ *   POST {} — Token refresh (exchange SSO token for fresh API token)
+ * 
  * Backward-compatible: existing apps using <SessionProvider> with no props
  * continue to work and automatically gain background refresh capabilities.
  * 
  * @example
  * ```tsx
- * // Root layout - minimal (admin/chat pattern)
+ * // Root layout - minimal (portal pattern)
  * <SessionProvider>
  *   {children}
  * </SessionProvider>
  * 
- * // Root layout - with SSO config (agents/appbuilder/media pattern)
+ * // Root layout - with SSO config (agents/admin/chat/media pattern)
  * <SessionProvider appId="busibox-agents" portalUrl={process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL}>
  *   {children}
  * </SessionProvider>
@@ -92,11 +98,11 @@ export type SessionProviderProps = {
   portalUrl?: string;
   /** Base path for the app (e.g., "/agents") */
   basePath?: string;
-  /** Session endpoint (default: "/api/auth/session") */
+  /** Session endpoint - GET returns session, POST handles exchange/refresh (default: "/api/auth/session") */
   sessionEndpoint?: string;
-  /** Token refresh endpoint (default: "/api/auth/refresh") */
+  /** Token refresh endpoint - POST with empty body (default: "/api/auth/session") */
   refreshEndpoint?: string;
-  /** SSO token exchange endpoint (default: "/api/sso") */
+  /** SSO token exchange endpoint - POST with {token} (default: "/api/auth/session") */
   exchangeEndpoint?: string;
   /** Logout endpoint (default: "/api/logout") */
   logoutEndpoint?: string;
@@ -177,8 +183,8 @@ export function SessionProvider({
   portalUrl: portalUrlProp,
   basePath: basePathProp,
   sessionEndpoint = '/api/auth/session',
-  refreshEndpoint = '/api/auth/refresh',
-  exchangeEndpoint = '/api/sso',
+  refreshEndpoint = '/api/auth/session',
+  exchangeEndpoint = '/api/auth/session',
   logoutEndpoint = '/api/logout',
   checkIntervalMs = 30_000,
   refreshBufferMs = 5 * 60 * 1000,
@@ -311,6 +317,13 @@ export function SessionProvider({
     console.log('[SessionProvider] Token found in URL, starting exchange...');
     setIsReady(false);
 
+    // Remove token from URL IMMEDIATELY (synchronously) to prevent infinite
+    // reload loops when HMR/Fast Refresh re-mounts the component before the
+    // async exchange completes.
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('token');
+    window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search);
+
     exchangeToken(token, `${basePath}${exchangeEndpoint}`)
       .then(() => {
         console.log('[SessionProvider] Token exchange successful');
@@ -326,12 +339,6 @@ export function SessionProvider({
       })
       .finally(() => {
         setTokenExchangeComplete(true);
-
-        // Remove token from URL
-        const url = new URL(window.location.href);
-        url.searchParams.delete('token');
-        console.log('[SessionProvider] Replacing URL:', window.location.pathname, '->', url.pathname + url.search);
-        window.history.replaceState(null, '', url.pathname + url.search);
       });
   }, [basePath, exchangeEndpoint, portalUrl, resolvedAppId]);
 
@@ -397,6 +404,8 @@ export function SessionProvider({
           isAuthenticated: true,
           isAdmin: state.user.roles?.includes('Admin') || false,
         });
+      } else {
+        setContext({ user: null, isAuthenticated: false, isAdmin: false });
       }
       setRefreshKey(prev => prev + 1);
     });
@@ -409,6 +418,7 @@ export function SessionProvider({
     const unsubscribeReauth = manager.on('requiresReauth', (data: unknown) => {
       const reason = (data as { reason?: string })?.reason;
       console.log('[SessionProvider] Re-authentication required:', reason);
+      setContext({ user: null, isAuthenticated: false, isAdmin: false });
     });
 
     const startDelay = setTimeout(() => {

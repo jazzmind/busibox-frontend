@@ -114,6 +114,7 @@ export default function DocumentDetailsPage({
   const [showSplitView, setShowSplitView] = useState(false);
   const [splitRefreshKey, setSplitRefreshKey] = useState(0);
   const [showSchemaModal, setShowSchemaModal] = useState(false);
+  const [seedingDefaults, setSeedingDefaults] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [reprocessOpen, setReprocessOpen] = useState(false);
   const downloadDropdownRef = useRef<HTMLDivElement>(null);
@@ -487,10 +488,28 @@ export default function DocumentDetailsPage({
       }
       setShowSplitView(true);
       setSplitRefreshKey((k) => k + 1);
+      setGraphRefreshKey((k) => k + 1);
+      await fetchDocument(false);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Extraction failed');
     } finally {
       setExtracting(false);
+    }
+  };
+
+  const handleSeedDefaults = async () => {
+    setSeedingDefaults(true);
+    try {
+      const response = await fetch('/documents/api/data/seed-default-schemas', { method: 'POST' });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || 'Failed to seed default schemas');
+      }
+      await fetchSchemas();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to seed default schemas');
+    } finally {
+      setSeedingDefaults(false);
     }
   };
 
@@ -759,7 +778,7 @@ export default function DocumentDetailsPage({
               {!isMediaFile && (
                 <Button variant="secondary" size="sm" onClick={() => setShowSchemaModal(true)}>
                   <Wand2 className="w-4 h-4 mr-2" />
-                  Schema
+                  Extract
                 </Button>
               )}
               {!isMediaFile && (
@@ -868,13 +887,6 @@ export default function DocumentDetailsPage({
                         onClick={() => { handleReprocess('markdown'); setReprocessOpen(false); }}
                       >
                         Regenerate Markdown <span className="text-xs text-gray-500 ml-2">HTML view</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
-                        onClick={() => { handleReprocess('entity_extraction'); setReprocessOpen(false); }}
-                      >
-                        Re-extract Keywords & Entities <span className="text-xs text-gray-500 ml-2">Knowledge graph</span>
                       </button>
                       <button
                         type="button"
@@ -989,7 +1001,7 @@ export default function DocumentDetailsPage({
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowSchemaModal(false)}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Schema Management</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Extract Data</h3>
                 <button onClick={() => setShowSchemaModal(false)} className="text-gray-400 hover:text-gray-600">
                   <X className="w-5 h-5" />
                 </button>
@@ -1036,6 +1048,15 @@ export default function DocumentDetailsPage({
                     {showSplitView ? 'Hide Extractions' : 'View Extractions'}
                   </Button>
                 </div>
+                {schemas.length === 0 && (
+                  <div className="flex items-center gap-2">
+                    <Button variant="secondary" size="sm" onClick={handleSeedDefaults} disabled={seedingDefaults}>
+                      <Database className="w-4 h-4 mr-2" />
+                      {seedingDefaults ? 'Loading...' : 'Load Default Schemas'}
+                    </Button>
+                    <span className="text-xs text-gray-500">or generate one from this document</span>
+                  </div>
+                )}
                 <p className="text-xs text-gray-500">
                   Generate or select a schema, apply extraction, then view extractions with provenance highlighting.
                 </p>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 interface PortalDocumentListProps {
   libraryId?: string;
@@ -26,6 +27,7 @@ interface DocumentRecord {
 }
 
 export function PortalDocumentList({ libraryId, onDocumentClick, prefilledTag, onOpenAdvanced }: PortalDocumentListProps) {
+  const resolve = useCrossAppApiPath();
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +100,7 @@ export function PortalDocumentList({ libraryId, onDocumentClick, prefilledTag, o
       if (tagFilter) params.append('tag', tagFilter);
 
       const response = await fetch(
-        `/api/libraries/${libraryId}/documents?${params.toString()}`,
+        resolve('libraries', `/api/libraries/${libraryId}/documents?${params.toString()}`),
         { credentials: 'include' }
       );
       if (!response.ok) {

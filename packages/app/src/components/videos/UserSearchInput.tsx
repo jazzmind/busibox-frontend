@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 
 interface User {
@@ -25,6 +25,7 @@ interface UserSearchInputProps {
 
 export function UserSearchInput({ onSelectUser, selectedUserIds = [], placeholder = 'Search users by email...' }: UserSearchInputProps) {
   const api = useBusiboxApi();
+  const mediaBasePath = useCrossAppBasePath('media');
 
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
@@ -48,7 +49,7 @@ export function UserSearchInput({ onSelectUser, selectedUserIds = [], placeholde
 
         const response = await fetchServiceFirstFallbackNext({
           service: { baseUrl: api.services?.agentApiUrl, path: endpoint, init: { method: 'GET' } },
-          next: { nextApiBasePath: api.nextApiBasePath, path: endpoint, init: { method: 'GET' } },
+          next: { nextApiBasePath: mediaBasePath, path: endpoint, init: { method: 'GET' } },
           fallback: {
             fallbackOnNetworkError: api.fallback?.fallbackOnNetworkError ?? true,
             fallbackStatuses: [
@@ -82,7 +83,7 @@ export function UserSearchInput({ onSelectUser, selectedUserIds = [], placeholde
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [api.fallback, api.nextApiBasePath, api.serviceRequestHeaders, api.services?.agentApiUrl, query, selectedUserIds]);
+  }, [api.fallback, mediaBasePath, api.serviceRequestHeaders, api.services?.agentApiUrl, query, selectedUserIds]);
 
   const handleSelectUser = (user: User) => {
     onSelectUser(user);

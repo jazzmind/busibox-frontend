@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 import { ProvenanceHighlighter } from './ProvenanceHighlighter';
 import { SchemaFieldViewer } from './SchemaFieldViewer';
 import { Trash2 } from 'lucide-react';
@@ -30,6 +31,8 @@ export function ExtractionSplitView({
   const [savingRecordId, setSavingRecordId] = useState<string | null>(null);
   const [deletingRecordId, setDeletingRecordId] = useState<string | null>(null);
 
+  const resolve = useCrossAppApiPath();
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -37,11 +40,11 @@ export function ExtractionSplitView({
       setError(null);
       try {
         const [markdownResp, extractionResp, schemaResp] = await Promise.all([
-          fetch(`/documents/api/documents/${fileId}/markdown`),
+          fetch(resolve('documents', `/api/documents/${fileId}/markdown`)),
           fetch(
-            `/documents/api/documents/${fileId}/extractions?schemaDocumentId=${encodeURIComponent(schemaDocumentId)}`
+            resolve('documents', `/api/documents/${fileId}/extractions?schemaDocumentId=${encodeURIComponent(schemaDocumentId)}`)
           ),
-          fetch(`/api/data/${schemaDocumentId}`),
+          fetch(resolve('data', `/api/data/${schemaDocumentId}`)),
         ]);
         if (!markdownResp.ok) throw new Error('Failed to load markdown');
         if (!extractionResp.ok) throw new Error('Failed to load extraction records');
@@ -76,7 +79,7 @@ export function ExtractionSplitView({
     return () => {
       cancelled = true;
     };
-  }, [fileId, schemaDocumentId, refreshKey]);
+  }, [fileId, schemaDocumentId, refreshKey, resolve]);
 
   const handleUpdateField = async (record: Record<string, any>, field: string, value: any) => {
     const recordId = record.id;
@@ -85,7 +88,7 @@ export function ExtractionSplitView({
     }
     setSavingRecordId(recordId);
     try {
-      const response = await fetch(`/api/data/${schemaDocumentId}/records`, {
+      const response = await fetch(resolve('data', `/api/data/${schemaDocumentId}/records`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -122,7 +125,7 @@ export function ExtractionSplitView({
 
     setDeletingRecordId(recordId);
     try {
-      const response = await fetch(`/api/data/${schemaDocumentId}/records`, {
+      const response = await fetch(resolve('data', `/api/data/${schemaDocumentId}/records`), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

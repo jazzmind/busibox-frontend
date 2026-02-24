@@ -7,6 +7,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 export interface SearchToggleState {
   webSearch: boolean;
@@ -30,6 +31,7 @@ export function SearchToggles({
   disabled = false,
   modelCapabilities,
 }: SearchTogglesProps) {
+  const resolve = useCrossAppApiPath();
   const [webSearchAvailable, setWebSearchAvailable] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -37,7 +39,7 @@ export function SearchToggles({
   useEffect(() => {
     async function checkWebSearch() {
       try {
-        const response = await fetch('/api/chat/search/config');
+        const response = await fetch(resolve('chat', '/api/chat/search/config'));
         if (response.ok) {
           const data = await response.json();
           setWebSearchAvailable(data.webSearchAvailable);
@@ -141,6 +143,7 @@ export function useSearchToggles(
   conversationId?: string
 ): [SearchToggleState, (state: SearchToggleState) => void] {
   // Default document search to ON for chat model with dual-model routing
+  const resolve = useCrossAppApiPath();
   const [state, setState] = useState<SearchToggleState>({
     webSearch: false,
     documentSearch: true, // Default ON - dual-model routing enables tool calling for all models
@@ -151,7 +154,7 @@ export function useSearchToggles(
   useEffect(() => {
     async function checkWebSearch() {
       try {
-        const response = await fetch('/api/chat/search/config');
+        const response = await fetch(resolve('chat', '/api/chat/search/config'));
         if (response.ok) {
           const data = await response.json();
           setWebSearchAvailable(data.webSearchAvailable);

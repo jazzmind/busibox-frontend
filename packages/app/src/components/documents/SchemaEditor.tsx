@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 import { Button } from '@jazzmind/busibox-app';
 import {
   DndContext,
@@ -907,6 +908,7 @@ const DEFAULT_SCHEMA = {
 };
 
 export function SchemaEditor({ document, onSaved, onDeleted, onClone }: SchemaEditorProps) {
+  const resolve = useCrossAppApiPath();
   const [name, setName] = useState(document?.name || '');
   const [displayName, setDisplayName] = useState('');
   const [itemLabel, setItemLabel] = useState('');
@@ -1030,7 +1032,7 @@ export function SchemaEditor({ document, onSaved, onDeleted, onClone }: SchemaEd
       };
 
       const response = await fetch(
-        isEditing ? `/api/data/${document!.id}` : '/api/data',
+        resolve('data', isEditing ? `/api/data/${document!.id}` : '/api/data'),
         {
           method: isEditing ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1056,7 +1058,7 @@ export function SchemaEditor({ document, onSaved, onDeleted, onClone }: SchemaEd
     if (!confirm('Delete this extraction schema?')) return;
     setDeleting(true);
     try {
-      const response = await fetch(`/api/data/${document.id}`, {
+      const response = await fetch(resolve('data', `/api/data/${document.id}`), {
         method: 'DELETE',
       });
       if (!response.ok) {

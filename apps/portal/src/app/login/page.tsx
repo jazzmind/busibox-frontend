@@ -86,7 +86,7 @@ export default function LoginPage() {
       console.log('[Login] Generating SSO token for app:', appName);
       
       // Generate SSO token by app name
-      const response = await fetch('/api/sso/token', {
+      const response = await fetch('/api/auth/sso/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appName }),

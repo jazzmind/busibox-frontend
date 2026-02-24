@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 import { VideoStatus } from '../../types/video';
 
@@ -28,6 +28,7 @@ interface VideoStatusModalProps {
 
 export function VideoStatusModal({ videoId, onClose }: VideoStatusModalProps) {
   const api = useBusiboxApi();
+  const mediaBasePath = useCrossAppBasePath('media');
 
   const [status, setStatus] = useState<VideoStatusInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,7 +53,7 @@ export function VideoStatusModal({ videoId, onClose }: VideoStatusModalProps) {
 
       const response = await fetchServiceFirstFallbackNext({
         service: { baseUrl, path: endpoint, init: { method: 'GET' } },
-        next: { nextApiBasePath: api.nextApiBasePath, path: endpoint, init: { method: 'GET' } },
+        next: { nextApiBasePath: mediaBasePath, path: endpoint, init: { method: 'GET' } },
         fallback: {
           fallbackOnNetworkError: api.fallback?.fallbackOnNetworkError ?? true,
           fallbackStatuses: [

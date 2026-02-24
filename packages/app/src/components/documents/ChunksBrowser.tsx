@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { DocumentChunk } from '../../types/documents';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppApiPath, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 import { Search, Filter, ChevronLeft, ChevronRight, Loader2, FileText, List } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -49,6 +49,8 @@ function normalizeChunks(fileId: string, raw: any[]): DocumentChunk[] {
 
 export function ChunksBrowser({ fileId, totalChunks }: ChunksBrowserProps) {
   const api = useBusiboxApi();
+  const resolve = useCrossAppApiPath();
+  const documentsBase = useCrossAppBasePath('documents');
 
   const [chunks, setChunks] = useState<DocumentChunk[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,8 +85,6 @@ export function ChunksBrowser({ fileId, totalChunks }: ChunksBrowserProps) {
     try {
       // Service endpoint: /files/{fileId}/chunks?page={page}&page_size={pageSize}
       const servicePath = `/files/${fileId}/chunks?page=${currentPage}&page_size=${pageSize}`;
-      const nextPath = `/documents/api/documents/${fileId}/chunks?page=${currentPage}&pageSize=${pageSize}`;
-
       const response = await fetchServiceFirstFallbackNext({
         service: {
           baseUrl: api.services?.dataApiUrl,
@@ -92,8 +92,8 @@ export function ChunksBrowser({ fileId, totalChunks }: ChunksBrowserProps) {
           init: { method: 'GET' },
         },
         next: {
-          nextApiBasePath: api.nextApiBasePath,
-          path: nextPath,
+          nextApiBasePath: documentsBase,
+          path: `/api/documents/${fileId}/chunks?page=${currentPage}&pageSize=${pageSize}`,
           init: { method: 'GET' },
         },
         fallback: {

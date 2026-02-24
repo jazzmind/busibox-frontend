@@ -22,6 +22,7 @@ import {
   Search, Filter, ZoomIn, ZoomOut, Maximize2, RotateCcw,
   Loader2, AlertCircle, Network, X, ChevronDown,
 } from 'lucide-react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 // Dynamic import to avoid SSR issues (canvas-based)
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false });
@@ -156,6 +157,8 @@ export function KnowledgeGraph({ documentId, onDocumentClick, libraryIds: initia
   const graphRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const resolve = useCrossAppApiPath();
+
   // ==========================================================================
   // Data Fetching
   // ==========================================================================
@@ -175,8 +178,8 @@ export function KnowledgeGraph({ documentId, onDocumentClick, libraryIds: initia
       params.set('limit', '200');
 
       const endpoint = documentId
-        ? `/api/graph/document/${encodeURIComponent(documentId)}?${params.toString()}`
-        : `/api/graph?${params.toString()}`;
+        ? resolve('graph', `/api/graph/document/${encodeURIComponent(documentId)}?${params.toString()}`)
+        : resolve('graph', `/api/graph?${params.toString()}`);
 
       const response = await fetch(endpoint);
       if (!response.ok) {
@@ -224,7 +227,7 @@ export function KnowledgeGraph({ documentId, onDocumentClick, libraryIds: initia
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch('/api/graph/stats');
+      const response = await fetch(resolve('graph', '/api/graph/stats'));
       if (response.ok) {
         const data: GraphStats = await response.json();
         setStats(data);
@@ -243,7 +246,7 @@ export function KnowledgeGraph({ documentId, onDocumentClick, libraryIds: initia
   useEffect(() => {
     async function fetchLibraries() {
       try {
-        const response = await fetch('/api/libraries');
+        const response = await fetch(resolve('libraries', '/api/libraries'));
         if (!response.ok) return;
         const result = await response.json();
         const libs = result?.data?.libraries || result?.libraries || [];
@@ -267,7 +270,7 @@ export function KnowledgeGraph({ documentId, onDocumentClick, libraryIds: initia
     if (expandedNodes.has(nodeId)) return;
 
     try {
-      const response = await fetch(`/api/graph/entity/${encodeURIComponent(nodeId)}?depth=1&limit=20`);
+      const response = await fetch(resolve('graph', `/api/graph/entity/${encodeURIComponent(nodeId)}?depth=1&limit=20`));
       if (!response.ok) return;
 
       const data = await response.json();

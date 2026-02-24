@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 import { Share2, Lock, Globe, Users, MoreVertical, X, Check, Loader2 } from 'lucide-react';
 import type { AppDataLibraryItem } from '@jazzmind/busibox-app';
 
@@ -21,6 +22,7 @@ export function AppDataItemActions({
   appDataItem,
   onVisibilityChange,
 }: AppDataItemActionsProps) {
+  const resolve = useCrossAppApiPath();
   const [isOpen, setIsOpen] = useState(false);
   const [isChanging, setIsChanging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export function AppDataItemActions({
       setError(null);
 
       // Update the record's _visibility field via data-api
-      const response = await fetch(`/api/data/${documentId}/records`, {
+      const response = await fetch(resolve('data', `/api/data/${documentId}/records`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

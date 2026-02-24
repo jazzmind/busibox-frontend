@@ -7,6 +7,7 @@ import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvide
 import { Header, Footer } from '@jazzmind/busibox-app';
 import type { NavigationItem } from '@jazzmind/busibox-app';
 import { AppGrid } from '@/components/dashboard/AppGrid';
+import { SessionExpiredPrompt } from '@/components/auth/SessionExpiredPrompt';
 
 const adminNavigation: NavigationItem[] = [
   { href: '/admin', label: 'Admin Dashboard' },
@@ -43,7 +44,7 @@ export default function HomePage() {
     };
 
     if (appId) {
-      fetch('/api/sso/token', {
+      fetch('/api/auth/sso/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appId }),
@@ -91,7 +92,7 @@ export default function HomePage() {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute sessionExpiredFallback={<SessionExpiredPrompt />}>
       <div className="min-h-screen flex flex-col bg-gray-50">
         {/* Header */}
         <Header

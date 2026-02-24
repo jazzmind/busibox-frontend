@@ -17,6 +17,10 @@ import { exchangeTokenZeroTrust } from '@jazzmind/busibox-app';
 
 const AUTHZ_BASE_URL = process.env.AUTHZ_BASE_URL || 'http://authz-api:8010';
 
+export async function POST(request: NextRequest) {
+  return GET(request);
+}
+
 export async function GET(request: NextRequest) {
   try {
     console.log('[API/session] GET request received');

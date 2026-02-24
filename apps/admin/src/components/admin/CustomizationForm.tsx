@@ -12,6 +12,7 @@ import { Input } from '@jazzmind/busibox-app';
 import { RefreshCw, Check } from 'lucide-react';
 import type { PortalCustomization } from '@jazzmind/busibox-app';
 import { useAutosave } from '@jazzmind/busibox-app';
+import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts/ApiContext';
 
 type BrandingSection = 'identity' | 'colors' | 'location' | 'contact' | 'advanced';
 
@@ -22,6 +23,7 @@ type CustomizationFormProps = {
 };
 
 export function CustomizationForm({ customization, section }: CustomizationFormProps) {
+  const resolve = useCrossAppApiPath();
   const [formData, setFormData] = useState({
     companyName: customization.companyName,
     siteName: customization.siteName,
@@ -43,7 +45,7 @@ export function CustomizationForm({ customization, section }: CustomizationFormP
   });
 
   const saveFn = useCallback(async (data: typeof formData) => {
-    const response = await fetch('/api/portal-customization', {
+    const response = await fetch(resolve('portal-customization', '/api/portal-customization'), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -51,7 +53,7 @@ export function CustomizationForm({ customization, section }: CustomizationFormP
     const result = await response.json();
     if (!result.success) throw new Error(result.error || 'Failed to update customization');
     return true;
-  }, []);
+  }, [resolve]);
 
   const { saving, error, lastSaved, setError, markDirty, triggerSave, triggerBlurSave } =
     useAutosave(saveFn);

@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { AttachmentUploader, AttachmentFile } from './AttachmentUploader';
 import { AttachmentPreview } from './AttachmentPreview';
 import type { MessageAttachment } from '../../types/chat';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 interface MessageInputProps {
   onSend: (
@@ -39,6 +40,7 @@ export function MessageInput({
   conversationId,
   onEnsureConversation,
 }: MessageInputProps) {
+  const resolve = useCrossAppApiPath();
   const [content, setContent] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
@@ -133,7 +135,7 @@ export function MessageInput({
         const formData = new FormData();
         formData.append('file', file.file);
 
-        const response = await fetch(`/api/chat/conversations/${activeConversationId}/attachments`, {
+        const response = await fetch(resolve('chat', `/api/chat/conversations/${activeConversationId}/attachments`), {
           method: 'POST',
           body: formData,
         });

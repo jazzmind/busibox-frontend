@@ -12,23 +12,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuth } from '@jazzmind/busibox-app/lib/next/middleware';
 import { exchangeTokenZeroTrust } from '@jazzmind/busibox-app';
 
-// Deployment service URL
+// Deployment service URL — use BUSIBOX_ENVIRONMENT, not NODE_ENV, to pick the right host
 const DEPLOYMENT_SERVICE_URL = process.env.DEPLOYMENT_SERVICE_URL || 
-  (process.env.NODE_ENV === 'production' ? 'http://10.96.200.210:8011/api/v1/deployment' : 'http://localhost:8011/api/v1/deployment');
+  (['production', 'staging'].includes(process.env.BUSIBOX_ENVIRONMENT || '') 
+    ? 'http://10.96.200.210:8011/api/v1/deployment' 
+    : 'http://localhost:8011/api/v1/deployment');
 
 // AuthZ service URL for token exchange
 const AUTHZ_BASE_URL = process.env.AUTHZ_BASE_URL || 'http://authz-api:8010';
 
 // Get the configured DEV_APPS_DIR from environment
-// In development, this defaults to parent of busibox-portal directory
+// Falls back to parent of the project directory (e.g. /Users/you/Code)
+// unless running on actual production infrastructure (BUSIBOX_ENVIRONMENT=production)
 function getDevAppsDir(): string {
   if (process.env.DEV_APPS_DIR) {
     return process.env.DEV_APPS_DIR;
   }
   
-  // Default to parent directory of the project in development
-  if (process.env.NODE_ENV !== 'production') {
-    // This would be something like /Users/wsonnenreich/Code
+  const busiboxEnv = process.env.BUSIBOX_ENVIRONMENT || '';
+  if (busiboxEnv !== 'production' && busiboxEnv !== 'staging') {
     return process.cwd().replace(/\/[^/]+$/, '');
   }
   
@@ -62,12 +64,13 @@ export async function GET(request: NextRequest) {
   const { sessionJwt } = authResult;
   const devAppsDir = getDevAppsDir();
   
-  // Local dev mode is only supported in non-production environments
-  // In production (BUSIBOX_ENVIRONMENT=production or NODE_ENV=production), it should be disabled
-  const busiboxEnv = process.env.BUSIBOX_ENVIRONMENT || process.env.NODE_ENV || 'development';
-  const localDevSupported = busiboxEnv !== 'production';
+  // Local dev mode is only blocked in actual production/staging deployments
+  // (identified by BUSIBOX_ENVIRONMENT). NODE_ENV=production just means the
+  // admin app is running in optimized mode -- it doesn't mean we're on a
+  // production server, so it should NOT gate dev-mode user-app installs.
+  const busiboxEnv = process.env.BUSIBOX_ENVIRONMENT || '';
+  const localDevSupported = busiboxEnv !== 'production' && busiboxEnv !== 'staging';
   
-  // If not in production and running in development mode, local dev is supported
   if (!localDevSupported) {
     return NextResponse.json({
       devAppsDir: '',

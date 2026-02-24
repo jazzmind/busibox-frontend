@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 import { Button } from '@jazzmind/busibox-app';
 
 type ChannelType = 'telegram' | 'discord' | 'signal' | 'whatsapp';
@@ -22,6 +23,7 @@ const CHANNEL_OPTIONS: { value: ChannelType; label: string; instruction: string 
 ];
 
 export function ChannelLinkingSettings() {
+  const resolve = useCrossAppApiPath();
   const [bindings, setBindings] = useState<ChannelBinding[]>([]);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -40,7 +42,7 @@ export function ChannelLinkingSettings() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/account/channel-bindings', { cache: 'no-store' });
+      const response = await fetch(resolve('account', '/api/account/channel-bindings'), { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to load channel bindings');
       setBindings(Array.isArray(data.bindings) ? data.bindings : []);
@@ -68,7 +70,7 @@ export function ChannelLinkingSettings() {
     setMessage(null);
     setError(null);
     try {
-      const response = await fetch('/api/account/channel-bindings', {
+      const response = await fetch(resolve('account', '/api/account/channel-bindings'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ channelType }),
@@ -91,7 +93,7 @@ export function ChannelLinkingSettings() {
     setError(null);
     setMessage(null);
     try {
-      const response = await fetch(`/api/account/channel-bindings/${id}`, {
+      const response = await fetch(resolve('account', `/api/account/channel-bindings/${id}`), {
         method: 'DELETE',
       });
       const data = await response.json();

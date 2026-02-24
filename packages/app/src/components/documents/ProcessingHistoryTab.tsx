@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Clock, CheckCircle2, XCircle, AlertCircle, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import type { DataProcessingHistoryEntry } from '../../types/processing-history';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppApiPath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 
 interface ProcessingHistoryTabProps {
@@ -12,6 +12,7 @@ interface ProcessingHistoryTabProps {
 
 export function ProcessingHistoryTab({ fileId }: ProcessingHistoryTabProps) {
   const api = useBusiboxApi();
+  const resolve = useCrossAppApiPath();
   const [history, setHistory] = useState<DataProcessingHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +28,7 @@ export function ProcessingHistoryTab({ fileId }: ProcessingHistoryTabProps) {
       setError(null);
 
       const servicePath = `/files/${fileId}/history`;
-      const nextPath = `/documents/api/documents/${fileId}/history`;
+      const nextPath = resolve('documents', `/api/documents/${fileId}/history`);
 
       const response = await fetchServiceFirstFallbackNext({
         service: { baseUrl: api.services?.dataApiUrl, path: servicePath, init: { method: 'GET' } },

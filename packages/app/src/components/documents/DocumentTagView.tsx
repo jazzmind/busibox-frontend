@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { TagGroup, DocumentWithUser } from '../../types/documents';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppApiPath, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 
 interface DocumentTagViewProps {
@@ -12,6 +12,8 @@ interface DocumentTagViewProps {
 
 export function DocumentTagView({ libraryId, onSelectTag }: DocumentTagViewProps) {
   const api = useBusiboxApi();
+  const resolve = useCrossAppApiPath();
+  const documentsBase = useCrossAppBasePath('documents');
 
   const [tagGroups, setTagGroups] = useState<TagGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +43,7 @@ export function DocumentTagView({ libraryId, onSelectTag }: DocumentTagViewProps
           init: { method: refresh ? 'POST' : 'GET' },
         },
         next: {
-          nextApiBasePath: api.nextApiBasePath,
+          nextApiBasePath: documentsBase,
           path: endpoint,
           init: { method: refresh ? 'POST' : 'GET' },
         },
@@ -96,7 +98,7 @@ export function DocumentTagView({ libraryId, onSelectTag }: DocumentTagViewProps
 
       const res = await fetchServiceFirstFallbackNext({
         service: { baseUrl: api.services?.agentApiUrl, path: endpoint, init: { method: 'GET' } },
-        next: { nextApiBasePath: api.nextApiBasePath, path: endpoint, init: { method: 'GET' } },
+        next: { nextApiBasePath: documentsBase, path: endpoint, init: { method: 'GET' } },
         fallback: {
           fallbackOnNetworkError: api.fallback?.fallbackOnNetworkError ?? true,
           fallbackStatuses: api.fallback?.fallbackStatuses ?? [404, 405, 501, 502, 503, 504],

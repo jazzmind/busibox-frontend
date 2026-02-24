@@ -11,7 +11,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppApiPath, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 
 // Types matching search-api response
@@ -109,6 +109,8 @@ function truncateText(text: string, maxLength: number = 200): string {
 
 export function DocumentSearchAdvanced() {
   const api = useBusiboxApi();
+  const resolve = useCrossAppApiPath();
+  const documentsBase = useCrossAppBasePath('documents');
 
   const [query, setQuery] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('hybrid');
@@ -196,8 +198,8 @@ export function DocumentSearchAdvanced() {
           },
         },
         next: {
-          nextApiBasePath: api.nextApiBasePath,
-          path: '/documents/api/documents/search',
+          nextApiBasePath: documentsBase,
+          path: '/api/documents/search',
           init: {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

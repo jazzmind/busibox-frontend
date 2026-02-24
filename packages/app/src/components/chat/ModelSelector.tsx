@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 export interface ModelOption {
   id: string;
@@ -15,6 +16,7 @@ interface ModelSelectorProps {
 }
 
 export function ModelSelector({ selectedModel, onModelChange, disabled = false }: ModelSelectorProps) {
+  const resolve = useCrossAppApiPath();
   const [isOpen, setIsOpen] = useState(false);
   const [models, setModels] = useState<ModelOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +28,7 @@ export function ModelSelector({ selectedModel, onModelChange, disabled = false }
   const loadModels = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/chat/models');
+      const response = await fetch(resolve('chat', '/api/chat/models'));
       if (!response.ok) {
         throw new Error('Failed to fetch models');
       }

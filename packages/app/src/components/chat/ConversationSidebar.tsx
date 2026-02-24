@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 interface Conversation {
   id: string;
@@ -42,6 +43,7 @@ interface ConversationListResponse {
 export function ConversationSidebar() {
   const router = useRouter();
   const pathname = usePathname();
+  const resolve = useCrossAppApiPath();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +67,7 @@ export function ConversationSidebar() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/chat/conversations?limit=50');
+      const response = await fetch(resolve('chat', '/api/chat/conversations?limit=50'));
       if (!response.ok) {
         throw new Error('Failed to load conversations');
       }
@@ -83,7 +85,7 @@ export function ConversationSidebar() {
 
   const handleNewConversation = async () => {
     try {
-      const response = await fetch('/api/chat/conversations', {
+      const response = await fetch(resolve('chat', '/api/chat/conversations'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -111,7 +113,7 @@ export function ConversationSidebar() {
     if (!confirm('Are you sure you want to delete this conversation?')) return;
 
     try {
-      const response = await fetch(`/api/chat/conversations/${conversationId}`, {
+      const response = await fetch(resolve('chat', `/api/chat/conversations/${conversationId}`), {
         method: 'DELETE',
       });
 

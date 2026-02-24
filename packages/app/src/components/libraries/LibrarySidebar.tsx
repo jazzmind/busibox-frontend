@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import type { LibrarySidebarItem, AppDataLibraryItem, AppDataGroup } from '../../types/library';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppApiPath, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 import { useIsMobile } from '../../lib/hooks/useIsMobile';
 
@@ -51,6 +51,8 @@ export function LibrarySidebar({
   showMobileToggleButton = true,
 }: LibrarySidebarProps) {
   const api = useBusiboxApi();
+  const resolve = useCrossAppApiPath();
+  const documentsBase = useCrossAppBasePath('documents');
   const isMobile = useIsMobile();
   const [libraries, setLibraries] = useState<LibrarySidebarItem[]>([]);
   const [appDataGroups, setAppDataGroups] = useState<AppDataGroup[]>([]);
@@ -141,7 +143,7 @@ export function LibrarySidebar({
       setLoading(true);
       const response = await fetchServiceFirstFallbackNext({
         service: { baseUrl: undefined, path: '/libraries', init: { method: 'GET' } },
-        next: { nextApiBasePath: api.nextApiBasePath, path: '/api/libraries', init: { method: 'GET' } },
+        next: { nextApiBasePath: documentsBase, path: '/api/libraries', init: { method: 'GET' } },
         fallback: {
           fallbackOnNetworkError: api.fallback?.fallbackOnNetworkError ?? true,
           fallbackStatuses: api.fallback?.fallbackStatuses ?? [404, 405, 501, 502, 503, 504],
@@ -192,7 +194,7 @@ export function LibrarySidebar({
       // Use same pattern as loadLibraries - rely on consuming app's fetch wrapper for basePath
       const response = await fetchServiceFirstFallbackNext({
         service: { baseUrl: undefined, path: '/libraries/app-data', init: { method: 'GET' } },
-        next: { nextApiBasePath: api.nextApiBasePath, path: '/api/libraries/app-data', init: { method: 'GET' } },
+        next: { nextApiBasePath: documentsBase, path: '/api/libraries/app-data', init: { method: 'GET' } },
         fallback: {
           fallbackOnNetworkError: api.fallback?.fallbackOnNetworkError ?? true,
           fallbackStatuses: api.fallback?.fallbackStatuses ?? [404, 405, 501, 502, 503, 504],
@@ -213,10 +215,7 @@ export function LibrarySidebar({
       const groups: AppDataGroup[] = responseData?.groups || responseData?.grouped || [];
       setAppDataGroups(groups);
       
-      // Auto-expand apps with data
-      if (groups.length > 0) {
-        setExpandedApps(new Set(groups.map(g => g.sourceApp)));
-      }
+      // App data groups start collapsed by default
     } catch (err) {
       console.debug('Failed to load app data libraries:', err);
       // Silently fail - app data is optional
@@ -254,8 +253,8 @@ export function LibrarySidebar({
       const res = await fetchServiceFirstFallbackNext({
         service: { baseUrl: undefined, path: `/documents/${docId}/move`, init: { method: 'POST' } },
         next: {
-          nextApiBasePath: api.nextApiBasePath,
-          path: `/documents/api/documents/${docId}/move`,
+          nextApiBasePath: documentsBase,
+          path: `/api/documents/${docId}/move`,
           init: {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

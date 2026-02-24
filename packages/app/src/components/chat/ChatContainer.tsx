@@ -25,6 +25,7 @@ import type {
 } from '../../types/chat';
 import type { AgentDefinition, ToolDefinition } from '../../lib/agent/agent-service-client';
 import { useIsMobile } from '../../lib/hooks/useIsMobile';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 /**
  * Map snake_case API response to camelCase Conversation type
@@ -112,6 +113,7 @@ export function ChatContainer({
   className = '',
 }: ChatContainerProps) {
   const isMobile = useIsMobile();
+  const resolve = useCrossAppApiPath();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -222,9 +224,8 @@ export function ChatContainer({
   const [showAgentPanel, setShowAgentPanel] = useState(false);
   const [showTasksPanel, setShowTasksPanel] = useState(false);
 
-  // API calls via fetch to relative endpoints (proxied by the consuming app)
   const apiCall = useCallback(async (endpoint: string, options?: RequestInit) => {
-    const response = await fetch(`/api/agent${endpoint}`, {
+    const response = await fetch(resolve('agent', `/api/agent${endpoint}`), {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -238,7 +239,7 @@ export function ChatContainer({
     }
 
     return response;
-  }, []);
+  }, [resolve]);
 
   const handleSelectConversation = useCallback(async (conversation: Conversation) => {
     currentConversationRef.current = conversation.id;

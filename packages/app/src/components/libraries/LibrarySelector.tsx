@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 interface Library {
   id: string;
@@ -20,6 +21,7 @@ export function LibrarySelector({
   onSelectLibrary,
   disabled = false,
 }: LibrarySelectorProps) {
+  const resolve = useCrossAppApiPath();
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +32,7 @@ export function LibrarySelector({
   async function loadLibraries() {
     try {
       setLoading(true);
-      const response = await fetch('/api/libraries');
+      const response = await fetch(resolve('libraries', '/api/libraries'));
       if (!response.ok) {
         throw new Error('Failed to load libraries');
       }

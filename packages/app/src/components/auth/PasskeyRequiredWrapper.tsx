@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from './SessionProvider';
 import { startRegistration } from '@simplewebauthn/browser';
+import { useCrossAppBasePath } from '../../contexts/ApiContext';
 
 export type PasskeyRequiredWrapperProps = {
   children: React.ReactNode;
@@ -26,6 +27,7 @@ export function PasskeyRequiredWrapper({
 }: PasskeyRequiredWrapperProps) {
   const { user, isAuthenticated, isAdmin } = useSession();
   const router = useRouter();
+  const portalBase = useCrossAppBasePath('portal');
   
   const [isLoading, setIsLoading] = useState(true);
   const [hasPasskey, setHasPasskey] = useState<boolean | null>(null);
@@ -44,7 +46,7 @@ export function PasskeyRequiredWrapper({
       }
 
       try {
-        const response = await fetch('/api/auth/passkey');
+        const response = await fetch(`${portalBase}/api/auth/passkey`);
         if (response.ok) {
           const data = await response.json();
           setHasPasskey(data.data?.hasPasskeys ?? false);
@@ -74,7 +76,7 @@ export function PasskeyRequiredWrapper({
 
     try {
       // Get registration options
-      const optionsResponse = await fetch('/api/auth/passkey/register/options', {
+      const optionsResponse = await fetch(`${portalBase}/api/auth/passkey/register/options`, {
         method: 'POST',
       });
 
@@ -88,7 +90,7 @@ export function PasskeyRequiredWrapper({
       const credential = await startRegistration({ optionsJSON: options });
 
       // Verify registration
-      const verifyResponse = await fetch('/api/auth/passkey/register/verify', {
+      const verifyResponse = await fetch(`${portalBase}/api/auth/passkey/register/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

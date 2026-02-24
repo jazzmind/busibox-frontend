@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, Clock, CheckCircle, XCircle, AlertCircle, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppApiPath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 
 interface ProcessingStep {
@@ -55,6 +55,7 @@ interface ProcessingHistoryModalProps {
 
 export function ProcessingHistoryModal({ fileId, document, onClose }: ProcessingHistoryModalProps) {
   const api = useBusiboxApi();
+  const resolve = useCrossAppApiPath();
 
   const [history, setHistory] = useState<ProcessingStep[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +72,7 @@ export function ProcessingHistoryModal({ fileId, document, onClose }: Processing
       setLoading(true);
 
       const servicePath = `/files/${fileId}/history`;
-      const nextPath = `/documents/api/documents/${fileId}/history`;
+      const nextPath = resolve('documents', `/api/documents/${fileId}/history`);
 
       const response = await fetchServiceFirstFallbackNext({
         service: { baseUrl: api.services?.dataApiUrl, path: servicePath, init: { method: 'GET' } },

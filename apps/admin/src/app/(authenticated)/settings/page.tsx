@@ -17,6 +17,7 @@ import { EmailSettingsForm, type EmailSettingsData, type ImapSettingsData } from
 import { BridgeSettingsForm, type BridgeSettingsData } from '@/components/admin/BridgeSettingsForm';
 import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvider';
 import { useCustomization } from '@jazzmind/busibox-app';
+import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts/ApiContext';
 import {
   Palette,
   Cog,
@@ -81,6 +82,7 @@ export default function AdminSettingsPage() {
   const { user } = useSession();
   const router = useRouter();
   const { customization } = useCustomization();
+  const resolve = useCrossAppApiPath();
   const [customizationData, setCustomizationData] = useState<any>(null);
   const [dataSettings, setDataSettings] = useState<any>(null);
   const [emailSettings, setEmailSettings] = useState<EmailSettingsData | null>(null);
@@ -156,7 +158,7 @@ export default function AdminSettingsPage() {
     setLoading(true);
     try {
       const [customizationRes, dataRes, emailRes, bridgeRes] = await Promise.all([
-        fetch('/api/portal-customization'),
+        fetch(resolve('portal-customization', '/api/portal-customization')),
         fetch('/api/data-settings'),
         fetch('/api/email-settings'),
         fetch('/api/bridge-settings'),

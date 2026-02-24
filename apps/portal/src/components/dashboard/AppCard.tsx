@@ -31,7 +31,7 @@ export function AppCard({ app }: AppCardProps) {
 
     try {
       // Generate SSO token for external/library app access
-      const response = await fetch('/api/sso/token', {
+      const response = await fetch('/api/auth/sso/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appId: app.id }),

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { TocItem } from '../../types/documents';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppApiPath, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 import { Loader2, AlertCircle, FileText, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
@@ -18,6 +18,8 @@ interface HtmlViewerProps {
 
 export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage }: HtmlViewerProps) {
   const api = useBusiboxApi();
+  const resolve = useCrossAppApiPath();
+  const documentsBase = useCrossAppBasePath('documents');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,11 +34,9 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage 
 
     try {
       const servicePath = `/files/${fileId}/html`;
-      const nextPath = `/documents/api/documents/${fileId}/html`;
-
       const response = await fetchServiceFirstFallbackNext({
         service: { baseUrl: api.services?.dataApiUrl, path: servicePath, init: { method: 'GET' } },
-        next: { nextApiBasePath: api.nextApiBasePath, path: nextPath, init: { method: 'GET' } },
+        next: { nextApiBasePath: documentsBase, path: `/api/documents/${fileId}/html`, init: { method: 'GET' } },
         fallback: {
           fallbackOnNetworkError: api.fallback?.fallbackOnNetworkError ?? true,
           fallbackStatuses: [
@@ -135,7 +135,7 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage 
     } finally {
       setLoading(false);
     }
-  }, [api.fallback, api.nextApiBasePath, api.serviceRequestHeaders, api.services?.dataApiUrl, fileId, isProcessing]);
+  }, [api.fallback, api.nextApiBasePath, api.serviceRequestHeaders, api.services?.dataApiUrl, fileId, isProcessing, resolve]);
 
   useEffect(() => {
     if (fileId) fetchHtml();

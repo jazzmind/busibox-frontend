@@ -23,6 +23,7 @@ import {
   X,
   Loader2,
 } from 'lucide-react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 interface Agent {
   id: string;
@@ -92,13 +93,14 @@ export function LibraryTriggers({
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [expandedTrigger, setExpandedTrigger] = useState<string | null>(null);
+  const resolve = useCrossAppApiPath();
 
   const fetchTriggers = useCallback(async () => {
     if (!libraryId) return;
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/libraries/${libraryId}/triggers`, {
+      const response = await fetch(resolve('libraries', `/api/libraries/${libraryId}/triggers`), {
         credentials: 'include',
       });
       if (!response.ok) {
@@ -112,15 +114,15 @@ export function LibraryTriggers({
     } finally {
       setLoading(false);
     }
-  }, [libraryId]);
+  }, [libraryId, resolve]);
 
   const fetchOptions = useCallback(async () => {
     setOptionsLoading(true);
     try {
       const [agentsResponse, workflowsResponse, schemasResponse] = await Promise.all([
-        fetch('/api/agents', { credentials: 'include' }),
-        fetch('/api/agent/agents/workflows', { credentials: 'include' }),
-        fetch('/api/data?type=extraction_schema&limit=100', {
+        fetch(resolve('agents', '/api/agents'), { credentials: 'include' }),
+        fetch(resolve('agent', '/api/agent/agents/workflows'), { credentials: 'include' }),
+        fetch(resolve('data', '/api/data?type=extraction_schema&limit=100'), {
           credentials: 'include',
         }),
       ]);
@@ -158,7 +160,7 @@ export function LibraryTriggers({
     } finally {
       setOptionsLoading(false);
     }
-  }, []);
+  }, [resolve]);
 
   useEffect(() => {
     fetchTriggers();
@@ -171,7 +173,7 @@ export function LibraryTriggers({
   const toggleTrigger = async (triggerId: string, isActive: boolean) => {
     try {
       const response = await fetch(
-        `/api/libraries/${libraryId}/triggers/${triggerId}`,
+        resolve('libraries', `/api/libraries/${libraryId}/triggers/${triggerId}`),
         {
           method: 'PUT',
           headers: {
@@ -197,7 +199,7 @@ export function LibraryTriggers({
     if (!confirm('Remove this trigger? The agent will no longer run when documents finish processing.')) return;
     try {
       const response = await fetch(
-        `/api/libraries/${libraryId}/triggers/${triggerId}`,
+        resolve('libraries', `/api/libraries/${libraryId}/triggers/${triggerId}`),
         {
           method: 'DELETE',
           credentials: 'include',
@@ -220,7 +222,7 @@ export function LibraryTriggers({
     notificationConfig?: NotificationConfig;
   }) => {
     try {
-      const response = await fetch(`/api/libraries/${libraryId}/triggers`, {
+      const response = await fetch(resolve('libraries', `/api/libraries/${libraryId}/triggers`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

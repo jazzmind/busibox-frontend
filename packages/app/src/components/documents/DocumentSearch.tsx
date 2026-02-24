@@ -10,7 +10,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppApiPath, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 
 interface ChunkResult {
@@ -85,6 +85,8 @@ export interface DocumentSearchProps {
 
 export function DocumentSearch({ libraryId, onDocumentClick }: DocumentSearchProps) {
   const api = useBusiboxApi();
+  const resolve = useCrossAppApiPath();
+  const documentsBase = useCrossAppBasePath('documents');
 
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -161,8 +163,8 @@ export function DocumentSearch({ libraryId, onDocumentClick }: DocumentSearchPro
           },
         },
         next: {
-          nextApiBasePath: api.nextApiBasePath,
-          path: '/documents/api/documents/search',
+          nextApiBasePath: documentsBase,
+          path: '/api/documents/search',
           init: {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

@@ -2,6 +2,7 @@
  * usePasskey Hook
  * 
  * Client-side WebAuthn passkey operations using @simplewebauthn/browser.
+ * Passkey routes are owned by portal -- all API calls go cross-app.
  */
 
 'use client';
@@ -13,6 +14,7 @@ import {
   browserSupportsWebAuthn,
   platformAuthenticatorIsAvailable,
 } from '@simplewebauthn/browser';
+import { useCrossAppBasePath } from '@jazzmind/busibox-app';
 
 interface Passkey {
   id: string;
@@ -42,6 +44,7 @@ interface UsePasskeyReturn {
 }
 
 export function usePasskey(): UsePasskeyReturn {
+  const portalBase = useCrossAppBasePath('portal');
   const [isSupported, setIsSupported] = useState(false);
   const [isPlatformAvailable, setIsPlatformAvailable] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -70,14 +73,13 @@ export function usePasskey(): UsePasskeyReturn {
   // Load user's passkeys
   const loadPasskeys = useCallback(async () => {
     try {
-      const response = await fetch('/api/auth/passkey', {
+      const response = await fetch(`${portalBase}/api/auth/passkey`, {
         credentials: 'include',
       });
 
       const data = await response.json();
 
       if (data.success) {
-        // Map API response (passkey_id) to component format (id)
         const mappedPasskeys = data.data.passkeys.map((p: any) => ({
           id: p.passkey_id,
           name: p.name,
@@ -91,7 +93,7 @@ export function usePasskey(): UsePasskeyReturn {
     } catch (err) {
       console.error('Failed to load passkeys:', err);
     }
-  }, []);
+  }, [portalBase]);
 
   // Register a new passkey
   const registerPasskey = useCallback(async (deviceName = 'My Device'): Promise<boolean> => {
@@ -104,8 +106,7 @@ export function usePasskey(): UsePasskeyReturn {
     setError(null);
 
     try {
-      // Get registration options from server
-      const optionsResponse = await fetch('/api/auth/passkey/register/options', {
+      const optionsResponse = await fetch(`${portalBase}/api/auth/passkey/register/options`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -121,8 +122,7 @@ export function usePasskey(): UsePasskeyReturn {
         optionsJSON: optionsData.data.options,
       });
 
-      // Verify with server
-      const verifyResponse = await fetch('/api/auth/passkey/register/verify', {
+      const verifyResponse = await fetch(`${portalBase}/api/auth/passkey/register/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -153,7 +153,7 @@ export function usePasskey(): UsePasskeyReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [isSupported, loadPasskeys]);
+  }, [isSupported, loadPasskeys, portalBase]);
 
   // Authenticate with passkey
   const authenticateWithPasskey = useCallback(async (email?: string): Promise<boolean> => {
@@ -166,8 +166,7 @@ export function usePasskey(): UsePasskeyReturn {
     setError(null);
 
     try {
-      // Get authentication options from server
-      const optionsResponse = await fetch('/api/auth/passkey/authenticate/options', {
+      const optionsResponse = await fetch(`${portalBase}/api/auth/passkey/authenticate/options`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -185,8 +184,7 @@ export function usePasskey(): UsePasskeyReturn {
         optionsJSON: optionsData.data.options,
       });
 
-      // Verify with server
-      const verifyResponse = await fetch('/api/auth/passkey/authenticate/verify', {
+      const verifyResponse = await fetch(`${portalBase}/api/auth/passkey/authenticate/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -213,7 +211,7 @@ export function usePasskey(): UsePasskeyReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [isSupported]);
+  }, [isSupported, portalBase]);
 
   // Delete a passkey
   const deletePasskey = useCallback(async (passkeyId: string): Promise<boolean> => {
@@ -221,7 +219,7 @@ export function usePasskey(): UsePasskeyReturn {
     setError(null);
 
     try {
-      const response = await fetch(`/api/auth/passkey/${passkeyId}`, {
+      const response = await fetch(`${portalBase}/api/auth/passkey/${passkeyId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -242,7 +240,7 @@ export function usePasskey(): UsePasskeyReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [loadPasskeys]);
+  }, [loadPasskeys, portalBase]);
 
   // Rename a passkey
   const renamePasskey = useCallback(async (passkeyId: string, newName: string): Promise<boolean> => {
@@ -250,7 +248,7 @@ export function usePasskey(): UsePasskeyReturn {
     setError(null);
 
     try {
-      const response = await fetch(`/api/auth/passkey/${passkeyId}`, {
+      const response = await fetch(`${portalBase}/api/auth/passkey/${passkeyId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName }),
@@ -273,7 +271,7 @@ export function usePasskey(): UsePasskeyReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [loadPasskeys]);
+  }, [loadPasskeys, portalBase]);
 
   const clearError = useCallback(() => {
     setError(null);

@@ -15,7 +15,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useCustomization } from '@jazzmind/busibox-app';
 import { RefreshCw, Play, Square, RotateCcw, CheckCircle, XCircle, AlertCircle, Circle, ChevronDown, ChevronUp, Activity, Code2, Zap, Hammer } from 'lucide-react';
 
-const IS_PRODUCTION = process.env.NEXT_PUBLIC_BUSIBOX_ENV === 'production';
+const BUSIBOX_ENV = process.env.NEXT_PUBLIC_BUSIBOX_ENV;
+const IS_DEPLOYED = BUSIBOX_ENV === 'production' || BUSIBOX_ENV === 'staging';
 
 interface AppStatus {
   mode: 'dev' | 'prod';
@@ -117,7 +118,7 @@ export default function SystemDashboardPage() {
   }, []);
 
   const fetchDevMode = useCallback(async () => {
-    if (IS_PRODUCTION) return;
+    if (IS_DEPLOYED) return;
     setDevModeLoading(true);
     try {
       const response = await fetch('/api/services/core-dev-mode');
@@ -354,9 +355,20 @@ export default function SystemDashboardPage() {
                     : 'text-red-600 dark:text-red-400'
               }`} />
               <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {healthyCount}/{totalCount} Healthy
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {healthyCount}/{totalCount} Healthy
+                  </p>
+                  {BUSIBOX_ENV && (
+                    <span className={`px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded ${
+                      BUSIBOX_ENV === 'production'
+                        ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
+                        : 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400'
+                    }`}>
+                      {BUSIBOX_ENV}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {apiError ? apiError : 'Click refresh to update'}
                 </p>
@@ -374,8 +386,8 @@ export default function SystemDashboardPage() {
         </div>
       </div>
 
-      {/* Developer Mode Panel — per-app controls */}
-      {!IS_PRODUCTION && (
+      {/* Developer Mode Panel — per-app controls (hidden in production/staging) */}
+      {!IS_DEPLOYED && (
         <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">

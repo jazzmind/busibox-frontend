@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Button } from '@jazzmind/busibox-app';
 import { Eye, EyeOff, RefreshCw, PlugZap, HelpCircle, Radio, Check } from 'lucide-react';
 import { useAutosave } from '@jazzmind/busibox-app';
+import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts/ApiContext';
 
 export interface BridgeSettingsData {
   signalEnabled: boolean;
@@ -76,6 +77,7 @@ function isChatAgentName(name: string): boolean {
 }
 
 export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section }: BridgeSettingsFormProps) {
+  const resolve = useCrossAppApiPath();
   type ConnectivitySummaryItem = {
     target: ChannelTestTarget;
     success: boolean;
@@ -105,7 +107,7 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
     const loadAgents = async () => {
       setLoadingAgents(true);
       try {
-        const response = await fetch('/api/agents?limit=200', { credentials: 'include' });
+        const response = await fetch(resolve('agents', '/api/agents?limit=200'), { credentials: 'include' });
         if (!response.ok) return;
         const result = await response.json();
         const list = result.data?.agents ?? result.agents ?? [];

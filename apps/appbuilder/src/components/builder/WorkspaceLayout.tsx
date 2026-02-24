@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { SimpleChatInterface } from "@jazzmind/busibox-app";
+import { useCrossAppBasePath } from "@jazzmind/busibox-app/contexts/ApiContext";
 
 import { FileExplorer } from "./FileExplorer";
 import { LogPanel } from "./LogPanel";
@@ -15,6 +16,7 @@ interface WorkspaceLayoutProps {
 }
 
 export function WorkspaceLayout({ projectId, projectName }: WorkspaceLayoutProps) {
+  const agentsBase = useCrossAppBasePath("agents");
   const [tab, setTab] = useState<Tab>("preview");
   const [token, setToken] = useState<string>("");
   const [agentId, setAgentId] = useState<"builder" | "builder-local">("builder");
@@ -53,7 +55,7 @@ export function WorkspaceLayout({ projectId, projectName }: WorkspaceLayoutProps
         {token ? (
           <SimpleChatInterface
             token={token}
-            agentUrl="/api/agent"
+            agentUrl={`${agentsBase}/api/agent`}
             agentId={agentId}
             placeholder="Describe what you want to build..."
             welcomeMessage={`Let's build **${projectName}**. Tell me what to create first.`}

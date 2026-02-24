@@ -58,6 +58,7 @@ export class InvalidSessionError extends Error {
       'subject_token_expired',       // Token expired
       'invalid_subject_token',       // Token is malformed or invalid
       'subject_token_revoked',       // Token was revoked
+      'session_revoked',             // Session revoked server-side
     ].includes(code);
   }
 }
@@ -349,6 +350,7 @@ export async function exchangeTokenZeroTrust(
       'subject_token_expired',
       'invalid_subject_token',
       'subject_token_revoked',
+      'session_revoked',
     ];
     
     if (sessionErrors.includes(errorCode)) {

@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { VideoExpirationBadge } from './VideoExpirationBadge';
 import { VideoPlayerModal } from './VideoPlayerModal';
 import { VideoRemixModal } from './VideoRemixModal';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 import { STATUS_LABELS, STATUS_BADGE_CLASSES, RESOLUTION_LABELS, VideoStatus, type VideoWithOwner } from '../../types/video';
 
@@ -42,6 +42,7 @@ export function VideoCard({
   isOwner,
 }: VideoCardProps) {
   const api = useBusiboxApi();
+  const mediaBasePath = useCrossAppBasePath('media');
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -60,7 +61,7 @@ export function VideoCard({
       const urlMatch = video.downloadUrl.match(/\/api\/videos\/files\/([^/?]+)/);
       if (urlMatch) {
         const fileId = urlMatch[1];
-        const base = (api.nextApiBasePath ?? '').replace(/\/+$/, '');
+        const base = mediaBasePath.replace(/\/+$/, '');
         const link = document.createElement('a');
         link.href = `${base}/api/videos/files/${fileId}`;
         link.download = `${video.prompt.substring(0, 50)}.mp4`;
@@ -150,7 +151,7 @@ export function VideoCard({
 
         const response = await fetchServiceFirstFallbackNext({
           service: { baseUrl, path: endpoint, init: { method: 'GET' } },
-          next: { nextApiBasePath: api.nextApiBasePath, path: endpoint, init: { method: 'GET' } },
+          next: { nextApiBasePath: mediaBasePath, path: endpoint, init: { method: 'GET' } },
           fallback: {
             fallbackOnNetworkError: api.fallback?.fallbackOnNetworkError ?? true,
             fallbackStatuses: [

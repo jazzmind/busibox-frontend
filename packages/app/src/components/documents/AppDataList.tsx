@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 import { ArrowLeft, ExternalLink, Loader2, RefreshCw, Search, ChevronDown, ChevronUp, Lock, Globe } from 'lucide-react';
 import type { AppDataLibraryItem, AppDataSchema, AppDataFieldDef } from '@jazzmind/busibox-app';
 import { SchemaFormRenderer } from './SchemaFormRenderer';
@@ -25,6 +26,7 @@ interface QueryResponse {
 }
 
 export function AppDataList({ appDataItem, onBack }: AppDataListProps) {
+  const resolve = useCrossAppApiPath();
   const [records, setRecords] = useState<DataRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +44,7 @@ export function AppDataList({ appDataItem, onBack }: AppDataListProps) {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/data/${appDataItem.documentId}/query`, {
+      const response = await fetch(resolve('data', `/api/data/${appDataItem.documentId}/query`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -272,7 +274,7 @@ export function AppDataList({ appDataItem, onBack }: AppDataListProps) {
                             readonly={true}
                             onSave={async (updates) => {
                               // Save updates via data-api
-                              const response = await fetch(`/api/data/${appDataItem.documentId}/records`, {
+                              const response = await fetch(resolve('data', `/api/data/${appDataItem.documentId}/records`), {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { VideoVisibility, type VideoWithOwner, type VideoWithShares } from '../../types/video';
 import { UserSearchInput } from './UserSearchInput';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 
 interface User {
@@ -22,6 +22,7 @@ interface VideoShareModalProps {
 
 export function VideoShareModal({ video, isOpen, onClose, onSharesUpdated }: VideoShareModalProps) {
   const api = useBusiboxApi();
+  const mediaBasePath = useCrossAppBasePath('media');
 
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
   const [isSharing, setIsSharing] = useState(false);
@@ -76,7 +77,7 @@ export function VideoShareModal({ video, isOpen, onClose, onSharesUpdated }: Vid
           init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body },
         },
         next: {
-          nextApiBasePath: api.nextApiBasePath,
+          nextApiBasePath: mediaBasePath,
           path: endpoint,
           init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body },
         },
@@ -123,7 +124,7 @@ export function VideoShareModal({ video, isOpen, onClose, onSharesUpdated }: Vid
           init: { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body },
         },
         next: {
-          nextApiBasePath: api.nextApiBasePath,
+          nextApiBasePath: mediaBasePath,
           path: endpoint,
           init: { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body },
         },
@@ -167,7 +168,7 @@ export function VideoShareModal({ video, isOpen, onClose, onSharesUpdated }: Vid
           init: { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body },
         },
         next: {
-          nextApiBasePath: api.nextApiBasePath,
+          nextApiBasePath: mediaBasePath,
           path: endpoint,
           init: { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body },
         },

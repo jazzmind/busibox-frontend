@@ -7,6 +7,12 @@
  * - Proactive token refresh via auth state manager
  * - Automatic redirect to portal when re-authentication is required
  * 
+ * All auth operations (session check, token exchange, token refresh) are
+ * handled by a single /api/auth/session endpoint:
+ *   GET  — Return current session from app-scoped cookie
+ *   POST {token} — SSO token exchange (set app-scoped cookies)
+ *   POST {} — Token refresh (exchange SSO token for fresh API token)
+ * 
  * This is the standard authentication context for Busibox apps that use
  * SSO tokens from Busibox Portal.
  * 
@@ -77,11 +83,11 @@ export interface AuthProviderProps {
   portalUrl?: string;
   /** Base path for the app (e.g., "/myapp") - used for URL cleanup */
   basePath?: string;
-  /** Session endpoint for auth state checks (default: "/api/session") */
+  /** Session endpoint - GET returns session, POST handles exchange/refresh (default: "/api/auth/session") */
   sessionEndpoint?: string;
-  /** Token refresh endpoint (default: "/api/auth/refresh") */
+  /** Token refresh endpoint - POST with empty body (default: "/api/auth/session") */
   refreshEndpoint?: string;
-  /** Token exchange endpoint - POST receives { token } and sets cookie (default: "/api/sso") */
+  /** Token exchange endpoint - POST with {token} (default: "/api/auth/session") */
   exchangeEndpoint?: string;
   /** Logout endpoint (default: "/api/logout") */
   logoutEndpoint?: string;
@@ -93,7 +99,7 @@ export interface AuthProviderProps {
   autoRedirect?: boolean;
   /**
    * Override the portal's silent SSO refresh URL.
-   * Default: auto-derived from portalUrl (e.g., "https://localhost/portal/api/sso/refresh")
+   * Default: auto-derived from portalUrl (e.g., "https://localhost/portal/api/auth/sso/refresh")
    */
   silentRefreshUrl?: string;
   /**
@@ -143,9 +149,9 @@ export function AuthProvider({
   appId,
   portalUrl: portalUrlProp,
   basePath: basePathProp,
-  sessionEndpoint = '/api/session',
-  refreshEndpoint = '/api/auth/refresh',
-  exchangeEndpoint = '/api/sso',
+  sessionEndpoint = '/api/auth/session',
+  refreshEndpoint = '/api/auth/session',
+  exchangeEndpoint = '/api/auth/session',
   logoutEndpoint = '/api/logout',
   checkIntervalMs = 30_000,
   refreshBufferMs = 5 * 60 * 1000,
@@ -198,6 +204,13 @@ export function AuthProvider({
     setIsReady(false);
     setIsExchanging(true);
 
+    // Remove token from URL IMMEDIATELY (synchronously) to prevent infinite
+    // reload loops when HMR/Fast Refresh re-mounts the component before the
+    // async exchange completes.
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('token');
+    window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search);
+
     exchangeToken(token, exchangeEndpoint)
       .then(() => {
         console.log('[AuthProvider] Token exchange successful');
@@ -216,20 +229,6 @@ export function AuthProvider({
         setIsExchanging(false);
         setIsReady(true);
         setTokenExchangeComplete(true);
-        
-        // Remove token from URL
-        const url = new URL(window.location.href);
-        url.searchParams.delete('token');
-        
-        // Get path relative to basePath (Next.js router expects paths without basePath)
-        let path = url.pathname;
-        if (basePath && path.startsWith(basePath)) {
-          path = path.slice(basePath.length) || '/';
-        }
-        
-        // Use window.history to avoid framework router issues
-        console.log('[AuthProvider] Replacing URL:', window.location.pathname, '->', url.pathname + url.search);
-        window.history.replaceState(null, '', url.pathname + url.search);
       });
   }, [basePath, exchangeEndpoint, portalUrl, resolvedAppId]);
 

@@ -17,6 +17,10 @@
       "types": "./dist/contexts/index.d.ts",
       "default": "./dist/contexts/index.js"
     },
+    "./contexts/*": {
+      "types": "./dist/contexts/*.d.ts",
+      "default": "./dist/contexts/*.js"
+    },
     "./layout": {
       "types": "./dist/layout/index.d.ts",
       "default": "./dist/layout/index.js"

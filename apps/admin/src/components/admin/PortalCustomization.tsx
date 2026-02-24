@@ -8,6 +8,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts/ApiContext';
 
 export type PortalCustomizationProps = {
   onComplete: () => void;
@@ -15,6 +16,7 @@ export type PortalCustomizationProps = {
 };
 
 export function PortalCustomization({ onComplete, onSkip }: PortalCustomizationProps) {
+  const resolve = useCrossAppApiPath();
   const [companyName, setCompanyName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#f97316');
@@ -25,7 +27,7 @@ export function PortalCustomization({ onComplete, onSkip }: PortalCustomizationP
 
     try {
       // Save customization settings
-      await fetch('/api/portal-customization', {
+      await fetch(resolve('portal-customization', '/api/portal-customization'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

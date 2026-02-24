@@ -14,8 +14,8 @@
  * Usage:
  * ```typescript
  * const authManager = createAuthStateManager({
- *   refreshEndpoint: '/api/auth/refresh',
- *   sessionEndpoint: '/api/session',
+ *   refreshEndpoint: '/api/auth/session',
+ *   sessionEndpoint: '/api/auth/session',
  *   portalUrl: 'https://portal.example.com',
  *   appId: 'busibox-agents',
  * });
@@ -55,15 +55,17 @@ export type AuthState = {
 
 export type AuthStateManagerConfig = {
   /**
-   * Endpoint to refresh authentication tokens.
+   * Endpoint to refresh authentication tokens (POST with empty body).
    * Should return { success: true, token: string, expiresIn: number }
    * or { requiresReauth: true } on failure.
+   * Typically the same as sessionEndpoint (/api/auth/session).
    */
   refreshEndpoint: string;
 
   /**
-   * Endpoint to get current session state.
-   * Should return { user: {...}, isAuthenticated: boolean }
+   * Endpoint to get current session state (GET).
+   * Should return { success: true, data: { user: {...} } }
+   * Typically /api/auth/session.
    */
   sessionEndpoint: string;
 
@@ -113,14 +115,15 @@ export type AuthStateManagerConfig = {
    * to silently obtain a fresh SSO token from the portal (using the portal's
    * session cookie, which the browser sends automatically for same-origin requests).
    * 
-   * Defaults to: `${portalUrl}/api/sso/refresh` (constructed from portalUrl minus '/home' suffix)
+   * Defaults to: `${portalUrl}/api/auth/sso/refresh` (constructed from portalUrl minus '/home' suffix)
    */
   silentRefreshUrl?: string;
 
   /**
-   * Optional: Local endpoint to exchange an SSO token for session cookies.
+   * Optional: Local endpoint to exchange an SSO token for session cookies
+   * (POST with {token}).
    * Used during silent refresh to store the fresh SSO token.
-   * Default: '/api/sso'
+   * Default: '/api/auth/session'
    */
   exchangeEndpoint?: string;
 
@@ -227,7 +230,7 @@ export function createAuthStateManager(config: AuthStateManagerConfig): AuthStat
     getToken,
     setToken,
     basePath = '',
-    exchangeEndpoint = '/api/sso',
+    exchangeEndpoint = '/api/auth/session',
     tokenExpiresOverrideMs,
   } = config;
 
@@ -235,7 +238,7 @@ export function createAuthStateManager(config: AuthStateManagerConfig): AuthStat
   // portalUrl typically ends with '/home' (e.g., 'https://localhost/portal/home'),
   // so strip that to get the portal base, then append the refresh API path.
   const portalBase = portalUrl.replace(/\/home\/?$/, '');
-  const silentRefreshUrl = config.silentRefreshUrl || (portalBase ? `${portalBase}/api/sso/refresh` : '');
+  const silentRefreshUrl = config.silentRefreshUrl || (portalBase ? `${portalBase}/api/auth/sso/refresh` : '');
 
   // Track when the token was first observed (for tokenExpiresOverrideMs)
   let tokenFirstSeen: number | null = null;
@@ -418,7 +421,7 @@ export function createAuthStateManager(config: AuthStateManagerConfig): AuthStat
   /**
    * Try to silently refresh the SSO token via the portal.
    * 
-   * This calls the portal's /api/sso/refresh endpoint. Since the portal and
+   * This calls the portal's /api/auth/sso/refresh endpoint. Since the portal and
    * sub-apps are on the same origin, the browser automatically sends the
    * portal's session cookie. If the portal session is still valid, it returns
    * a fresh SSO token which we exchange locally for new cookies.
@@ -520,11 +523,19 @@ export function createAuthStateManager(config: AuthStateManagerConfig): AuthStat
           credentials: 'include',
         });
 
-        const data = await response.json();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let data: any;
+        try {
+          data = await response.json();
+        } catch {
+          console.error(`[AuthStateManager] Refresh endpoint returned non-JSON response (status ${response.status})`);
+          emit('tokenRefreshFailed', { error: new Error(`Non-JSON response: ${response.status}`) });
+          return false;
+        }
 
         if (!response.ok) {
           // Check if re-authentication is required (SSO token expired)
-          if (data.requiresReauth) {
+          if (data.requiresReauth || data.requireLogout) {
             console.log('[AuthStateManager] Local refresh says re-auth needed, trying silent SSO refresh...');
             
             // Try silent refresh via portal before giving up
@@ -618,7 +629,8 @@ export function createAuthStateManager(config: AuthStateManagerConfig): AuthStat
         console.log('[AuthStateManager] Token expired, attempting refresh');
         const refreshed = await refreshToken();
         if (!refreshed) {
-          // refreshToken() already handles redirect after trying silent refresh
+          // Refresh failed - still check session so the auth state can transition
+          await checkSession();
           return;
         }
       } else if (timeUntilExpiry <= refreshBufferMs) {

@@ -23,6 +23,9 @@ export type ProtectedRouteProps = {
   fallback?: React.ReactNode;
   loginUrl?: string;
   homeUrl?: string;
+  /** When provided and user is not authenticated, renders this instead of
+   *  redirecting to login. Use for inline re-auth flows (e.g. passkey prompt). */
+  sessionExpiredFallback?: React.ReactNode;
 };
 
 export function ProtectedRoute({ 
@@ -31,6 +34,7 @@ export function ProtectedRoute({
   fallback,
   loginUrl,
   homeUrl,
+  sessionExpiredFallback,
 }: ProtectedRouteProps) {
   const { user, isAuthenticated, isAdmin } = useSession();
   const router = useRouter();
@@ -40,7 +44,7 @@ export function ProtectedRoute({
   const resolvedHomeUrl = homeUrl ?? (isPortalApp ? '/home' : '/portal/home');
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !sessionExpiredFallback) {
       const search = typeof window !== 'undefined' ? window.location.search : '';
       const returnTo = search ? `${window.location.origin}${basePath}${pathname || ''}${search}` : undefined;
       const target = returnTo ? `${resolvedLoginUrl}?returnTo=${encodeURIComponent(returnTo)}` : resolvedLoginUrl;
@@ -57,9 +61,12 @@ export function ProtectedRoute({
         window.location.href = resolvedHomeUrl;
       }
     }
-  }, [isAuthenticated, isAdmin, requireAdmin, router, pathname, resolvedLoginUrl, resolvedHomeUrl]);
+  }, [isAuthenticated, isAdmin, requireAdmin, router, pathname, resolvedLoginUrl, resolvedHomeUrl, sessionExpiredFallback]);
 
   if (!isAuthenticated) {
+    if (sessionExpiredFallback) {
+      return <>{sessionExpiredFallback}</>;
+    }
     return fallback || (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">

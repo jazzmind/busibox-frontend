@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, Loader2, FolderPlus } from 'lucide-react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 interface CreatePersonalLibraryModalProps {
   isOpen: boolean;
@@ -17,6 +18,8 @@ export function CreatePersonalLibraryModal({
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const resolve = useCrossAppApiPath();
 
   useEffect(() => {
     if (!isOpen) {
@@ -36,7 +39,7 @@ export function CreatePersonalLibraryModal({
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/libraries/personal', {
+      const response = await fetch(resolve('libraries', '/api/libraries/personal'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim() }),

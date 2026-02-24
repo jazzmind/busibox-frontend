@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X, Settings, UserPlus, Trash2, Shield, ShieldOff } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 interface ConversationShare {
   id: string;
@@ -28,6 +29,7 @@ export function ConversationSettings({
   onClose,
   onPrivacyChange,
 }: ConversationSettingsProps) {
+  const resolve = useCrossAppApiPath();
   const [shares, setShares] = useState<ConversationShare[]>([]);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
@@ -47,7 +49,7 @@ export function ConversationSettings({
 
   const loadShares = async () => {
     try {
-      const response = await fetch(`/api/chat/conversations/${conversationId}/share`);
+      const response = await fetch(resolve('chat', `/api/chat/conversations/${conversationId}/share`));
       if (!response.ok) {
         throw new Error('Failed to load shares');
       }
@@ -69,7 +71,7 @@ export function ConversationSettings({
 
     setSharing(true);
     try {
-      const response = await fetch(`/api/chat/conversations/${conversationId}/share`, {
+      const response = await fetch(resolve('chat', `/api/chat/conversations/${conversationId}/share`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -102,7 +104,7 @@ export function ConversationSettings({
 
     try {
       const response = await fetch(
-        `/api/chat/conversations/${conversationId}/share/${userId}`,
+        resolve('chat', `/api/chat/conversations/${conversationId}/share/${userId}`),
         {
           method: 'DELETE',
         }
@@ -133,7 +135,7 @@ export function ConversationSettings({
 
     setUpdatingPrivacy(true);
     try {
-      const response = await fetch(`/api/chat/conversations/${conversationId}`, {
+      const response = await fetch(resolve('chat', `/api/chat/conversations/${conversationId}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

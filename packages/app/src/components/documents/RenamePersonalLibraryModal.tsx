@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 interface RenamePersonalLibraryModalProps {
   isOpen: boolean;
@@ -22,6 +23,8 @@ export function RenamePersonalLibraryModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const resolve = useCrossAppApiPath();
+
   useEffect(() => {
     if (isOpen) {
       setName(currentName);
@@ -36,7 +39,7 @@ export function RenamePersonalLibraryModal({
     setError(null);
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/libraries/${libraryId}`, {
+      const response = await fetch(resolve('libraries', `/api/libraries/${libraryId}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim() }),

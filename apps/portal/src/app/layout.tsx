@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SessionProvider } from "@jazzmind/busibox-app/components/auth/SessionProvider";
-import { ThemeProvider, CustomizationProvider } from "@jazzmind/busibox-app";
+import { ThemeProvider, CustomizationProvider, BusiboxApiProvider } from "@jazzmind/busibox-app";
 import { FetchWrapper } from "@jazzmind/busibox-app";
 import { VersionBar } from "@jazzmind/busibox-app";
 import "./globals.css";
@@ -15,6 +15,15 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+const crossAppPaths = {
+  portal: process.env.NEXT_PUBLIC_PORTAL_BASE_PATH || "/portal",
+  documents: process.env.NEXT_PUBLIC_DOCUMENTS_BASE_PATH || "/documents",
+  agents: process.env.NEXT_PUBLIC_AGENTS_BASE_PATH || "/agents",
+  media: process.env.NEXT_PUBLIC_MEDIA_BASE_PATH || "/media",
+  chat: process.env.NEXT_PUBLIC_CHAT_BASE_PATH || "/chat",
+};
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/portal";
 
 export const metadata: Metadata = {
   title: {
@@ -40,14 +49,16 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <FetchWrapper skipAuthUrls={['/api/auth/refresh', '/api/auth/session', '/api/session', '/api/logout']} />
+        <FetchWrapper skipAuthUrls={['/api/auth/session', '/api/logout']} />
         <ThemeProvider>
-          <SessionProvider>
-            <CustomizationProvider>
-              {children}
-              <VersionBar />
-            </CustomizationProvider>
-          </SessionProvider>
+          <BusiboxApiProvider value={{ nextApiBasePath: basePath, crossAppPaths }}>
+            <SessionProvider>
+              <CustomizationProvider>
+                {children}
+                <VersionBar />
+              </CustomizationProvider>
+            </SessionProvider>
+          </BusiboxApiProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, AlertCircle, Copy, Check, WrapText, FileCode } from 'lucide-react';
+import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
 interface CodeViewerProps {
   fileId: string;
@@ -60,6 +61,7 @@ function syntaxHighlightJSON(raw: string): string {
 }
 
 export function CodeViewer({ fileId, mimeType, filename }: CodeViewerProps) {
+  const resolve = useCrossAppApiPath();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [content, setContent] = useState<string>('');
@@ -73,7 +75,7 @@ export function CodeViewer({ fileId, mimeType, filename }: CodeViewerProps) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/documents/api/documents/${fileId}/download`);
+      const response = await fetch(resolve('documents', `/api/documents/${fileId}/download`));
       if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
       const text = await response.text();
       setContent(text);
@@ -82,7 +84,7 @@ export function CodeViewer({ fileId, mimeType, filename }: CodeViewerProps) {
     } finally {
       setLoading(false);
     }
-  }, [fileId]);
+  }, [fileId, resolve]);
 
   useEffect(() => { fetchContent(); }, [fetchContent]);
 

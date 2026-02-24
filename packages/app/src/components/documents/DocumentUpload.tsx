@@ -12,7 +12,7 @@
 
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { useBusiboxApi } from '../../contexts/ApiContext';
+import { useBusiboxApi, useCrossAppApiPath, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 
 export type DocumentUploadProps = {
@@ -33,6 +33,8 @@ export type DocumentUploadProps = {
 
 export function DocumentUpload({ onUploadComplete, libraryId, compact = false, renderLibrarySelector }: DocumentUploadProps) {
   const api = useBusiboxApi();
+  const resolve = useCrossAppApiPath();
+  const documentsBase = useCrossAppBasePath('documents');
 
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -74,8 +76,8 @@ export function DocumentUpload({ onUploadComplete, libraryId, compact = false, r
             },
           },
           next: {
-            nextApiBasePath: api.nextApiBasePath,
-            path: '/documents/api/documents/upload',
+            nextApiBasePath: documentsBase,
+            path: '/api/documents/upload',
             init: {
               method: 'POST',
               body: formData,

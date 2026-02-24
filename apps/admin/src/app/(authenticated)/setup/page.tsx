@@ -195,9 +195,11 @@ function AdminSetupContent() {
     }
   };
 
+  const portalBase = process.env.NEXT_PUBLIC_PORTAL_BASE_PATH || '/portal';
+
   const checkUserHasPasskeys = async (): Promise<boolean> => {
     try {
-      const response = await fetch('/api/auth/passkey', {
+      const response = await fetch(`${portalBase}/api/auth/passkey`, {
         credentials: 'include',
       });
 
