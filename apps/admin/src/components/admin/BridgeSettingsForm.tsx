@@ -328,11 +328,29 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
     </a>
   );
 
+  const isChannelActive = (key: 'signal' | 'telegram' | 'discord' | 'whatsapp' | 'email'): boolean => {
+    const flagMap: Record<string, string> = {
+      signal: 'signal_enabled',
+      telegram: 'telegram_enabled',
+      discord: 'discord_enabled',
+      whatsapp: 'whatsapp_enabled',
+    };
+    if (key === 'email') return formData.emailInboundEnabled;
+    const healthKey = flagMap[key];
+    const fromHealth = liveBridgeHealth?.[healthKey];
+    if (fromHealth !== undefined) return Boolean(fromHealth);
+    if (key === 'signal') return formData.signalEnabled;
+    if (key === 'telegram') return formData.telegramEnabled;
+    if (key === 'discord') return formData.discordEnabled;
+    if (key === 'whatsapp') return formData.whatsappEnabled;
+    return false;
+  };
+
   const channelFlags = [
-    { key: 'signal_enabled', label: 'Signal', enabled: Boolean(liveBridgeHealth?.signal_enabled) },
-    { key: 'telegram_enabled', label: 'Telegram', enabled: Boolean(liveBridgeHealth?.telegram_enabled) },
-    { key: 'discord_enabled', label: 'Discord', enabled: Boolean(liveBridgeHealth?.discord_enabled) },
-    { key: 'whatsapp_enabled', label: 'WhatsApp', enabled: Boolean(liveBridgeHealth?.whatsapp_enabled) },
+    { key: 'signal_enabled', label: 'Signal', enabled: isChannelActive('signal') },
+    { key: 'telegram_enabled', label: 'Telegram', enabled: isChannelActive('telegram') },
+    { key: 'discord_enabled', label: 'Discord', enabled: isChannelActive('discord') },
+    { key: 'whatsapp_enabled', label: 'WhatsApp', enabled: isChannelActive('whatsapp') },
   ];
 
   const isStoredValue = (value: string | null): boolean =>
@@ -373,24 +391,6 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
   const selectedDefaultAgentId = visibleAgentOptions.some((agent) => agent.id === (formData.defaultAgentId || '').trim())
     ? (formData.defaultAgentId || '').trim()
     : (visibleAgentOptions[0]?.id || '');
-
-  const isChannelActive = (key: 'signal' | 'telegram' | 'discord' | 'whatsapp' | 'email'): boolean => {
-    const flagMap: Record<string, string> = {
-      signal: 'signal_enabled',
-      telegram: 'telegram_enabled',
-      discord: 'discord_enabled',
-      whatsapp: 'whatsapp_enabled',
-    };
-    if (key === 'email') return formData.emailInboundEnabled;
-    const healthKey = flagMap[key];
-    const fromHealth = liveBridgeHealth?.[healthKey];
-    if (fromHealth !== undefined) return Boolean(fromHealth);
-    if (key === 'signal') return formData.signalEnabled;
-    if (key === 'telegram') return formData.telegramEnabled;
-    if (key === 'discord') return formData.discordEnabled;
-    if (key === 'whatsapp') return formData.whatsappEnabled;
-    return false;
-  };
 
   const StatusBadge = ({ active }: { active: boolean }) => (
     <span

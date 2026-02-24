@@ -23,6 +23,13 @@ const SIZE_CLASS: Record<NonNullable<UserAvatarProps['size']>, string> = {
   lg: 'w-12 h-12 text-base',
 };
 
+const SIZE_PX: Record<NonNullable<UserAvatarProps['size']>, number> = {
+  xs: 20,
+  sm: 28,
+  md: 36,
+  lg: 48,
+};
+
 function stringHash(value: string): number {
   let hash = 0;
   for (let i = 0; i < value.length; i += 1) {
@@ -99,6 +106,7 @@ export function UserAvatar({
   const normalizedFavoriteColor = useMemo(() => normalizeHexColor(favoriteColor), [favoriteColor]);
 
   if (avatarUrl && !imageFailed) {
+    const px = SIZE_PX[size];
     return (
       <img
         src={avatarUrl}
@@ -108,6 +116,7 @@ export function UserAvatar({
           SIZE_CLASS[size],
           className
         )}
+        style={{ width: px, height: px, maxWidth: px, maxHeight: px }}
         onError={() => setImageFailed(true)}
       />
     );

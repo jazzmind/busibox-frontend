@@ -40,9 +40,13 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <FetchWrapper skipAuthUrls={['/api/auth/refresh', '/api/auth/session', '/api/session', '/api/auth/logout', '/api/sso/token', '/api/sso/refresh']} />
+        <FetchWrapper skipAuthUrls={['/api/auth/refresh', '/api/auth/session', '/api/session', '/api/auth/logout', '/api/sso/token', '/api/sso/refresh', '/portal/api/sso/refresh']} />
         <ThemeProvider>
-          <SessionProvider>
+          <SessionProvider
+            appId={process.env.APP_NAME || 'busibox-media'}
+            portalUrl={process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL || process.env.NEXT_PUBLIC_AI_PORTAL_URL}
+            basePath={process.env.NEXT_PUBLIC_BASE_PATH}
+          >
             <CustomizationProvider>
               {children}
               <VersionBar />

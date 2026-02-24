@@ -327,10 +327,14 @@ export function createAuthStateManager(config: AuthStateManagerConfig): AuthStat
       }
 
       const data = await response.json();
+      // Support both flat format { isAuthenticated, user } and
+      // apiSuccess wrapper format { success, data: { user } }
+      const userData = data.data?.user ?? data.user ?? null;
+      const isAuthenticated = data.isAuthenticated ?? (data.success && !!userData) ?? false;
       const newState: AuthState = {
-        isAuthenticated: data.isAuthenticated ?? false,
-        user: data.user ?? null,
-        tokenExpiresAt: state.tokenExpiresAt, // Preserve token expiry
+        isAuthenticated,
+        user: userData,
+        tokenExpiresAt: state.tokenExpiresAt,
         lastChecked: Date.now(),
       };
 
@@ -383,10 +387,12 @@ export function createAuthStateManager(config: AuthStateManagerConfig): AuthStat
           });
           if (recheckResponse.ok) {
             const recheckData = await recheckResponse.json();
-            if (recheckData.isAuthenticated) {
+            const recheckUser = recheckData.data?.user ?? recheckData.user ?? null;
+            const recheckAuth = recheckData.isAuthenticated ?? (recheckData.success && !!recheckUser) ?? false;
+            if (recheckAuth) {
               state = {
                 isAuthenticated: true,
-                user: recheckData.user ?? null,
+                user: recheckUser,
                 tokenExpiresAt: state.tokenExpiresAt,
                 lastChecked: Date.now(),
               };
