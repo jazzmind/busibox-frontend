@@ -98,9 +98,6 @@ export default function DocumentDetailsPage({
   const resolvedParams = use(params);
   const router = useRouter();
   const session = useSession();
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-  };
   const [document, setDocument] = useState<DocumentMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,7 +160,7 @@ export default function DocumentDetailsPage({
         headers['X-Quiet-Logs'] = '1';
       }
       
-      const response = await fetch(`/api/documents/${resolvedParams.fileId}/status`, { headers });
+      const response = await fetch(`/documents/api/documents/${resolvedParams.fileId}/status`, { headers });
       if (!response.ok) {
         throw new Error('Failed to fetch document');
       }
@@ -271,7 +268,7 @@ export default function DocumentDetailsPage({
     if (!confirm(`Reprocess this document ${stageName}?`)) return;
     
     try {
-      const response = await fetch(`/api/documents/${resolvedParams.fileId}/reprocess`, {
+      const response = await fetch(`/documents/api/documents/${resolvedParams.fileId}/reprocess`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: startStage ? JSON.stringify({ start_stage: startStage }) : undefined,
@@ -393,7 +390,7 @@ export default function DocumentDetailsPage({
   const handleMoveToLibrary = async (targetLibraryId: string) => {
     setMovingTo(targetLibraryId);
     try {
-      const response = await fetch(`/api/documents/${resolvedParams.fileId}/move`, {
+      const response = await fetch(`/documents/api/documents/${resolvedParams.fileId}/move`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ targetLibraryId, action: 'move' }),
@@ -423,7 +420,7 @@ export default function DocumentDetailsPage({
     setGeneratingSchema(true);
     try {
       // Step 1: Call the schema-builder agent to analyze the document
-      const agentResponse = await fetch(`/api/documents/${resolvedParams.fileId}/generate-schema`, {
+      const agentResponse = await fetch(`/documents/api/documents/${resolvedParams.fileId}/generate-schema`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -442,7 +439,7 @@ export default function DocumentDetailsPage({
       const schemaName = agentResult.schemaName || 'Extraction Schema';
 
       // Step 2: Save the agent-generated schema as a data document
-      const response = await fetch('/api/data', {
+      const response = await fetch('/documents/api/data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -479,7 +476,7 @@ export default function DocumentDetailsPage({
     }
     setExtracting(true);
     try {
-      const response = await fetch(`/api/documents/${resolvedParams.fileId}/extract`, {
+      const response = await fetch(`/documents/api/documents/${resolvedParams.fileId}/extract`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ schemaDocumentId: selectedSchemaId, storeResults: true }),
@@ -520,8 +517,7 @@ export default function DocumentDetailsPage({
         <div className="min-h-screen flex flex-col bg-gray-50">
           <Header
             session={session}
-            onLogout={handleLogout}
-            postLogoutRedirectTo="/portal/login"
+            onLogout={async () => session.redirectToPortal()}
             appsLink="/portal/home"
             accountLink="/portal/account"
             adminNavigation={adminNavigation}
@@ -544,8 +540,7 @@ export default function DocumentDetailsPage({
         <div className="min-h-screen flex flex-col bg-gray-50">
           <Header
             session={session}
-            onLogout={handleLogout}
-            postLogoutRedirectTo="/portal/login"
+            onLogout={async () => session.redirectToPortal()}
             appsLink="/portal/home"
             accountLink="/portal/account" 
             adminNavigation={adminNavigation}
@@ -595,8 +590,7 @@ export default function DocumentDetailsPage({
         <div className="min-h-screen flex flex-col bg-gray-50">
           <Header
             session={session}
-            onLogout={handleLogout}
-            postLogoutRedirectTo="/portal/login"
+            onLogout={async () => session.redirectToPortal()}
             appsLink="/portal/home"
             accountLink="/portal/account" 
             adminNavigation={adminNavigation}
@@ -627,8 +621,7 @@ export default function DocumentDetailsPage({
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Header
         session={session}
-        onLogout={handleLogout}
-        postLogoutRedirectTo="/portal/login"
+        onLogout={async () => session.redirectToPortal()}
         appsLink="/portal/home"
         accountLink="/portal/account" 
         adminNavigation={adminNavigation}

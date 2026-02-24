@@ -75,7 +75,7 @@ export function DocumentUpload({ onUploadComplete, libraryId, compact = false, r
           },
           next: {
             nextApiBasePath: api.nextApiBasePath,
-            path: '/api/documents/upload',
+            path: '/documents/api/documents/upload',
             init: {
               method: 'POST',
               body: formData,

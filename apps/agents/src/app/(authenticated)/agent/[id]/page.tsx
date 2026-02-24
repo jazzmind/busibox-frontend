@@ -196,8 +196,8 @@ export default function AgentDetailPage() {
           is_personal: !Boolean((data as any).is_builtin),
         });
 
-        // Get auth token for chat
-        const tokenRes = await fetch('/api/auth/token');
+        // Get auth token for chat via session refresh
+        const tokenRes = await fetch('/api/auth/session', { method: 'POST' });
         if (tokenRes.ok) {
           const tokenData = await tokenRes.json();
           setToken(tokenData.token);
@@ -207,20 +207,17 @@ export default function AgentDetailPage() {
           console.log('[AgentDetail] Token fetch returned 401, attempting refresh');
           const refreshed = await refreshToken();
           if (refreshed) {
-            // Retry getting the token
-            const retryRes = await fetch('/api/auth/token');
+            const retryRes = await fetch('/api/auth/session', { method: 'POST' });
             if (retryRes.ok) {
               const retryData = await retryRes.json();
               setToken(retryData.token);
               setTokenError(null);
             } else {
-              // Still failed after refresh - redirect to portal
               console.log('[AgentDetail] Token fetch still failed after refresh, redirecting');
               setIsRedirecting(true);
               redirectToPortal('session_expired');
             }
           } else {
-            // Refresh failed - redirect to portal
             console.log('[AgentDetail] Token refresh failed, redirecting to portal');
             setIsRedirecting(true);
             redirectToPortal('session_expired');

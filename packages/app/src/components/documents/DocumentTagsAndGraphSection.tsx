@@ -119,7 +119,7 @@ export function DocumentTagsAndGraphSection({
     setSaving(true);
     setSaveError(null);
     try {
-      const res = await fetch(`/api/documents/${fileId}/tags`, {
+      const res = await fetch(`/documents/api/documents/${fileId}/tags`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ extractedKeywords: tags }),

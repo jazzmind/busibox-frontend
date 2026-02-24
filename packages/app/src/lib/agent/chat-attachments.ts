@@ -295,7 +295,7 @@ export async function getAttachmentDownloadUrl(
   }
 
   if (attachment.addedToLibrary && attachment.libraryDocumentId) {
-    return `/api/documents/${attachment.libraryDocumentId}/download`;
+    return `/documents/api/documents/${attachment.libraryDocumentId}/download`;
   }
 
   if (!attachment.fileUrl) {

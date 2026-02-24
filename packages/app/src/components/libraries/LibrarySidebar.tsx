@@ -255,7 +255,7 @@ export function LibrarySidebar({
         service: { baseUrl: undefined, path: `/documents/${docId}/move`, init: { method: 'POST' } },
         next: {
           nextApiBasePath: api.nextApiBasePath,
-          path: `/api/documents/${docId}/move`,
+          path: `/documents/api/documents/${docId}/move`,
           init: {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

@@ -73,7 +73,7 @@ export function CodeViewer({ fileId, mimeType, filename }: CodeViewerProps) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/documents/${fileId}/download`);
+      const response = await fetch(`/documents/api/documents/${fileId}/download`);
       if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
       const text = await response.text();
       setContent(text);

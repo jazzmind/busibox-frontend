@@ -27,7 +27,7 @@ export function ProcessingHistoryTab({ fileId }: ProcessingHistoryTabProps) {
       setError(null);
 
       const servicePath = `/files/${fileId}/history`;
-      const nextPath = `/api/documents/${fileId}/history`;
+      const nextPath = `/documents/api/documents/${fileId}/history`;
 
       const response = await fetchServiceFirstFallbackNext({
         service: { baseUrl: api.services?.dataApiUrl, path: servicePath, init: { method: 'GET' } },

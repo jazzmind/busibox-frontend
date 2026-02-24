@@ -36,10 +36,6 @@ export default function DocumentsPage() {
   const router = useRouter();
   const session = useSession();
   const isMobile = useIsMobile();
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-  };
-
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | undefined>(() => {
     if (typeof window !== 'undefined') {
       return sessionStorage.getItem('documents:selectedLibraryId') || undefined;
@@ -156,8 +152,7 @@ export default function DocumentsPage() {
       <div className="min-h-screen flex flex-col bg-gray-50">
         <Header
           session={session}
-          onLogout={handleLogout}
-          postLogoutRedirectTo="/portal/login"
+          onLogout={async () => session.redirectToPortal()}
           appsLink="/portal/home"
           accountLink="/portal/account"
           adminNavigation={adminNavigation}

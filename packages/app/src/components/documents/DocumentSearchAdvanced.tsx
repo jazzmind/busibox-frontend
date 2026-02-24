@@ -197,7 +197,7 @@ export function DocumentSearchAdvanced() {
         },
         next: {
           nextApiBasePath: api.nextApiBasePath,
-          path: '/api/documents/search',
+          path: '/documents/api/documents/search',
           init: {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

@@ -22,18 +22,13 @@ export default function ChatLayout({
   children: React.ReactNode;
 }) {
   const session = useSession();
-  
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-  };
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
       {/* Branded Header */}
       <Header
         session={session}
-        onLogout={handleLogout}
-        postLogoutRedirectTo="/portal/login"
+        onLogout={async () => session.redirectToPortal()}
         adminNavigation={adminNavigation}
         appsLink="/portal/home"
         accountLink="/portal/account"

@@ -26,12 +26,8 @@ const navItems = [
 ];
 
 export default function AuthenticatedLayout({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated, logout } = useSession();
+  const { user, isAuthenticated, redirectToPortal } = useSession();
   const pathname = usePathname();
-
-  const handleLogout = async () => {
-    await logout();
-  };
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/' || pathname.startsWith('/agent');
@@ -42,8 +38,7 @@ export default function AuthenticatedLayout({ children }: { children: ReactNode 
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <Header
         session={{ user, isAuthenticated }}
-        onLogout={handleLogout}
-        postLogoutRedirectTo={`${portalUrl}/login`}
+        onLogout={async () => redirectToPortal()}
         adminNavigation={adminNavigation}
         appsLink={`${portalUrl}/home`}
         accountLink={`${portalUrl}/account`}

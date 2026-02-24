@@ -348,7 +348,7 @@ export function SessionProvider({
   // ---- Auth state manager integration (from AuthProvider) ----
 
   useEffect(() => {
-    if (!tokenExchangeComplete) return;
+    if (!isReady) return;
     if (typeof window === 'undefined') return;
 
     console.log('[SessionProvider] Starting auth state manager');
@@ -425,7 +425,7 @@ export function SessionProvider({
       authManagerRef.current = null;
     };
   }, [
-    tokenExchangeComplete,
+    isReady,
     basePath,
     sessionEndpoint,
     refreshEndpoint,

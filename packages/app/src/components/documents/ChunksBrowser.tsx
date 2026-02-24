@@ -83,7 +83,7 @@ export function ChunksBrowser({ fileId, totalChunks }: ChunksBrowserProps) {
     try {
       // Service endpoint: /files/{fileId}/chunks?page={page}&page_size={pageSize}
       const servicePath = `/files/${fileId}/chunks?page=${currentPage}&page_size=${pageSize}`;
-      const nextPath = `/api/documents/${fileId}/chunks?page=${currentPage}&pageSize=${pageSize}`;
+      const nextPath = `/documents/api/documents/${fileId}/chunks?page=${currentPage}&pageSize=${pageSize}`;
 
       const response = await fetchServiceFirstFallbackNext({
         service: {

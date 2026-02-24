@@ -10,10 +10,7 @@ interface PageProps {
 
 async function getDocumentMetadata(fileId: string) {
   try {
-    // Use localhost for SSR fetches - NEXT_PUBLIC_APP_URL is external and may not be reachable from server
-    const port = process.env.PORT || '3000';
-    const apiUrl = `http://localhost:${port}`;
-    const response = await fetch(`${apiUrl}/api/documents/${fileId}/status`, {
+    const response = await fetch(`/documents/api/documents/${fileId}/status`, {
       cache: 'no-store',
     });
     

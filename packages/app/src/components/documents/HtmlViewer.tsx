@@ -32,7 +32,7 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage 
 
     try {
       const servicePath = `/files/${fileId}/html`;
-      const nextPath = `/api/documents/${fileId}/html`;
+      const nextPath = `/documents/api/documents/${fileId}/html`;
 
       const response = await fetchServiceFirstFallbackNext({
         service: { baseUrl: api.services?.dataApiUrl, path: servicePath, init: { method: 'GET' } },

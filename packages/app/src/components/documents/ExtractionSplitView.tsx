@@ -37,9 +37,9 @@ export function ExtractionSplitView({
       setError(null);
       try {
         const [markdownResp, extractionResp, schemaResp] = await Promise.all([
-          fetch(`/api/documents/${fileId}/markdown`),
+          fetch(`/documents/api/documents/${fileId}/markdown`),
           fetch(
-            `/api/documents/${fileId}/extractions?schemaDocumentId=${encodeURIComponent(schemaDocumentId)}`
+            `/documents/api/documents/${fileId}/extractions?schemaDocumentId=${encodeURIComponent(schemaDocumentId)}`
           ),
           fetch(`/api/data/${schemaDocumentId}`),
         ]);

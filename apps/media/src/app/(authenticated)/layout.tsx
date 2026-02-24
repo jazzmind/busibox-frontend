@@ -16,18 +16,13 @@ const adminNavigation: NavigationItem[] = [
 ];
 
 export default function AuthenticatedLayout({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated, logout } = useSession();
-
-  const handleLogout = async () => {
-    await logout();
-  };
+  const { user, isAuthenticated, redirectToPortal } = useSession();
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <Header
         session={{ user, isAuthenticated }}
-        onLogout={handleLogout}
-        postLogoutRedirectTo={`${portalUrl}/login`}
+        onLogout={async () => redirectToPortal()}
         adminNavigation={adminNavigation}
         appsLink={`${portalUrl}/home`}
         accountLink={`${portalUrl}/account`}

@@ -34,7 +34,7 @@ export function WorkspaceLayout({ projectId, projectName }: WorkspaceLayoutProps
 
   useEffect(() => {
     async function loadToken() {
-      const response = await fetch("/api/auth/token");
+      const response = await fetch("/api/auth/session", { method: "POST" });
       if (!response.ok) return;
       const data = await response.json();
       setToken(data.token || "");

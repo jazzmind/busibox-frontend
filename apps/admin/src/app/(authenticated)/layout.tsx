@@ -33,10 +33,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-  };
-
   return (
     <ProtectedRoute>
       <PasskeyRequiredWrapper>
@@ -45,8 +41,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <div className="fixed top-0 left-0 right-0 z-50">
             <Header
               session={session}
-              onLogout={handleLogout}
-              postLogoutRedirectTo="/portal/login"
+              onLogout={async () => session.redirectToPortal()}
               appsLink="/portal/home"
               accountLink="/portal/account"
               adminNavigation={adminNavigation}

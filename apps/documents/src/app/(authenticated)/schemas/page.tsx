@@ -26,9 +26,6 @@ const adminNavigation: NavigationItem[] = [
 export default function SchemaManagerPage() {
   const router = useRouter();
   const session = useSession();
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-  };
   const searchParams = useSearchParams();
   const fromFileName = searchParams.get('fromFileName');
 
@@ -89,8 +86,7 @@ export default function SchemaManagerPage() {
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <Header
         session={session}
-        onLogout={handleLogout}
-        postLogoutRedirectTo="/portal/login"
+        onLogout={async () => session.redirectToPortal()}
         appsLink="/portal/home"
         accountLink="/portal/account" 
         adminNavigation={adminNavigation}

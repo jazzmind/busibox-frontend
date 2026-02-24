@@ -40,12 +40,17 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <FetchWrapper skipAuthUrls={['/api/auth/refresh', '/api/auth/session', '/api/session', '/api/auth/logout', '/api/sso/token', '/api/sso/refresh', '/portal/api/sso/refresh']} />
+        <FetchWrapper skipAuthUrls={['/api/auth/session']} />
         <ThemeProvider>
           <SessionProvider
             appId={process.env.APP_NAME || 'busibox-media'}
             portalUrl={process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL || process.env.NEXT_PUBLIC_AI_PORTAL_URL}
             basePath={process.env.NEXT_PUBLIC_BASE_PATH}
+            exchangeEndpoint="/api/auth/session"
+            refreshEndpoint="/api/auth/session"
+            checkIntervalMs={process.env.NEXT_PUBLIC_AUTH_CHECK_INTERVAL_MS ? Number(process.env.NEXT_PUBLIC_AUTH_CHECK_INTERVAL_MS) : undefined}
+            refreshBufferMs={process.env.NEXT_PUBLIC_AUTH_REFRESH_BUFFER_MS ? Number(process.env.NEXT_PUBLIC_AUTH_REFRESH_BUFFER_MS) : undefined}
+            tokenExpiresOverrideMs={process.env.NEXT_PUBLIC_TOKEN_EXPIRES_OVERRIDE_MS ? Number(process.env.NEXT_PUBLIC_TOKEN_EXPIRES_OVERRIDE_MS) : undefined}
           >
             <CustomizationProvider>
               {children}

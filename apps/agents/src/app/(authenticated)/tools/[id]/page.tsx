@@ -62,7 +62,7 @@ export default function ToolDetailPage({ params }: { params: Promise<{ id: strin
 
   async function fetchToken() {
     try {
-      const res = await fetch('/api/auth/token');
+      const res = await fetch('/api/auth/session', { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         setToken(data.token);

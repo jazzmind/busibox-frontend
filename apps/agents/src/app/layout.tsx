@@ -27,34 +27,21 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const portalUrl = process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL || process.env.NEXT_PUBLIC_AI_PORTAL_URL || '';
-  const appId = process.env.APP_NAME || 'busibox-agents';
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-
-  const checkIntervalMs = process.env.NEXT_PUBLIC_AUTH_CHECK_INTERVAL_MS
-    ? parseInt(process.env.NEXT_PUBLIC_AUTH_CHECK_INTERVAL_MS, 10)
-    : undefined;
-  const refreshBufferMs = process.env.NEXT_PUBLIC_AUTH_REFRESH_BUFFER_MS
-    ? parseInt(process.env.NEXT_PUBLIC_AUTH_REFRESH_BUFFER_MS, 10)
-    : undefined;
-  const tokenExpiresOverrideMs = process.env.NEXT_PUBLIC_TOKEN_EXPIRES_OVERRIDE_MS
-    ? parseInt(process.env.NEXT_PUBLIC_TOKEN_EXPIRES_OVERRIDE_MS, 10)
-    : undefined;
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <FetchWrapper skipAuthUrls={['/api/auth/refresh', '/api/auth/exchange', '/api/session', '/api/auth/session', '/api/logout', '/api/sso', '/portal/api/sso/refresh']} />
+        <FetchWrapper skipAuthUrls={['/api/auth/session']} />
         <ThemeProvider>
           <SessionProvider
-            appId={appId}
-            portalUrl={portalUrl}
-            basePath={basePath}
-            checkIntervalMs={checkIntervalMs}
-            refreshBufferMs={refreshBufferMs}
-            tokenExpiresOverrideMs={tokenExpiresOverrideMs}
+            appId="busibox-agents"
+            portalUrl={process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL}
+            exchangeEndpoint="/api/auth/session"
+            refreshEndpoint="/api/auth/session"
+            checkIntervalMs={process.env.NEXT_PUBLIC_AUTH_CHECK_INTERVAL_MS ? Number(process.env.NEXT_PUBLIC_AUTH_CHECK_INTERVAL_MS) : undefined}
+            refreshBufferMs={process.env.NEXT_PUBLIC_AUTH_REFRESH_BUFFER_MS ? Number(process.env.NEXT_PUBLIC_AUTH_REFRESH_BUFFER_MS) : undefined}
+            tokenExpiresOverrideMs={process.env.NEXT_PUBLIC_TOKEN_EXPIRES_OVERRIDE_MS ? Number(process.env.NEXT_PUBLIC_TOKEN_EXPIRES_OVERRIDE_MS) : undefined}
           >
             <CustomizationProvider>
               {children}
