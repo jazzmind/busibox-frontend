@@ -99,7 +99,7 @@ export interface AuthProviderProps {
   autoRedirect?: boolean;
   /**
    * Override the portal's silent SSO refresh URL.
-   * Default: auto-derived from portalUrl (e.g., "https://localhost/portal/api/auth/sso/refresh")
+   * Default: auto-derived from portalUrl (e.g., "https://localhost/portal/api/auth/token")
    */
   silentRefreshUrl?: string;
   /**

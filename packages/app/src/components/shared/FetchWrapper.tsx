@@ -34,7 +34,7 @@ export type FetchWrapperProps = {
 export function FetchWrapper({ 
   onAuthError, 
   autoRetry = true,
-  skipAuthUrls = ['/api/auth/refresh', '/api/auth/session', '/api/session', '/api/logout'],
+  skipAuthUrls = ['/api/auth/refresh', '/api/auth/session', '/api/session', '/api/logout', '/api/auth/token'],
 }: FetchWrapperProps = {}) {
   const originalFetchRef = useRef<typeof window.fetch | null>(null);
 

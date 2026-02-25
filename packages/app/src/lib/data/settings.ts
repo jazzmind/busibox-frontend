@@ -42,7 +42,7 @@ const DEFAULT_SETTINGS: Omit<DataSettingsRecord, 'id' | 'createdAt' | 'updatedAt
   maxParallelStrategies: 3,
   markerEnabled: false,
   colpaliEnabled: true,
-  entityExtractionEnabled: true,
+  entityExtractionEnabled: false,
   chunkSizeMin: 400,
   chunkSizeMax: 800,
   chunkOverlapPct: 0.12,

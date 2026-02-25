@@ -356,7 +356,6 @@ async function ensureSeededRecords(token: string, documentId: string): Promise<b
       existing.type !== seeded.type ||
       existing.url !== seeded.url ||
       existing.healthEndpoint !== seeded.healthEndpoint ||
-      existing.displayOrder !== seeded.displayOrder ||
       existing.isActive !== seeded.isActive ||
       existing.selectedIcon !== seeded.selectedIcon ||
       existing.description !== seeded.description;
@@ -367,6 +366,7 @@ async function ensureSeededRecords(token: string, documentId: string): Promise<b
       ...existing,
       ...seeded,
       id: existing.id,
+      displayOrder: existing.displayOrder,
       createdAt: existing.createdAt.toISOString(),
       updatedAt: new Date().toISOString(),
     });
@@ -555,14 +555,31 @@ export async function reorderAppsInStore(
   roleIds: string[],
   updates: Array<{ id: string; displayOrder: number }>
 ): Promise<number> {
-  const apps = await listAppsForWrite(accessToken, roleIds);
+  const documentId = await ensureDocumentAndSeed(accessToken, roleIds);
+  const apps = await queryAllAppRecords(accessToken, documentId);
+  const appById = new Map(apps.map((a) => [a.id, a]));
+
   let applied = 0;
 
   for (const item of updates) {
-    const app = apps.find((candidate) => candidate.id === item.id);
-    if (!app) continue;
-    const result = await updateAppInStore(accessToken, roleIds, item.id, { displayOrder: item.displayOrder });
-    if (result) applied += 1;
+    const existing = appById.get(item.id);
+    if (!existing || existing.displayOrder === item.displayOrder) continue;
+
+    const merged = toStoreRecord({
+      ...existing,
+      displayOrder: item.displayOrder,
+      updatedAt: new Date().toISOString(),
+    });
+
+    await dataApiRequest<DataApiOperationResponse>(accessToken, `/data/${documentId}/records`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        updates: serializeRecordForDataApi(merged),
+        where: { field: 'id', op: 'eq', value: item.id },
+        validate: false,
+      }),
+    });
+    applied += 1;
   }
 
   return applied;

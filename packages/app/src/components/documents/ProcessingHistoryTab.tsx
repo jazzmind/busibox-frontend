@@ -164,6 +164,7 @@ export function ProcessingHistoryTab({ fileId }: ProcessingHistoryTabProps) {
       'extracting_metadata': 'Metadata Extraction',
       'chunking': 'Text Chunking',
       'cleanup': 'LLM Cleanup',
+      'entity_extraction': 'Entity Extraction (Legacy)',
       'embedding': 'Embedding Generation',
       'indexing': 'Vector Indexing',
       'completed': 'Completed',

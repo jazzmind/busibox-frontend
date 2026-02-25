@@ -144,6 +144,7 @@ export function ProcessingHistoryModal({ fileId, document, onClose }: Processing
       chunking: '✂️ Chunking',
       cleanup: '🧹 LLM Cleanup',
       markdown_generation: '📝 Markdown Generation',
+      entity_extraction: 'Entity Extraction (Legacy)',
       embedding: '🧮 Embedding Generation',
       indexing: '📊 Vector Indexing',
       completed: '✅ Completed',

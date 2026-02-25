@@ -115,6 +115,8 @@ export default function DocumentDetailsPage({
   const [splitRefreshKey, setSplitRefreshKey] = useState(0);
   const [showSchemaModal, setShowSchemaModal] = useState(false);
   const [seedingDefaults, setSeedingDefaults] = useState(false);
+  const [schemasLoading, setSchemasLoading] = useState(false);
+  const [schemasError, setSchemasError] = useState<string | null>(null);
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [reprocessOpen, setReprocessOpen] = useState(false);
   const downloadDropdownRef = useRef<HTMLDivElement>(null);
@@ -295,7 +297,8 @@ export default function DocumentDetailsPage({
   useEffect(() => {
     async function fetchLibraries() {
       try {
-        const response = await fetch('/api/libraries');
+        const bp = process.env.NEXT_PUBLIC_BASE_PATH || '';
+        const response = await fetch(`${bp}/api/libraries`);
         if (!response.ok) return;
         const result = await response.json();
         const libs = result?.data?.libraries || result?.libraries || [];
@@ -313,9 +316,15 @@ export default function DocumentDetailsPage({
   }, []);
 
   const fetchSchemas = useCallback(async (preferredId?: string) => {
+    setSchemasLoading(true);
+    setSchemasError(null);
     try {
-      const response = await fetch('/api/data?type=extraction_schema&limit=100');
-      if (!response.ok) return;
+      const bp = process.env.NEXT_PUBLIC_BASE_PATH || '';
+      const response = await fetch(`${bp}/api/data?type=extraction_schema&limit=100`);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Failed to load schemas (${response.status})`);
+      }
       const payload = await response.json();
       const docs = payload.documents || [];
       const mapped = docs.map((d: any) => ({ id: d.id, name: d.name }));
@@ -329,8 +338,11 @@ export default function DocumentDetailsPage({
         }
         return mapped.length > 0 ? mapped[0].id : '';
       });
-    } catch {
-      // Optional enhancement; keep page usable if schema endpoint fails
+    } catch (err: any) {
+      console.error('[fetchSchemas] Failed to load extraction schemas:', err);
+      setSchemasError(err?.message || 'Failed to load schemas');
+    } finally {
+      setSchemasLoading(false);
     }
   }, []);
 
@@ -996,38 +1008,69 @@ export default function DocumentDetailsPage({
           )}
         </div>
 
-        {/* Schema Management Modal */}
+        {/* Schema Extraction Modal */}
         {!isMediaFile && showSchemaModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowSchemaModal(false)}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Extract Data</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Extract Structured Data</h3>
                 <button onClick={() => setShowSchemaModal(false)} className="text-gray-400 hover:text-gray-600">
                   <X className="w-5 h-5" />
                 </button>
               </div>
+              <p className="text-sm text-gray-600 mb-4">
+                Use an extraction schema to pull structured records from this document.
+                Fields can be indexed for keyword search, semantic search, or added to the knowledge graph.
+              </p>
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Schema</label>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={selectedSchemaId}
-                      onChange={(e) => setSelectedSchemaId(e.target.value)}
-                      className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700"
-                    >
-                      <option value="">Select schema...</option>
-                      {schemas.map((schema) => (
-                        <option key={schema.id} value={schema.id}>
-                          {schema.name}
-                        </option>
-                      ))}
-                    </select>
-                    <Button variant="secondary" size="sm" onClick={handleGenerateSchema} disabled={generatingSchema}>
-                      <Wand2 className="w-4 h-4 mr-2" />
-                      {generatingSchema ? 'Generating...' : 'Generate'}
-                    </Button>
+                {schemasError && (
+                  <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2">
+                    <p className="text-sm text-red-700">{schemasError}</p>
+                    <button onClick={() => fetchSchemas()} className="text-xs text-red-600 underline mt-1">Retry</button>
                   </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Extraction Schema</label>
+                  {schemasLoading ? (
+                    <div className="flex items-center gap-2 py-2 text-sm text-gray-500">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading schemas...
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={selectedSchemaId}
+                        onChange={(e) => setSelectedSchemaId(e.target.value)}
+                        className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700"
+                      >
+                        <option value="">
+                          {schemas.length === 0 ? 'No schemas available' : 'Select schema...'}
+                        </option>
+                        {schemas.map((schema) => (
+                          <option key={schema.id} value={schema.id}>
+                            {schema.name}
+                          </option>
+                        ))}
+                      </select>
+                      <Button variant="secondary" size="sm" onClick={handleGenerateSchema} disabled={generatingSchema} title="Auto-generate a schema from this document">
+                        <Wand2 className="w-4 h-4 mr-2" />
+                        {generatingSchema ? 'Generating...' : 'Auto-Generate'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
+                {schemas.length === 0 && !schemasLoading && !schemasError && (
+                  <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-3">
+                    <p className="text-sm text-blue-800 mb-2">No extraction schemas found. You can:</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button variant="secondary" size="sm" onClick={handleSeedDefaults} disabled={seedingDefaults}>
+                        <Database className="w-4 h-4 mr-2" />
+                        {seedingDefaults ? 'Loading...' : 'Load Default Schemas'}
+                      </Button>
+                      <span className="text-xs text-blue-600">or click Auto-Generate above</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     variant="secondary"
@@ -1036,7 +1079,7 @@ export default function DocumentDetailsPage({
                     disabled={extracting || !selectedSchemaId}
                   >
                     <Wand2 className="w-4 h-4 mr-2" />
-                    {extracting ? 'Extracting...' : 'Apply Schema'}
+                    {extracting ? 'Extracting...' : 'Extract Records'}
                   </Button>
                   <Button
                     variant="secondary"
@@ -1048,18 +1091,6 @@ export default function DocumentDetailsPage({
                     {showSplitView ? 'Hide Extractions' : 'View Extractions'}
                   </Button>
                 </div>
-                {schemas.length === 0 && (
-                  <div className="flex items-center gap-2">
-                    <Button variant="secondary" size="sm" onClick={handleSeedDefaults} disabled={seedingDefaults}>
-                      <Database className="w-4 h-4 mr-2" />
-                      {seedingDefaults ? 'Loading...' : 'Load Default Schemas'}
-                    </Button>
-                    <span className="text-xs text-gray-500">or generate one from this document</span>
-                  </div>
-                )}
-                <p className="text-xs text-gray-500">
-                  Generate or select a schema, apply extraction, then view extractions with provenance highlighting.
-                </p>
               </div>
             </div>
           </div>

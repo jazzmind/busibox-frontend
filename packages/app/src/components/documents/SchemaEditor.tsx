@@ -72,10 +72,10 @@ const ARRAY_ITEM_TYPES = [
 
 type FieldType = (typeof FIELD_TYPES)[number]['value'];
 
-type SearchMode = 'index' | 'embed' | 'graph';
+type SearchMode = 'keyword' | 'embed' | 'graph';
 
 const SEARCH_MODES: { value: SearchMode; label: string; icon: typeof Search; description: string }[] = [
-  { value: 'index', label: 'Index', icon: Search, description: 'Keyword searchable (exact match, filtering)' },
+  { value: 'keyword', label: 'Keyword', icon: Search, description: 'BM25 keyword search (exact match, filtering)' },
   { value: 'embed', label: 'Embed', icon: Brain, description: 'Semantic search via vector embeddings' },
   { value: 'graph', label: 'Graph', icon: Share2, description: 'Entity extraction for knowledge graph' },
 ];
@@ -121,7 +121,9 @@ function generateId(): string {
 
 function parseSearchModes(raw: any): SearchMode[] | undefined {
   if (!Array.isArray(raw)) return undefined;
-  const valid = raw.filter((v: any) => v === 'index' || v === 'embed' || v === 'graph') as SearchMode[];
+  const valid = raw
+    .map((v: any) => (v === 'index' ? 'keyword' : v))
+    .filter((v: any) => v === 'keyword' || v === 'embed' || v === 'graph') as SearchMode[];
   return valid.length > 0 ? valid : undefined;
 }
 

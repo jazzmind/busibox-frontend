@@ -12,17 +12,18 @@ import { getAgentApiToken, agentApiRequest } from '@jazzmind/busibox-app/lib/age
 
 const USER_PROMPT_PREFIX = `Analyze this document and generate an extraction schema.
 
-For each field, include a "search" array indicating how the field should be searchable:
-- "index": for keyword-searchable fields (names, IDs, statuses, categories, tags, dates, numbers, booleans, enums)
+For each field, you may optionally include a "search" array indicating how the field should be indexed:
+- "keyword": for keyword-searchable fields (names, IDs, statuses, categories, tags, dates, numbers, booleans, enums)
 - "embed": for semantically searchable fields (descriptions, summaries, notes, long-form text, content)
 - "graph": for entity-like fields that should be extracted into a knowledge graph (people names, organizations, locations, skills, relationships)
 
-A field can have multiple search modes. Examples:
-- A person's name: ["index", "graph"]
-- A list of skills/tags: ["index", "embed", "graph"]
+A field can have multiple search modes, or none (stored but not indexed). Examples:
+- A person's name: ["keyword", "graph"]
+- A list of skills/tags: ["keyword", "embed", "graph"]
 - A summary or description: ["embed"]
-- A date or numeric ID: ["index"]
-- An organization name: ["index", "graph"]
+- A date or numeric ID: ["keyword"]
+- An organization name: ["keyword", "graph"]
+- A phone number or address: [] (not indexed, just stored)
 
 Document content:
 `;
@@ -53,7 +54,7 @@ const EXTRACTION_SCHEMA_JSON_SCHEMA = {
         description: 'Map of fieldName → field definition',
         additionalProperties: {
           type: 'object',
-          required: ['type', 'description', 'search'],
+          required: ['type', 'description'],
           additionalProperties: false,
           properties: {
             type: {
@@ -68,10 +69,10 @@ const EXTRACTION_SCHEMA_JSON_SCHEMA = {
             },
             search: {
               type: 'array',
-              description: 'Search modes: "index" for keyword search, "embed" for semantic search, "graph" for knowledge graph entity extraction',
+              description: 'Optional search/indexing modes: "keyword" for BM25 keyword search, "embed" for semantic vector search, "graph" for knowledge graph entity extraction. Omit or use empty array for fields that are stored but not indexed.',
               items: {
                 type: 'string',
-                enum: ['index', 'embed', 'graph'],
+                enum: ['keyword', 'embed', 'graph'],
               },
             },
             items: {

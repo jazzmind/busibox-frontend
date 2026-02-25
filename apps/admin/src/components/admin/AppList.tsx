@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -418,6 +418,8 @@ export function AppList() {
     }
   };
 
+  const reorderAbortRef = useRef<AbortController | null>(null);
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
@@ -425,16 +427,25 @@ export function AppList() {
       return;
     }
 
+    // Abort any in-flight reorder request so we don't race
+    if (reorderAbortRef.current) {
+      reorderAbortRef.current.abort();
+    }
+
     const oldIndex = apps.findIndex((app) => app.id === active.id);
     const newIndex = apps.findIndex((app) => app.id === over.id);
 
     const newApps = arrayMove(apps, oldIndex, newIndex);
-    
+    const previousApps = apps;
+
     // Optimistically update UI
     setApps(newApps);
 
     // Update display orders on server
     setReordering(true);
+    const controller = new AbortController();
+    reorderAbortRef.current = controller;
+
     try {
       const updates = newApps.map((app, index) => ({
         id: app.id,
@@ -445,21 +456,26 @@ export function AppList() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apps: updates }),
+        signal: controller.signal,
       });
 
       const data = await response.json();
 
       if (!data.success) {
-        // Revert on error
-        setApps(apps);
+        setApps(previousApps);
         setError(data.error || 'Failed to reorder apps');
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return;
+      }
       console.error('Failed to reorder apps:', err);
-      // Revert on error
-      setApps(apps);
+      setApps(previousApps);
       setError('An unexpected error occurred while reordering');
     } finally {
+      if (reorderAbortRef.current === controller) {
+        reorderAbortRef.current = null;
+      }
       setReordering(false);
     }
   };
