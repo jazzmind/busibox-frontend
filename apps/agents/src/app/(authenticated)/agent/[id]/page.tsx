@@ -157,10 +157,6 @@ export default function AgentDetailPage() {
   const [deletedConversationId, setDeletedConversationId] = useState<string | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
   
-  // Use proxy URL for agent API calls (handles auth server-side)
-  // This avoids CORS issues and keeps internal IPs unexposed
-  const agentApiUrl = '/api/agent';
-
   // Determine if agent supports attachments
   const supportsAttachments = useMemo(() => {
     if (!agent) return false;
@@ -498,7 +494,6 @@ export default function AgentDetailPage() {
                   <SimpleChatInterface
                     key={chatKey}
                     token={token || ''} // Token passed for compatibility, but proxy uses cookie auth
-                    agentUrl={agentApiUrl}
                     agentId={agent.id}
                     model={agent.model}
                     enableWebSearch={enableWebSearch}

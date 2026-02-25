@@ -83,7 +83,7 @@ export async function provisionProjectWorkspace(options: {
     `elif variant == "api-only":`,
     `    (project / "app" / "page.tsx").write_text("export default function Page(){return <main className='p-8'><h1>${safeName} API</h1><p>No UI scaffold.</p></main>}\\n")`,
     `elif variant == "chat-app":`,
-    `    (project / "app" / "page.tsx").write_text("'use client';\\nimport { SimpleChatInterface } from '@jazzmind/busibox-app';\\nexport default function Page(){return <div className='p-4 h-screen'><SimpleChatInterface token='' agentUrl='/api/agent' agentId='chat-agent' /></div>}\\n")`,
+    `    (project / "app" / "page.tsx").write_text("'use client';\\nimport { SimpleChatInterface } from '@jazzmind/busibox-app';\\nexport default function Page(){return <div className='p-4 h-screen'><SimpleChatInterface token='' agentId='chat-agent' /></div>}\\n")`,
     `PY`,
     `cd "${projectDir}"`,
     `npm install`,
