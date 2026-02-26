@@ -1,0 +1,125 @@
+name: Release busibox-frontend
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type or explicit version (patch, minor, major, X.Y.Z)"
+        required: true
+        default: "patch"
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Resolve version
+        id: version
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          BUMP="${{ inputs.bump }}"
+          IFS='.' read -r major minor patch <<< "$CURRENT"
+
+          case "$BUMP" in
+            major) NEW="$((major + 1)).0.0" ;;
+            minor) NEW="${major}.$((minor + 1)).0" ;;
+            patch) NEW="${major}.${minor}.$((patch + 1))" ;;
+            *)     NEW="$BUMP" ;;
+          esac
+
+          TAG="release/v${NEW}"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "new=$NEW"         >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+
+      - name: Check tag does not exist
+        run: |
+          if git rev-parse "${{ steps.version.outputs.tag }}" &>/dev/null; then
+            echo "::error::Tag ${{ steps.version.outputs.tag }} already exists"
+            exit 1
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          TAG_PREFIX="release/v"
+          PREV_TAG=$(git tag --list "${TAG_PREFIX}*" --sort=-version:refname | head -n1 || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            RANGE="HEAD"
+            SINCE="initial release"
+          else
+            RANGE="${PREV_TAG}..HEAD"
+            SINCE="since ${PREV_TAG}"
+          fi
+
+          BODY="## What's Changed (${SINCE})"$'\n'$'\n'
+          BODY+=$(git log --oneline $RANGE -- | sed 's/^/- /')
+          BODY+=$'\n'
+
+          # Write to file to avoid quoting issues
+          echo "$BODY" > /tmp/release-notes.md
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Publish @jazzmind/busibox-app
+        working-directory: packages/app
+        run: |
+          cp package.json.prod package.json
+          pnpm run build
+          pnpm publish --no-git-checks || echo "::warning::busibox-app publish failed or version already exists"
+          git checkout package.json
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump version
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '${{ steps.version.outputs.new }}';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Commit and tag
+        run: |
+          git add package.json
+          git commit -m "release: v${{ steps.version.outputs.new }}"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release v${{ steps.version.outputs.new }}"
+          git push origin main
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --title "v${{ steps.version.outputs.new }}" \
+            --notes-file /tmp/release-notes.md \
+            --target main

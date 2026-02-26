@@ -16,6 +16,7 @@
     "test": "turbo run test",
     "type-check": "turbo run type-check",
     "publish:busibox-app": "cd packages/app && bash publish.sh",
+    "release": "bash publish.sh",
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
