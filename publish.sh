@@ -165,23 +165,49 @@ COMMIT_COUNT=$(git rev-list --count $RANGE 2>/dev/null || echo "0")
 echo "  $COMMIT_COUNT commits $COMPARE_NOTE"
 echo ""
 
-# Build grouped changelog
-declare -A SECTIONS
+# Build grouped changelog (Bash 3 compatible — no associative arrays)
+SEC_Features=""
+SEC_BugFixes=""
+SEC_Performance=""
+SEC_Refactoring=""
+SEC_Documentation=""
+SEC_Tests=""
+SEC_Chores=""
+SEC_Other=""
+
 while IFS= read -r line; do
     [ -z "$line" ] && continue
     HASH="${line%% *}"
     MSG="${line#* }"
+    ENTRY="- ${MSG} (\`${HASH}\`)"
     SEC=$(categorise "$MSG")
-    SECTIONS["$SEC"]+="- ${MSG} (\`${HASH}\`)"$'\n'
+    case "$SEC" in
+        Features)      SEC_Features="${SEC_Features}${ENTRY}"$'\n' ;;
+        "Bug Fixes")   SEC_BugFixes="${SEC_BugFixes}${ENTRY}"$'\n' ;;
+        Performance)   SEC_Performance="${SEC_Performance}${ENTRY}"$'\n' ;;
+        Refactoring)   SEC_Refactoring="${SEC_Refactoring}${ENTRY}"$'\n' ;;
+        Documentation) SEC_Documentation="${SEC_Documentation}${ENTRY}"$'\n' ;;
+        Tests)         SEC_Tests="${SEC_Tests}${ENTRY}"$'\n' ;;
+        Chores)        SEC_Chores="${SEC_Chores}${ENTRY}"$'\n' ;;
+        *)             SEC_Other="${SEC_Other}${ENTRY}"$'\n' ;;
+    esac
 done < <(git log --oneline $RANGE -- 2>/dev/null || true)
 
 CHANGELOG=""
-for SEC in "Features" "Bug Fixes" "Performance" "Refactoring" "Documentation" "Tests" "Chores" "Other"; do
-    if [ -n "${SECTIONS[$SEC]:-}" ]; then
-        CHANGELOG+="### ${SEC}"$'\n'$'\n'
-        CHANGELOG+="${SECTIONS[$SEC]}"$'\n'
+_append_section() {
+    local name="$1" body="$2"
+    if [ -n "$body" ]; then
+        CHANGELOG+="### ${name}"$'\n'$'\n'"${body}"$'\n'
     fi
-done
+}
+_append_section "Features"      "$SEC_Features"
+_append_section "Bug Fixes"     "$SEC_BugFixes"
+_append_section "Performance"   "$SEC_Performance"
+_append_section "Refactoring"   "$SEC_Refactoring"
+_append_section "Documentation" "$SEC_Documentation"
+_append_section "Tests"         "$SEC_Tests"
+_append_section "Chores"        "$SEC_Chores"
+_append_section "Other"         "$SEC_Other"
 
 if [ -z "$CHANGELOG" ]; then
     CHANGELOG="No notable changes."
