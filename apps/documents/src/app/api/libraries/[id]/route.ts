@@ -115,7 +115,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json();
-    const { name, roleIds, addRoleIds, removeRoleIds } = body;
+    const { name, description, metadata, roleIds, addRoleIds, removeRoleIds } = body;
 
     const existing = await fetchLibraryFromDataApi(id, user.id, sessionJwt);
 
@@ -129,7 +129,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const options = getAuthzOptions();
 
-    if (name && typeof name === 'string') {
+    // Build data-api update payload (name, description, metadata)
+    const updatePayload: Record<string, unknown> = {};
+    if (name && typeof name === 'string') updatePayload.name = name;
+    if (description !== undefined) updatePayload.description = description;
+    if (metadata !== undefined) updatePayload.metadata = metadata;
+
+    if (Object.keys(updatePayload).length > 0) {
       const tokenResult = await exchangeWithSubjectToken({
         sessionJwt,
         userId: user.id,
@@ -144,7 +150,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${tokenResult.accessToken}`,
         },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify(updatePayload),
       });
 
       if (!updateResponse.ok) {
@@ -273,7 +279,17 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       purpose: 'library-operations',
     });
 
-    const deleteResponse = await fetch(`${getDataApiUrl()}/libraries/${id}`, {
+    // Forward document_action and targetLibraryId query params
+    const url = new URL(request.url);
+    const documentAction = url.searchParams.get('document_action') || 'orphan';
+    const targetLibraryId = url.searchParams.get('targetLibraryId') || '';
+    const deleteUrl = new URL(`${getDataApiUrl()}/libraries/${id}`);
+    deleteUrl.searchParams.set('document_action', documentAction);
+    if (targetLibraryId) {
+      deleteUrl.searchParams.set('targetLibraryId', targetLibraryId);
+    }
+
+    const deleteResponse = await fetch(deleteUrl.toString(), {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${tokenResult.accessToken}`,

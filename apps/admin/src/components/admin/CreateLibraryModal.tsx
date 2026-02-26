@@ -17,6 +17,7 @@ interface CreateLibraryModalProps {
 
 export function CreateLibraryModal({ isOpen, onClose, onCreated }: CreateLibraryModalProps) {
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [roles, setRoles] = useState<Role[]>([]);
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,6 +35,7 @@ export function CreateLibraryModal({ isOpen, onClose, onCreated }: CreateLibrary
   useEffect(() => {
     if (!isOpen) {
       setName('');
+      setDescription('');
       setSelectedRoleIds([]);
       setError(null);
     }
@@ -81,10 +83,11 @@ export function CreateLibraryModal({ isOpen, onClose, onCreated }: CreateLibrary
       const response = await fetch('/api/libraries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          roleIds: selectedRoleIds,
-        }),
+      body: JSON.stringify({
+                name: name.trim(),
+                description: description.trim() || undefined,
+                roleIds: selectedRoleIds,
+              }),
       });
 
       if (!response.ok) {
@@ -146,6 +149,23 @@ export function CreateLibraryModal({ isOpen, onClose, onCreated }: CreateLibrary
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 disabled={isLoading}
                 autoFocus
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label htmlFor="library-description" className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+                <span className="text-xs text-gray-500 ml-1">(optional)</span>
+              </label>
+              <textarea
+                id="library-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe the purpose of this library..."
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                disabled={isLoading}
               />
             </div>
 

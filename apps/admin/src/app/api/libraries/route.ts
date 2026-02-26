@@ -2,15 +2,14 @@
  * Admin Libraries API Route
  *
  * GET: Lists shared libraries from data-api + app-data libraries
- *
- * Note: Library creation is handled by /api/libraries POST
+ * POST: Create a new shared library (with role bindings)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuth, apiSuccess, apiError } from '@jazzmind/busibox-app/lib/next/middleware';
 import { exchangeWithSubjectToken, getUserIdFromSessionJwt } from '@jazzmind/busibox-app/lib/authz/next-client';
 import { getDataApiUrl } from '@jazzmind/busibox-app/lib/next/api-url';
-import { getRoleResourceBindings } from '@jazzmind/busibox-app';
+import { getRoleResourceBindings, listRoles, grantRoleResourceAccess } from '@jazzmind/busibox-app';
 import { getAuthzOptionsWithToken } from '@jazzmind/busibox-app/lib/authz/next-client';
 
 export async function GET(request: NextRequest) {
@@ -65,7 +64,7 @@ export async function GET(request: NextRequest) {
             return {
               id: lib.id,
               name: lib.name,
-              description: undefined,
+              description: (lib as { description?: string }).description || undefined,
               isPersonal: false,
               libraryType: lib.libraryType,
               documentCount: lib.documentCount || 0,
@@ -116,6 +115,93 @@ export async function GET(request: NextRequest) {
     return apiSuccess({ libraries, appDataLibraries });
   } catch (error) {
     console.error('Libraries API error:', error);
+    return apiError('Internal server error', 500);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const authResult = await requireAdminAuth(request);
+    if (authResult instanceof NextResponse) return authResult;
+
+    const { sessionJwt } = authResult;
+    const userId = getUserIdFromSessionJwt(sessionJwt);
+    if (!userId) {
+      return apiError('Invalid session', 401);
+    }
+
+    const body = await request.json();
+    const { name, description, roleIds, metadata } = body;
+
+    if (!name || typeof name !== 'string') {
+      return apiError('Library name is required', 400);
+    }
+
+    const roleIdsToUse: string[] = roleIds || [];
+    if (roleIdsToUse.length === 0) {
+      return apiError('At least one role is required', 400);
+    }
+
+    const options = await getAuthzOptionsWithToken(sessionJwt);
+    const allRoles = await listRoles(options);
+    const validRoleIds = new Set(allRoles.map((r: { id: string }) => r.id));
+    const invalidRoleIds = roleIdsToUse.filter((rid: string) => !validRoleIds.has(rid));
+
+    if (invalidRoleIds.length > 0) {
+      return apiError('One or more invalid role IDs', 400);
+    }
+
+    const tokenResult = await exchangeWithSubjectToken({
+      sessionJwt,
+      userId,
+      audience: 'data-api',
+      scopes: ['data:read', 'data:write'],
+      purpose: 'admin-library-create',
+    });
+
+    const dataApiUrl = getDataApiUrl();
+    const createResponse = await fetch(`${dataApiUrl}/libraries`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokenResult.accessToken}`,
+      },
+      body: JSON.stringify({
+        name,
+        description: description || undefined,
+        isPersonal: false,
+        createdBy: userId,
+        metadata: metadata || undefined,
+      }),
+    });
+
+    if (!createResponse.ok) {
+      const errorText = await createResponse.text();
+      console.error('[admin/libraries] Data-api create failed:', createResponse.status, errorText);
+      return apiError('Failed to create library', 500);
+    }
+
+    const createData = await createResponse.json();
+    const library = createData.data || createData;
+
+    for (const rid of roleIdsToUse) {
+      await grantRoleResourceAccess(rid, 'library', library.id, undefined, options);
+    }
+
+    const selectedRoles = allRoles.filter((r: { id: string }) => roleIdsToUse.includes(r.id));
+
+    return apiSuccess({
+      library: {
+        ...library,
+        roles: selectedRoles.map((r: { id: string; name: string; description?: string }) => ({
+          id: r.id,
+          name: r.name,
+          description: r.description || null,
+        })),
+      },
+    }, 201);
+  } catch (error) {
+    console.error('[admin/libraries] Create error:', error);
     return apiError('Internal server error', 500);
   }
 }

@@ -2,12 +2,21 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useCrossAppApiPath } from '../../contexts/ApiContext';
+import { ClassificationSuggestionBadge } from './ClassificationSuggestionBadge';
 
 interface PortalDocumentListProps {
   libraryId?: string;
   onDocumentClick?: (documentId: string) => void;
   prefilledTag?: string;
   onOpenAdvanced?: () => void;
+}
+
+interface ClassificationSuggestion {
+  libraryId: string;
+  libraryName: string;
+  matchScore: number;
+  matchedKeywords: string[];
+  suggestedAction: string;
 }
 
 interface DocumentRecord {
@@ -23,6 +32,7 @@ interface DocumentRecord {
     triggerStatus?: {
       state?: 'pending' | 'running' | 'completed' | 'failed';
     };
+    classificationSuggestions?: ClassificationSuggestion[];
   };
 }
 
@@ -386,6 +396,17 @@ export function PortalDocumentList({ libraryId, onDocumentClick, prefilledTag, o
                         {triggerState === 'failed' && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
                             Trigger failed
+                          </span>
+                        )}
+                        {doc.metadata?.classificationSuggestions && doc.metadata.classificationSuggestions.length > 0 && (
+                          <span onClick={(e) => e.stopPropagation()}>
+                            <ClassificationSuggestionBadge
+                              suggestions={doc.metadata.classificationSuggestions}
+                              documentId={doc.id}
+                              onMoved={() => {
+                                setDocuments(prev => prev.filter(d => d.id !== doc.id));
+                              }}
+                            />
                           </span>
                         )}
                       </div>

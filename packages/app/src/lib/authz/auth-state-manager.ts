@@ -441,7 +441,7 @@ export function createAuthStateManager(config: AuthStateManagerConfig): AuthStat
       const response = await fetch(silentRefreshUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appName: appId }),
+        body: JSON.stringify({ appId: appId }),
         credentials: 'include',
       });
 

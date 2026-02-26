@@ -31,14 +31,22 @@ type HealthStatus = {
 
 function resolveServiceName(app: { id: string; name: string; url: string | null }): string {
   const byId: Record<string, string> = {
-    'seed-busibox-agents': 'busibox-agents',
-    'seed-busibox-appbuilder': 'busibox-appbuilder',
+    'seed-agents': 'busibox-agents',
+    'seed-appbuilder': 'busibox-appbuilder',
+    'seed-chat': 'busibox-chat',
+    'seed-documents': 'busibox-documents',
+    'seed-media': 'busibox-media',
+    'seed-admin': 'busibox-admin',
   };
   if (byId[app.id]) return byId[app.id];
 
   const byPath: Record<string, string> = {
     '/agents': 'busibox-agents',
     '/builder': 'busibox-appbuilder',
+    '/chat': 'busibox-chat',
+    '/documents': 'busibox-documents',
+    '/media': 'busibox-media',
+    '/admin': 'busibox-admin',
   };
   if (app.url && byPath[app.url]) return byPath[app.url];
 

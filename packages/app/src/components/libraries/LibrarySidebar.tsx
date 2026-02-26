@@ -22,7 +22,7 @@ interface LibrarySidebarProps {
   /** Callback to rename a custom personal library. If provided, shows rename option for CUSTOM libraries. */
   onRenamePersonalLibrary?: (libraryId: string, currentName: string) => void;
   /** Callback to delete a custom personal library. If provided, shows delete option for CUSTOM libraries. */
-  onDeletePersonalLibrary?: (libraryId: string, libraryName: string) => void;
+  onDeletePersonalLibrary?: (libraryId: string, libraryName: string, documentCount: number) => void;
   /** Initial mobile drawer state when component mounts on small screens. */
   defaultMobileOpen?: boolean;
   /** Controlled mobile drawer state (optional). */
@@ -500,7 +500,7 @@ export function LibrarySidebar({
                               )}
                               {onDeletePersonalLibrary && (
                                 <button
-                                  onClick={() => { onDeletePersonalLibrary(library.id, library.name); setLibraryMenuOpen(null); }}
+                                  onClick={() => { onDeletePersonalLibrary(library.id, library.name, library.documentCount || 0); setLibraryMenuOpen(null); }}
                                   className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
                                 >
                                   Delete

@@ -21,9 +21,10 @@ import { AppDataList } from '@jazzmind/busibox-app/components/documents/AppDataL
 import { PortalDocumentList } from '@jazzmind/busibox-app/components/documents/PortalDocumentList';
 import { KnowledgeGraph } from '@jazzmind/busibox-app/components/documents/KnowledgeGraph';
 import { LibraryTriggers } from '@jazzmind/busibox-app/components/documents/LibraryTriggers';
+import { LibraryClassification } from '@jazzmind/busibox-app/components/documents/LibraryClassification';
 import { CreatePersonalLibraryModal } from '@jazzmind/busibox-app/components/documents/CreatePersonalLibraryModal';
 import { RenamePersonalLibraryModal } from '@jazzmind/busibox-app/components/documents/RenamePersonalLibraryModal';
-import { DeleteConfirmModal } from '@jazzmind/busibox-app';
+import { LibraryDeleteModal } from '@jazzmind/busibox-app/components/documents/LibraryDeleteModal';
 
 type ViewMode = 'list' | 'tags' | 'appdata' | 'graph';
 
@@ -58,7 +59,7 @@ export default function DocumentsPage() {
   const [showCreateLibraryModal, setShowCreateLibraryModal] = useState(false);
   const [createLibraryLoading, setCreateLibraryLoading] = useState(false);
   const [renameLibrary, setRenameLibrary] = useState<{ id: string; name: string } | null>(null);
-  const [deleteLibrary, setDeleteLibrary] = useState<{ id: string; name: string } | null>(null);
+  const [deleteLibrary, setDeleteLibrary] = useState<{ id: string; name: string; documentCount: number } | null>(null);
   const [deleteLibraryLoading, setDeleteLibraryLoading] = useState(false);
 
   // Persist library selection and view mode to sessionStorage
@@ -87,10 +88,12 @@ export default function DocumentsPage() {
   };
 
   const handleSelectLibrary = (libraryId: string) => {
+    const switchingLibrary = libraryId !== selectedLibraryId;
     updateSelectedLibraryId(libraryId);
     setSelectedAppData(undefined);
     setSelectedTagFilter(undefined);
-    if (viewMode === 'appdata') {
+    // When clicking a different library while on graph/tags/appdata, go back to documents list
+    if (viewMode === 'appdata' || (switchingLibrary && (viewMode === 'graph' || viewMode === 'tags'))) {
       updateViewMode('list');
     }
   };
@@ -125,11 +128,15 @@ export default function DocumentsPage() {
     setRenameLibrary(null);
   };
 
-  const handleDeleteLibrary = async (_cascade?: boolean) => {
+  const handleDeleteLibrary = async (action: 'delete' | 'move', targetLibraryId?: string) => {
     if (!deleteLibrary) return;
     setDeleteLibraryLoading(true);
     try {
-      const response = await fetch(`/api/libraries/${deleteLibrary.id}`, { method: 'DELETE' });
+      const params = new URLSearchParams({ document_action: action });
+      if (action === 'move' && targetLibraryId) {
+        params.set('targetLibraryId', targetLibraryId);
+      }
+      const response = await fetch(`/api/libraries/${deleteLibrary.id}?${params}`, { method: 'DELETE' });
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || 'Failed to delete library');
@@ -174,7 +181,7 @@ export default function DocumentsPage() {
             createPersonalLibraryLoading={createLibraryLoading}
             refreshTrigger={refreshKey}
             onRenamePersonalLibrary={(id, name) => setRenameLibrary({ id, name })}
-            onDeletePersonalLibrary={(id, name) => setDeleteLibrary({ id, name })}
+            onDeletePersonalLibrary={(id, name, documentCount) => setDeleteLibrary({ id, name, documentCount })}
             mobileOpen={isLibraryDrawerOpen}
             onMobileOpenChange={setIsLibraryDrawerOpen}
             showMobileToggleButton={false}
@@ -276,11 +283,6 @@ export default function DocumentsPage() {
                     </div>
                   </div>
                 </>
-              ) : viewMode === 'graph' ? (
-                /* Knowledge Graph View */
-                <KnowledgeGraph
-                  onDocumentClick={handleDocumentClick}
-                />
               ) : viewMode === 'appdata' && selectedAppData ? (
                 /* App Data View */
                 <AppDataList 
@@ -292,19 +294,24 @@ export default function DocumentsPage() {
                   }}
                 />
               ) : selectedLibraryId ? (
-                /* Library Selected - Show Documents or Tags + Triggers */
+                /* Library Selected - Show Documents, Tags, or Graph + Triggers */
                 <div key={refreshKey} className="space-y-6">
-                  {viewMode === 'list' ? (
+                  {viewMode === 'graph' ? (
+                    <KnowledgeGraph
+                      onDocumentClick={handleDocumentClick}
+                      libraryIds={[selectedLibraryId]}
+                    />
+                  ) : viewMode === 'tags' ? (
+                    <DocumentTagView 
+                      libraryId={selectedLibraryId} 
+                      onSelectTag={handleSelectTag} 
+                    />
+                  ) : (
                     <PortalDocumentList
                       libraryId={selectedLibraryId} 
                       onDocumentClick={handleDocumentClick}
                       prefilledTag={selectedTagFilter}
                       onOpenAdvanced={() => setShowAdvancedModal(true)}
-                    />
-                  ) : (
-                    <DocumentTagView 
-                      libraryId={selectedLibraryId} 
-                      onSelectTag={handleSelectTag} 
                     />
                   )}
                   
@@ -313,6 +320,14 @@ export default function DocumentsPage() {
                     libraryId={selectedLibraryId}
                     libraryName=""
                     canManage={true}
+                  />
+
+                  {/* Classification Guidance */}
+                  <LibraryClassification
+                    libraryId={selectedLibraryId}
+                    libraryName=""
+                    canManage={true}
+                    isPersonal={true}
                   />
                 </div>
               ) : (
@@ -376,9 +391,10 @@ export default function DocumentsPage() {
         />
 
         {deleteLibrary && (
-          <DeleteConfirmModal
-            itemName={deleteLibrary.name}
-            itemType="library"
+          <LibraryDeleteModal
+            libraryId={deleteLibrary.id}
+            libraryName={deleteLibrary.name}
+            documentCount={deleteLibrary.documentCount}
             onConfirm={handleDeleteLibrary}
             onCancel={() => setDeleteLibrary(null)}
             isDeleting={deleteLibraryLoading}

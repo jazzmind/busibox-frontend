@@ -26,8 +26,12 @@ import {
   ExternalLink,
   TrendingUp,
   Layers,
+  Pencil,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { CreateLibraryModal } from '@/components/admin/CreateLibraryModal';
+import { LibraryDeleteModal } from '@jazzmind/busibox-app/components/documents/LibraryDeleteModal';
 
 type Library = {
   id: string;
@@ -116,6 +120,30 @@ export default function DataManagementPage() {
   const [sortField, setSortField] = useState<'sourceApp' | 'displayName' | 'recordCount'>(initialSortField);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(initialSortDirection);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [deletingLibrary, setDeletingLibrary] = useState<Library | null>(null);
+  const [deletingLibraryLoading, setDeletingLibraryLoading] = useState(false);
+
+  const handleDeleteLibrary = async (action: 'delete' | 'move', targetLibraryId?: string) => {
+    if (!deletingLibrary) return;
+    setDeletingLibraryLoading(true);
+    try {
+      const params = new URLSearchParams({ document_action: action });
+      if (action === 'move' && targetLibraryId) {
+        params.set('targetLibraryId', targetLibraryId);
+      }
+      const response = await fetch(`/api/libraries/${deletingLibrary.id}?${params}`, { method: 'DELETE' });
+      if (response.ok) {
+        fetchAllData();
+      } else {
+        console.error('Failed to delete library');
+      }
+    } catch (error) {
+      console.error('Delete library error:', error);
+    } finally {
+      setDeletingLibraryLoading(false);
+      setDeletingLibrary(null);
+    }
+  };
 
   useEffect(() => {
     fetchAllData();
@@ -602,9 +630,8 @@ export default function DataManagementPage() {
                   
                   <div className="space-y-3">
                     {filteredSharedLibraries.map(lib => (
-                      <Link
+                      <div
                         key={lib.id}
-                        href={`/libraries/${lib.id}`}
                         className="flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all"
                       >
                         <div className="p-3 bg-purple-50 rounded-xl">
@@ -624,8 +651,23 @@ export default function DataManagementPage() {
                           <p className="font-medium text-gray-900">{formatBytes(lib.totalSize || 0)}</p>
                           <p className="text-xs text-gray-500">size</p>
                         </div>
-                        <ExternalLink className="w-5 h-5 text-gray-400" />
-                      </Link>
+                        <div className="flex items-center gap-1">
+                          <Link
+                            href={`/libraries/${lib.id}`}
+                            className="p-2 hover:bg-purple-50 rounded-lg transition-colors"
+                            title="Edit library"
+                          >
+                            <Pencil className="w-4 h-4 text-purple-600" />
+                          </Link>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeletingLibrary(lib); }}
+                            className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete library"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-400 hover:text-red-600" />
+                          </button>
+                        </div>
+                      </div>
                     ))}
                     
                     {filteredSharedLibraries.length === 0 && (
@@ -791,6 +833,19 @@ export default function DataManagementPage() {
           fetchAllData();
         }}
       />
+
+      {/* Delete Library Modal */}
+      {deletingLibrary && (
+        <LibraryDeleteModal
+          libraryId={deletingLibrary.id}
+          libraryName={deletingLibrary.name}
+          documentCount={deletingLibrary.documentCount}
+          onConfirm={handleDeleteLibrary}
+          onCancel={() => setDeletingLibrary(null)}
+          isDeleting={deletingLibraryLoading}
+          librariesApiPath="/api/libraries"
+        />
+      )}
     </div>
   );
 }
