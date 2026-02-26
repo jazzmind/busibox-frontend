@@ -229,7 +229,7 @@ function fieldsToSchema(
     if (field.required) def.required = true;
     if (field.search?.length) def.search = [...field.search];
 
-    if (field.search?.includes('index')) indexes.push(field.name);
+    if (field.search?.includes('keyword')) indexes.push(field.name);
     if (field.search?.includes('embed')) embedFields.push(field.name);
 
     if (field.type === 'array' && field.items) {
@@ -600,7 +600,7 @@ function SearchModeSelector({
               title={description}
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
                 active
-                  ? value === 'index'
+                  ? value === 'keyword'
                     ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-600 dark:bg-blue-900/30 dark:text-blue-300'
                     : value === 'embed'
                       ? 'border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-600 dark:bg-purple-900/30 dark:text-purple-300'
@@ -761,8 +761,8 @@ function SortableFieldCard({
 
         {field.search && field.search.length > 0 && (
           <div className="flex items-center gap-0.5">
-            {field.search.includes('index') && (
-              <span title="Indexed" className="text-blue-500 dark:text-blue-400"><Search className="h-3 w-3" /></span>
+            {field.search.includes('keyword') && (
+              <span title="Keyword Indexed" className="text-blue-500 dark:text-blue-400"><Search className="h-3 w-3" /></span>
             )}
             {field.search.includes('embed') && (
               <span title="Embedded" className="text-purple-500 dark:text-purple-400"><Brain className="h-3 w-3" /></span>

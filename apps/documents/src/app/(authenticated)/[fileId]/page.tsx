@@ -1052,7 +1052,7 @@ export default function DocumentDetailsPage({
                           </option>
                         ))}
                       </select>
-                      <Button variant="secondary" size="sm" onClick={handleGenerateSchema} disabled={generatingSchema} title="Auto-generate a schema from this document">
+                      <Button variant="secondary" size="sm" onClick={handleGenerateSchema} disabled={generatingSchema}>
                         <Wand2 className="w-4 h-4 mr-2" />
                         {generatingSchema ? 'Generating...' : 'Auto-Generate'}
                       </Button>
@@ -1162,6 +1162,10 @@ export default function DocumentDetailsPage({
                   ? 'trigger_pending'
                   : document.status?.stage
               }
+              statusMessage={(document.status as Record<string, unknown>)?.statusMessage as string | undefined}
+              pagesProcessed={(document.status as Record<string, unknown>)?.pagesProcessed as number | undefined}
+              totalPages={(document.status as Record<string, unknown>)?.totalPages as number | undefined}
+              progress={(document.status as Record<string, unknown>)?.progress as number | undefined}
             />
           )}
         </div>

@@ -14,9 +14,13 @@ interface HtmlViewerProps {
   onReprocess?: () => void;
   isProcessing?: boolean;
   processingStage?: string;
+  statusMessage?: string;
+  pagesProcessed?: number;
+  totalPages?: number;
+  progress?: number;
 }
 
-export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage }: HtmlViewerProps) {
+export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage, statusMessage, pagesProcessed, totalPages, progress }: HtmlViewerProps) {
   const api = useBusiboxApi();
   const resolve = useCrossAppApiPath();
   const documentsBase = useCrossAppBasePath('documents');
@@ -168,22 +172,55 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage 
   };
 
   if (isProcessing) {
+    const displayMessage = statusMessage || (
+      processingStage === 'indexing'
+        ? 'Generating embeddings and indexing content...'
+        : processingStage === 'extracting' || processingStage === 'parsing'
+          ? 'Extracting text and images...'
+          : processingStage === 'chunking'
+            ? 'Creating searchable chunks...'
+            : 'Your document is being processed. Content will appear shortly.'
+    );
+
+    const showPageProgress = totalPages && totalPages > 0 && processingStage === 'parsing';
+
     return (
       <div className="flex flex-col items-center justify-center h-96 p-8">
         <div className="relative">
           <Loader2 className="w-12 h-12 animate-spin text-blue-500" />
         </div>
-        <h3 className="mt-6 text-lg font-semibold text-gray-900">Processing Document</h3>
-        <p className="mt-2 text-gray-600 text-center max-w-md">
-          {processingStage === 'indexing'
-            ? 'Generating embeddings and indexing content...'
-            : processingStage === 'extracting'
-              ? 'Extracting text and images...'
-              : processingStage === 'chunking'
-                ? 'Creating searchable chunks...'
-                : 'Your document is being processed. Content will appear shortly.'}
+        <h3 className="mt-6 text-lg font-semibold text-gray-900 dark:text-gray-100">Processing Document</h3>
+        <p className="mt-2 text-gray-600 dark:text-gray-400 text-center max-w-md">
+          {displayMessage}
         </p>
-        <p className="mt-4 text-sm text-gray-500 flex items-center gap-2">
+        {showPageProgress && (
+          <div className="mt-4 w-64">
+            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+              <span>Page {pagesProcessed || 0} of {totalPages}</span>
+              <span>{progress || 0}%</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div
+                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${totalPages > 0 ? ((pagesProcessed || 0) / totalPages) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+        {!showPageProgress && typeof progress === 'number' && progress > 0 && (
+          <div className="mt-4 w-64">
+            <div className="flex justify-end text-xs text-gray-500 dark:text-gray-400 mb-1">
+              <span>{progress}%</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div
+                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        )}
+        <p className="mt-4 text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
           <RefreshCw className="w-4 h-4 animate-spin" />
           Auto-refreshing...
         </p>
