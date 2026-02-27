@@ -279,17 +279,17 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
             if (backend === 'mlx') {
               console.log('[ServiceInstallationFlow] MLX backend detected, adding mlx-ensure step');
               
-              // Define the mlx-ensure service
+              // Define the mlx-ensure service (handles first-time setup + idempotent re-runs)
               const mlxEnsureService: Service = {
                 id: 'mlx-ensure',
-                name: 'Start MLX Server',
-                description: 'Ensuring MLX server is running on Apple Silicon',
+                name: 'Setup MLX Server',
+                description: 'Installing MLX dependencies and starting server on Apple Silicon',
                 features: [
-                  'Checks if MLX is already running',
-                  'Starts MLX via host-agent if needed',
-                  'Waits for server to be ready',
+                  'Installs MLX-LM and dependencies',
+                  'Downloads test model (~400MB)',
+                  'Starts MLX server in dual mode',
                 ],
-                dockerService: 'mlx-ensure', // Special service ID for MLX ensure
+                dockerService: 'mlx-ensure', // Routes to /api/services/ensure-mlx -> deploy-api /mlx/setup
                 healthEndpoint: '/health',
                 status: 'pending',
                 logs: [],
@@ -775,12 +775,12 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
         ));
       }
       
-      // Special handling for MLX ensure - skip health check, go straight to SSE
+      // Special handling for MLX setup - skip health check, go straight to SSE
       if (service.dockerService === 'mlx-ensure') {
         updateServiceStatus(service.id, 'installing');
         addServiceLog(service.id, {
           type: 'info',
-          message: 'Ensuring MLX server is running...',
+          message: 'Setting up MLX (install deps, download model, start server)...',
           timestamp: Date.now(),
         });
         

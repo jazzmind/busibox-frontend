@@ -72,13 +72,14 @@ export async function GET(request: NextRequest) {
         // Continue with session JWT - deploy-api may still accept it
       }
       
-      // Call deploy-api's MLX ensure endpoint
-      const response = await fetch(`${DEPLOY_API_URL}/api/v1/services/mlx/ensure`, {
+      // Call deploy-api's MLX setup endpoint which handles first-time install
+      // (deps, model download, server start) as well as idempotent re-runs.
+      const response = await fetch(`${DEPLOY_API_URL}/api/v1/services/mlx/setup`, {
         headers: {
           'Accept': 'text/event-stream',
           'Authorization': `Bearer ${adminToken}`,
         },
-        signal: AbortSignal.timeout(90000), // 90 second timeout
+        signal: AbortSignal.timeout(600000), // 10 minute timeout (deps + model download)
       });
 
       if (!response.ok) {
