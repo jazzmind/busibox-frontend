@@ -286,8 +286,9 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
                 description: 'Installing MLX dependencies and starting server on Apple Silicon',
                 features: [
                   'Installs MLX-LM and dependencies',
-                  'Downloads test model (~400MB)',
+                  'Downloads all required models (LLM + media)',
                   'Starts MLX server in dual mode',
+                  'Verifies server is responding',
                 ],
                 dockerService: 'mlx-ensure', // Routes to /api/services/ensure-mlx -> deploy-api /mlx/setup
                 healthEndpoint: '/health',
