@@ -89,7 +89,7 @@ export function ProvenanceHighlighter({
   const mdComponents = useMemo(() => {
     const ImgComponent = (props: ComponentPropsWithoutRef<'img'>) => {
       let { src, alt, ...rest } = props;
-      if (src && imageUrls) {
+      if (src && typeof src === 'string' && imageUrls) {
         const m = src.match(/image_(\d+)\.\w+/);
         if (m) {
           const idx = m[1];

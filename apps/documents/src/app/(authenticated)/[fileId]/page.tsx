@@ -562,14 +562,23 @@ export default function DocumentDetailsPage({
     }
   };
 
-  // When extraction completes in the background, refresh the split view and graph.
+  // When extraction records become available, refresh the split view and graph.
+  // "extracted" means records are stored (provenance still computing in background).
+  // "completed" means provenance and indexing are also done.
   const prevExtractionStatusRef = useRef<string | null>(null);
   useEffect(() => {
     const currentStatus = extractionMetadata?.status as string | undefined;
-    if (prevExtractionStatusRef.current === 'running' && currentStatus === 'completed') {
+    const prev = prevExtractionStatusRef.current;
+    const recordsJustAvailable =
+      prev === 'running' && (currentStatus === 'extracted' || currentStatus === 'completed');
+    const provenanceDone =
+      prev === 'extracted' && currentStatus === 'completed';
+    if (recordsJustAvailable) {
       setShowSplitView(true);
       setSplitRefreshKey((k) => k + 1);
       setGraphRefreshKey((k) => k + 1);
+    } else if (provenanceDone) {
+      setSplitRefreshKey((k) => k + 1);
     }
     prevExtractionStatusRef.current = currentStatus ?? null;
   }, [extractionMetadata?.status]);
