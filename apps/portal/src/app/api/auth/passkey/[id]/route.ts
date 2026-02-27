@@ -7,6 +7,7 @@
  */
 
 import { NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 import { apiSuccess, apiError, parseJsonBody, getSessionUser } from '@jazzmind/busibox-app/lib/next/middleware';
 import { deletePasskey, renamePasskey } from '@jazzmind/busibox-app/lib/authz/passkey';
 import { logPasskeyRemoved } from '@jazzmind/busibox-app/lib/authz/audit';
@@ -26,7 +27,13 @@ export async function DELETE(
 
     const { id: passkeyId } = await params;
 
-    const passkey = await deletePasskey(user.id, passkeyId);
+    const cookieStore = await cookies();
+    const sessionJwt = cookieStore.get('busibox-session')?.value;
+    if (!sessionJwt) {
+      return apiError('Session not found', 401);
+    }
+
+    const passkey = await deletePasskey(user.id, passkeyId, sessionJwt);
 
     // Log the removal
     await logPasskeyRemoved(user.id, passkey.passkey_id, passkey.name);
@@ -58,7 +65,13 @@ export async function PATCH(
       return apiError('Name is required', 400);
     }
 
-    const passkey = await renamePasskey(user.id, passkeyId, body.name);
+    const cookieStore = await cookies();
+    const sessionJwt = cookieStore.get('busibox-session')?.value;
+    if (!sessionJwt) {
+      return apiError('Session not found', 401);
+    }
+
+    const passkey = await renamePasskey(user.id, passkeyId, body.name, sessionJwt);
 
     return apiSuccess({
       message: 'Passkey renamed successfully',
