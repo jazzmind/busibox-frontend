@@ -69,13 +69,10 @@ async function getAuthzToken(userId: string, audience: string, scopes: string[])
   // Request all data scopes since busibox-app doesn't know which operation is being performed
   const dataScopes = scopes.length > 0 ? scopes : ['data.read', 'data.write', 'data.delete'];
 
-  // Check if we just got a token recently (within last second) and it was the same
-  // If so, invalidate the cache to force a fresh token (this handles retry after 401)
-  const lastToken = lastTokenByUser.get(userId);
-  if (lastToken && Date.now() - lastToken.timestamp < 1000) {
-    console.log('[DATA] Token requested again within 1 second, invalidating cache for retry');
-    invalidateDownstreamToken(userId, audience as any, dataScopes);
-  }
+  // Note: we no longer auto-invalidate tokens on rapid requests.
+  // The original heuristic ("request within 1 second = must be a 401 retry")
+  // was wrong for parallel requests (e.g., 100+ image loads). The caller
+  // should explicitly invalidate via invalidateDownstreamToken on actual 401.
 
   // Use Zero Trust token exchange (no client credentials)
   const result = await exchangeWithSubjectToken({

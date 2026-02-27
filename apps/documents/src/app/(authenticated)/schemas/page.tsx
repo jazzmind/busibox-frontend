@@ -28,9 +28,10 @@ export default function SchemaManagerPage() {
   const session = useSession();
   const searchParams = useSearchParams();
   const fromFileName = searchParams.get('fromFileName');
+  const preselectedId = searchParams.get('selected');
 
   const [schemas, setSchemas] = useState<SchemaDocument[]>([]);
-  const [selectedSchemaId, setSelectedSchemaId] = useState<string | null>(null);
+  const [selectedSchemaId, setSelectedSchemaId] = useState<string | null>(preselectedId);
   const [clonedDoc, setClonedDoc] = useState<SchemaDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +48,8 @@ export default function SchemaManagerPage() {
       const docs = (payload.documents || []) as SchemaDocument[];
       setSchemas(docs);
       if (docs.length > 0 && !selectedSchemaId) {
-        setSelectedSchemaId(docs[0].id);
+        const preferred = preselectedId && docs.some(d => d.id === preselectedId) ? preselectedId : docs[0].id;
+        setSelectedSchemaId(preferred);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load schemas');

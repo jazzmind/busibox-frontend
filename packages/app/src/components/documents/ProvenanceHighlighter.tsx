@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentPropsWithoutRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -16,12 +16,29 @@ interface ProvenanceSelection {
   candidates?: Provenance[];
 }
 
+export interface ImageMeta {
+  is_duplicate?: boolean;
+  is_decorative?: boolean;
+  is_background?: boolean;
+}
+
 interface ProvenanceHighlighterProps {
   markdown: string;
   selected?: Provenance | ProvenanceSelection | null;
+  imageUrls?: Record<string, string>;
+  imageMetadata?: Record<string, ImageMeta>;
+  showImages?: boolean;
+  showFilteredImages?: boolean;
 }
 
-export function ProvenanceHighlighter({ markdown, selected }: ProvenanceHighlighterProps) {
+export function ProvenanceHighlighter({
+  markdown,
+  selected,
+  imageUrls,
+  imageMetadata,
+  showImages = true,
+  showFilteredImages = false,
+}: ProvenanceHighlighterProps) {
   const [candidateIndex, setCandidateIndex] = useState(0);
   const highlightRef = useRef<HTMLSpanElement | null>(null);
 
@@ -69,11 +86,33 @@ export function ProvenanceHighlighter({ markdown, selected }: ProvenanceHighligh
     });
   }, [content.match, active?.charOffset, active?.charLength]);
 
+  const mdComponents = useMemo(() => {
+    const ImgComponent = (props: ComponentPropsWithoutRef<'img'>) => {
+      let { src, alt, ...rest } = props;
+      if (src && imageUrls) {
+        const m = src.match(/image_(\d+)\.\w+/);
+        if (m) {
+          const idx = m[1];
+          if (imageUrls[idx]) {
+            src = imageUrls[idx];
+          }
+          const meta = imageMetadata?.[idx];
+          const isFiltered = meta && (meta.is_duplicate || meta.is_decorative || meta.is_background);
+          if (!showImages || (isFiltered && !showFilteredImages)) {
+            return null;
+          }
+        }
+      }
+      return <img src={src} alt={alt || ''} style={{ maxWidth: '100%', height: 'auto' }} {...rest} />;
+    };
+    return { img: ImgComponent };
+  }, [imageUrls, imageMetadata, showImages, showFilteredImages]);
+
   return (
     <div className="h-full overflow-auto rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
       <article className="prose prose-sm max-w-none text-gray-900 dark:prose-invert">
         {content.before ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content.before}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{content.before}</ReactMarkdown>
         ) : null}
         {content.match ? (
           <mark className="block rounded bg-yellow-300/80 px-1 py-0.5 text-gray-900 shadow-[0_0_0_2px_rgba(250,204,21,0.45)] dark:bg-yellow-300/60">
@@ -83,7 +122,7 @@ export function ProvenanceHighlighter({ markdown, selected }: ProvenanceHighligh
           </mark>
         ) : null}
         {content.after ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content.after}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{content.after}</ReactMarkdown>
         ) : null}
       </article>
       {candidates.length > 1 ? (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { TocItem } from '../../types/documents';
 import { useBusiboxApi, useCrossAppApiPath, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
@@ -19,9 +19,11 @@ interface HtmlViewerProps {
   totalPages?: number;
   progress?: number;
   isEnhancing?: boolean;
+  showImages?: boolean;
+  showFilteredImages?: boolean;
 }
 
-export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage, statusMessage, pagesProcessed, totalPages, progress, isEnhancing }: HtmlViewerProps) {
+export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage, statusMessage, pagesProcessed, totalPages, progress, isEnhancing, showImages = true, showFilteredImages = false }: HtmlViewerProps) {
   const api = useBusiboxApi();
   const resolve = useCrossAppApiPath();
   const documentsBase = useCrossAppBasePath('documents');
@@ -32,6 +34,45 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
   const [toc, setToc] = useState<TocItem[]>([]);
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const prevIsEnhancingRef = useRef(false);
+  const isProcessingRef = useRef(isProcessing);
+  isProcessingRef.current = isProcessing;
+  const enhanceFetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  interface ImageMeta {
+    is_duplicate?: boolean;
+    is_decorative?: boolean;
+    is_background?: boolean;
+  }
+
+  const [filteredImageCount, setFilteredImageCount] = useState(0);
+
+  const fetchImageUrls = useCallback(async (fid: string): Promise<{ urls: Record<string, string>; metadata: Record<string, ImageMeta> }> => {
+    try {
+      const response = await fetchServiceFirstFallbackNext({
+        service: { baseUrl: api.services?.dataApiUrl, path: `/files/${fid}/image-urls`, init: { method: 'GET' } },
+        next: { nextApiBasePath: documentsBase, path: `/api/documents/${fid}/image-urls`, init: { method: 'GET' } },
+        fallback: {
+          fallbackOnNetworkError: api.fallback?.fallbackOnNetworkError ?? true,
+          fallbackStatuses: [
+            ...(api.fallback?.fallbackStatuses ?? [404, 405, 501, 502, 503, 504]),
+            400, 401, 403,
+          ],
+        },
+        serviceHeaders: api.serviceRequestHeaders,
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          urls: (data.urls as Record<string, string>) ?? {},
+          metadata: (data.metadata as Record<string, ImageMeta>) ?? {},
+        };
+      }
+    } catch (e) {
+      console.warn('Failed to fetch batch image URLs, falling back to per-image proxy', e);
+    }
+    return { urls: {}, metadata: {} };
+  }, [api.fallback, api.services?.dataApiUrl, api.serviceRequestHeaders, documentsBase]);
 
   const fetchHtml = useCallback(async () => {
     setLoading(true);
@@ -57,7 +98,7 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
       if (!response.ok) {
         if (response.status === 404) {
           const errorData = await response.json().catch(() => ({}));
-          if (isProcessing) {
+          if (isProcessingRef.current) {
             setError(null);
             setHtml('');
             return;
@@ -69,59 +110,76 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
       }
 
       const data = await response.json();
+      const imageCount: number = data.imageCount ?? 0;
 
-      // Fix image URLs to use the consuming app's proxy route instead of direct data service.
-      // This preserves existing behavior in Busibox Portal and allows other apps to implement the same proxy route.
-      // Handle both old format (/api/files/) and new format (/api/documents/) from the HTML renderer.
-      // 
-      // Detect base path from context, or fallback to detecting from window.location
-      let nextBase = (api.nextApiBasePath ?? '').replace(/\/+$/, '');
-      if (!nextBase && typeof window !== 'undefined') {
-        // Try to detect base path from current URL (e.g., /portal from /portal/documents/...)
-        const pathParts = window.location.pathname.split('/').filter(Boolean);
-        if (pathParts.length > 0 && pathParts[0] !== 'api' && pathParts[0] !== 'documents') {
-          nextBase = `/${pathParts[0]}`;
+      let processedHtml = String(data.html || '');
+
+      // Fetch presigned MinIO URLs for all images in a single authenticated call,
+      // then inject them directly so the browser loads images from MinIO with zero auth.
+      if (imageCount > 0) {
+        const { urls: presignedUrls, metadata: imageMeta } = await fetchImageUrls(fileId);
+
+        if (Object.keys(presignedUrls).length > 0) {
+          let filtered = 0;
+          const origin = typeof window !== 'undefined' ? window.location.origin : '';
+          processedHtml = processedHtml.replace(
+            /(<img\s[^>]*?)src="(?:[^"]*\/api\/(?:files|documents)\/[^/]+\/images\/(\d+))"([^>]*?>)/g,
+            (_match, prefix, idx, suffix) => {
+              let url = presignedUrls[idx];
+              if (!url) return _match;
+              if (url.startsWith('/') && !url.startsWith('//')) {
+                url = origin + url;
+              }
+              const meta = imageMeta[idx];
+              const isFiltered = meta && (meta.is_duplicate || meta.is_decorative || meta.is_background);
+              if (isFiltered) filtered++;
+              let result = `${prefix}src="${url}"${suffix}`;
+              // Merge filtered class into existing class attribute rather than adding a duplicate
+              if (isFiltered) {
+                if (result.includes('class="')) {
+                  result = result.replace(/class="([^"]*)"/, 'class="$1 doc-image-filtered"');
+                } else {
+                  result = result.replace('<img ', '<img class="doc-image-filtered" ');
+                }
+              }
+              return result;
+            },
+          );
+          setFilteredImageCount(filtered);
+        } else {
+          let nextBase = (api.nextApiBasePath ?? '').replace(/\/+$/, '');
+          if (!nextBase && typeof window !== 'undefined') {
+            const pathParts = window.location.pathname.split('/').filter(Boolean);
+            if (pathParts.length > 0 && pathParts[0] !== 'api' && pathParts[0] !== 'documents') {
+              nextBase = `/${pathParts[0]}`;
+            }
+          }
+          processedHtml = processedHtml.replace(
+            /\/api\/files\/([^/]+)\/images\//g,
+            `${nextBase}/api/documents/$1/images/`,
+          );
+          if (nextBase) {
+            processedHtml = processedHtml.replace(
+              /src="(\/api\/documents\/[^"]+)"/g,
+              `src="${nextBase}$1"`,
+            );
+          }
         }
       }
-      
-      let processedHtml = String(data.html || '');
-      // Old format: /api/files/{fileId}/images/{index}
-      processedHtml = processedHtml.replace(/\/api\/files\/([^/]+)\/images\//g, `${nextBase}/api/documents/$1/images/`);
-      // New format: /api/documents/{fileId}/images/{index} - prepend nextBase if not already present
-      // Only prepend if nextBase is set and the URL doesn't already have it
-      if (nextBase) {
-        processedHtml = processedHtml.replace(
-          /src="(\/api\/documents\/[^"]+)"/g, 
-          `src="${nextBase}$1"`
-        );
-      }
 
-      // Fix legacy cached HTML where markdown bold/italic markers were not converted.
-      // The old renderer's _add_heading_ids pre-converted headings to HTML before the
-      // markdown parser could process inline formatting, leaving literal **text** in the output.
-      // Convert **text** to <strong>text</strong> and *text* to <em>text</em> in the HTML.
-      // Only match ** that aren't already inside HTML tags.
       processedHtml = processedHtml.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
       processedHtml = processedHtml.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
 
-      // Also clean up TOC entries that still have ** markers
-      // (TOC is in a separate data field, handled below)
-
-      // Clean up the "Additional Images" section: convert the bottom dump into
-      // a cleaner gallery grid rather than a plain list at the bottom
       processedHtml = processedHtml.replace(
         /<hr\s*\/?>\s*<p><strong>Additional Images:<\/strong><\/p>/gi,
         '<div class="doc-image-gallery"><h3 class="doc-gallery-heading">Document Images</h3>'
       );
-      // If the gallery was opened, close it at the end
       if (processedHtml.includes('doc-image-gallery')) {
-        // Find all remaining images after the gallery heading and wrap them
         processedHtml += '</div>';
       }
 
       setHtml(processedHtml);
 
-      // Clean TOC entries - strip ** markers from titles in legacy cached data
       const rawToc = data.toc || [];
       const cleanedToc = rawToc.map((item: TocItem) => ({
         ...item,
@@ -130,7 +188,7 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
       setToc(cleanedToc);
       setError(null);
     } catch (err) {
-      if (isProcessing) {
+      if (isProcessingRef.current) {
         setError(null);
         setHtml('');
         return;
@@ -140,12 +198,14 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
     } finally {
       setLoading(false);
     }
-  }, [api.fallback, api.nextApiBasePath, api.serviceRequestHeaders, api.services?.dataApiUrl, fileId, isProcessing, resolve]);
+  }, [api.fallback, api.nextApiBasePath, api.serviceRequestHeaders, api.services?.dataApiUrl, fileId, resolve, fetchImageUrls]);
 
+  // Initial fetch when fileId changes (or on mount)
   useEffect(() => {
     if (fileId) fetchHtml();
   }, [fileId, fetchHtml]);
 
+  // Retry if initial fetch came back empty (e.g., document still being processed)
   useEffect(() => {
     if (!isProcessing && !html && !error && retryCount < 3) {
       const timer = setTimeout(() => {
@@ -156,20 +216,33 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
     }
   }, [isProcessing, html, error, retryCount, fetchHtml]);
 
+  // Refetch HTML when enhancement completes or a new pass finishes.
+  // Debounced to avoid flooding requests on rapid status message updates.
   useEffect(() => {
-    if (!isProcessing && retryCount === 0) {
-      fetchHtml();
+    if (enhanceFetchTimerRef.current) {
+      clearTimeout(enhanceFetchTimerRef.current);
+      enhanceFetchTimerRef.current = null;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isProcessing]);
 
-  // Refetch HTML when enhancement pass info changes (better text available)
-  useEffect(() => {
-    if (isEnhancing && statusMessage) {
+    if (!isEnhancing && prevIsEnhancingRef.current) {
+      // Enhancement just completed -- fetch final HTML immediately
       fetchHtml();
+    } else if (isEnhancing && statusMessage) {
+      // Still enhancing -- debounce so we only fetch once per status burst
+      enhanceFetchTimerRef.current = setTimeout(() => {
+        fetchHtml();
+        enhanceFetchTimerRef.current = null;
+      }, 5000);
     }
+    prevIsEnhancingRef.current = isEnhancing ?? false;
+
+    return () => {
+      if (enhanceFetchTimerRef.current) {
+        clearTimeout(enhanceFetchTimerRef.current);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusMessage]);
+  }, [isEnhancing, statusMessage]);
 
   const scrollToSection = (sectionId: string) => {
     let element = document.getElementById(sectionId);
@@ -355,6 +428,8 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
           #document-content em {
             font-style: italic;
           }
+          ${!showImages ? '#document-content img { display: none !important; }' : ''}
+          ${showImages && !showFilteredImages ? '#document-content img.doc-image-filtered { display: none !important; }' : ''}
         ` }} />
         <div
           id="document-content"

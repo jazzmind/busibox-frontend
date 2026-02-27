@@ -5,11 +5,14 @@ import { useCrossAppApiPath } from '../../contexts/ApiContext';
 import { ProvenanceHighlighter } from './ProvenanceHighlighter';
 import { SchemaFieldViewer } from './SchemaFieldViewer';
 import { Trash2 } from 'lucide-react';
+import { useImageUrls } from '../../lib/hooks/useImageUrls';
 
 interface ExtractionSplitViewProps {
   fileId: string;
   schemaDocumentId: string;
   refreshKey?: number;
+  showImages?: boolean;
+  showFilteredImages?: boolean;
 }
 
 interface SchemaFieldDef {
@@ -21,6 +24,8 @@ export function ExtractionSplitView({
   fileId,
   schemaDocumentId,
   refreshKey = 0,
+  showImages = true,
+  showFilteredImages = false,
 }: ExtractionSplitViewProps) {
   const [markdown, setMarkdown] = useState('');
   const [records, setRecords] = useState<Record<string, any>[]>([]);
@@ -32,6 +37,7 @@ export function ExtractionSplitView({
   const [deletingRecordId, setDeletingRecordId] = useState<string | null>(null);
 
   const resolve = useCrossAppApiPath();
+  const { urls: imageUrls, metadata: imageMetadata } = useImageUrls(fileId);
 
   useEffect(() => {
     let cancelled = false;
@@ -159,7 +165,14 @@ export function ExtractionSplitView({
       <div className="flex h-[70vh] min-h-0 flex-col">
         <h3 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Document</h3>
         <div className="min-h-0 flex-1">
-          <ProvenanceHighlighter markdown={markdown} selected={selectedProvenance} />
+          <ProvenanceHighlighter
+            markdown={markdown}
+            selected={selectedProvenance}
+            imageUrls={imageUrls}
+            imageMetadata={imageMetadata}
+            showImages={showImages}
+            showFilteredImages={showFilteredImages}
+          />
         </div>
       </div>
       <div className="flex h-[70vh] min-h-0 flex-col">

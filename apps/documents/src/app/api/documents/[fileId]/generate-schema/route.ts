@@ -1,8 +1,9 @@
 /**
  * Generate Extraction Schema API Route
  *
- * POST: Calls agent-api /runs/invoke with the schema-builder agent and a
- * response schema to get deterministic structured output.
+ * POST: Starts async schema generation via agent-api /runs/invoke-async.
+ *       Returns a runId immediately for the frontend to poll.
+ * GET:  Polls the agent-api run status and, when complete, parses the schema.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -11,6 +12,8 @@ import { dataFetch, setSessionJwtForUser } from '@jazzmind/busibox-app/lib/data/
 import { getAgentApiToken, agentApiRequest } from '@jazzmind/busibox-app/lib/agent/chat-api-client';
 
 const USER_PROMPT_PREFIX = `Analyze this document and generate an extraction schema.
+
+IMPORTANT: Be extremely conservative with required fields. Mark a field as required ONLY if it is absolutely guaranteed to appear in EVERY document of this type. Typically only 1-2 fields should be required. Most fields should NOT be required.
 
 For each field, you may optionally include a "search" array indicating how the field should be indexed:
 - "keyword": for keyword-searchable fields (names, IDs, statuses, categories, tags, dates, numbers, booleans, enums)
@@ -28,7 +31,6 @@ A field can have multiple search modes, or none (stored but not indexed). Exampl
 Document content:
 `;
 
-// JSON Schema that LiteLLM will enforce via structured output
 const EXTRACTION_SCHEMA_JSON_SCHEMA = {
   name: 'extraction_schema',
   strict: true,
@@ -94,13 +96,9 @@ interface RouteParams {
   params: Promise<{ fileId: string }>;
 }
 
-interface RunInvokeResponse {
-  run_id: string;
-  status: string;
-  output?: any;
-  error?: string | null;
-}
-
+/**
+ * POST — kick off async schema generation and return the run_id.
+ */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const authResult = await requireAuth(request);
@@ -108,7 +106,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { user, sessionJwt } = authResult;
     const { fileId } = await params;
 
-    // 1) Fetch the document markdown via data service
     setSessionJwtForUser(user.id, sessionJwt);
     let markdown = '';
     try {
@@ -128,94 +125,153 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return apiError('Document has insufficient content for schema generation', 400);
     }
 
-    // Only the first portion is needed to identify document type and fields
     const MAX_DOC_CHARS = 6000;
     const truncated =
       markdown.length > MAX_DOC_CHARS
         ? markdown.slice(0, MAX_DOC_CHARS) + '\n\n[... truncated ...]'
         : markdown;
 
-    // 2) Call agent-api invoke endpoint (auth gateway + deterministic output)
     const agentToken = await getAgentApiToken(user.id, sessionJwt);
-    const invokeResult = await agentApiRequest<RunInvokeResponse>(
+    const asyncResult = await agentApiRequest<{ run_id: string; status: string }>(
       agentToken,
-      '/runs/invoke',
+      '/runs/invoke-async',
       {
         method: 'POST',
         body: JSON.stringify({
           agent_name: 'schema-builder',
-          input: {
-            prompt: USER_PROMPT_PREFIX + truncated,
-          },
+          input: { prompt: USER_PROMPT_PREFIX + truncated },
           response_schema: EXTRACTION_SCHEMA_JSON_SCHEMA,
-          agent_tier: 'simple',
+          agent_tier: 'complex',
         }),
       }
     );
 
-    if (invokeResult.status !== 'succeeded') {
-      return NextResponse.json(
-        {
-          success: false,
-          error: invokeResult.error || `Schema generation failed with status ${invokeResult.status}`,
-          runId: invokeResult.run_id,
-        },
-        { status: 422 }
-      );
-    }
-
-    // 3) Parse agent output
-    let schemaJson: Record<string, any> | null = null;
-    const rawOutput = invokeResult.output;
-    if (rawOutput && typeof rawOutput === 'object' && rawOutput.fields) {
-      schemaJson = rawOutput;
-    } else if (typeof rawOutput === 'string') {
-      try {
-        const parsed = JSON.parse(rawOutput);
-        if (parsed && typeof parsed === 'object' && parsed.fields) {
-          schemaJson = parsed;
-        }
-      } catch {
-        // Ignore; handled below
-      }
-    }
-
-    if (!schemaJson || !schemaJson.fields) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Agent did not return a valid schema with fields',
-          rawOutput: typeof rawOutput === 'string' ? rawOutput.slice(0, 2000) : rawOutput,
-          runId: invokeResult.run_id,
-        },
-        { status: 422 }
-      );
-    }
-
-    // Ensure each field has a stable display order so UIs can control layout deterministically.
-    const fieldEntries = Object.entries(schemaJson.fields || {});
-    schemaJson.fields = Object.fromEntries(
-      fieldEntries.map(([fieldName, fieldDef], index) => {
-        const current = (fieldDef || {}) as Record<string, any>;
-        if (typeof current.display_order !== 'number') {
-          current.display_order =
-            typeof current.order === 'number' ? current.order : index + 1;
-        }
-        return [fieldName, current];
-      })
-    );
-
-    // Extract metadata
-    const schemaName = schemaJson.schemaName || schemaJson.displayName || 'Extraction Schema';
-    delete schemaJson.schemaName;
-
     return NextResponse.json({
       success: true,
-      schema: schemaJson,
-      schemaName,
+      runId: asyncResult.run_id,
+      status: 'accepted',
     });
   } catch (error: any) {
     console.error('[generate-schema] Error:', error);
-    return apiError(error.message || 'Failed to generate schema', 500);
+    return apiError(error.message || 'Failed to start schema generation', 500);
+  }
+}
+
+/**
+ * Parse raw agent output into a validated schema object.
+ */
+function parseSchemaOutput(rawOutput: any): { schema: Record<string, any>; schemaName: string } | null {
+  let schemaJson: Record<string, any> | null = null;
+  if (rawOutput && typeof rawOutput === 'object' && rawOutput.fields) {
+    schemaJson = rawOutput;
+  } else if (typeof rawOutput === 'string') {
+    try {
+      const parsed = JSON.parse(rawOutput);
+      if (parsed && typeof parsed === 'object' && parsed.fields) {
+        schemaJson = parsed;
+      }
+    } catch {
+      // not JSON
+    }
+  }
+
+  if (!schemaJson || !schemaJson.fields) return null;
+
+  const fieldEntries = Object.entries(schemaJson.fields || {});
+  schemaJson.fields = Object.fromEntries(
+    fieldEntries.map(([fieldName, fieldDef], index) => {
+      const current = (fieldDef || {}) as Record<string, any>;
+      if (typeof current.display_order !== 'number') {
+        current.display_order =
+          typeof current.order === 'number' ? current.order : index + 1;
+      }
+      return [fieldName, current];
+    })
+  );
+
+  // Cap required fields: if the LLM marked more than 3 fields as required,
+  // keep only the first 2 (by display_order) and demote the rest.
+  const MAX_REQUIRED_FIELDS = 3;
+  const requiredFields = Object.entries(schemaJson.fields)
+    .filter(([, def]: [string, any]) => def?.required === true)
+    .sort(([, a]: [string, any], [, b]: [string, any]) =>
+      (a.display_order ?? 999) - (b.display_order ?? 999)
+    );
+
+  if (requiredFields.length > MAX_REQUIRED_FIELDS) {
+    const toKeep = new Set(requiredFields.slice(0, MAX_REQUIRED_FIELDS).map(([name]) => name));
+    for (const [fieldName, fieldDef] of Object.entries(schemaJson.fields) as [string, any][]) {
+      if (fieldDef?.required === true && !toKeep.has(fieldName)) {
+        fieldDef.required = false;
+      }
+    }
+  }
+
+  const schemaName = schemaJson.schemaName || schemaJson.displayName || 'Extraction Schema';
+  delete schemaJson.schemaName;
+
+  return { schema: schemaJson, schemaName };
+}
+
+/**
+ * GET — poll the run status and return the parsed schema when complete.
+ */
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  try {
+    const authResult = await requireAuth(request);
+    if (authResult instanceof Response) return authResult;
+    const { user, sessionJwt } = authResult;
+    await params;
+
+    const runId = request.nextUrl.searchParams.get('runId');
+    if (!runId) {
+      return apiError('runId query parameter is required', 400);
+    }
+
+    const agentToken = await getAgentApiToken(user.id, sessionJwt);
+    const run = await agentApiRequest<{
+      id: string;
+      status: string;
+      output?: Record<string, any> | null;
+    }>(agentToken, `/runs/${runId}`, { method: 'GET' });
+
+    if (run.status === 'pending' || run.status === 'running') {
+      return NextResponse.json({ status: run.status, runId });
+    }
+
+    if (run.status === 'failed' || run.status === 'timeout') {
+      const errorMsg =
+        run.output?.error || `Schema generation ${run.status}`;
+      return NextResponse.json(
+        { status: run.status, error: errorMsg, runId },
+        { status: 422 }
+      );
+    }
+
+    // succeeded — parse the output
+    const rawOutput = run.output?.result ?? run.output?.data ?? run.output;
+    const parsed = parseSchemaOutput(rawOutput);
+    if (!parsed) {
+      return NextResponse.json(
+        {
+          status: 'failed',
+          error: 'Agent did not return a valid schema with fields',
+          rawOutput: typeof rawOutput === 'string' ? rawOutput.slice(0, 2000) : rawOutput,
+          runId,
+        },
+        { status: 422 }
+      );
+    }
+
+    return NextResponse.json({
+      status: 'succeeded',
+      success: true,
+      schema: parsed.schema,
+      schemaName: parsed.schemaName,
+      runId,
+    });
+  } catch (error: any) {
+    console.error('[generate-schema] Poll error:', error);
+    return apiError(error.message || 'Failed to check schema generation status', 500);
   }
 }

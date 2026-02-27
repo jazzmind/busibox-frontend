@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, Download, Trash2, RefreshCw, ChevronDown, X,
   Clock, FileText, Database, Calendar, Hash,
-  Layers, Eye, FolderOpen, Check, Loader2, Image as ImageIcon, Film, Wand2, SplitSquareVertical
+  Layers, Eye, FolderOpen, Check, Loader2, Image as ImageIcon, ImageOff, Film, Wand2, SplitSquareVertical,
+  Pencil, ExternalLink, Maximize2, Columns2, EyeOff
 } from 'lucide-react';
 import { Button } from '@jazzmind/busibox-app';
 import { HtmlViewer, ProcessingHistoryModal, ChunksBrowser } from '@jazzmind/busibox-app';
@@ -129,9 +130,12 @@ export default function DocumentDetailsPage({
   const [showSplitView, setShowSplitView] = useState(false);
   const [splitRefreshKey, setSplitRefreshKey] = useState(0);
   const [showSchemaModal, setShowSchemaModal] = useState(false);
+  const [showImages, setShowImages] = useState(true);
+  const [showFilteredImages, setShowFilteredImages] = useState(false);
   const [seedingDefaults, setSeedingDefaults] = useState(false);
   const [schemasLoading, setSchemasLoading] = useState(false);
   const [schemasError, setSchemasError] = useState<string | null>(null);
+  const [schemaJustGenerated, setSchemaJustGenerated] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [reprocessOpen, setReprocessOpen] = useState(false);
   const downloadDropdownRef = useRef<HTMLDivElement>(null);
@@ -163,8 +167,9 @@ export default function DocumentDetailsPage({
     | undefined;
   const isTriggerActive =
     triggerStatus?.state === 'pending' || triggerStatus?.state === 'running';
-  const isProcessingOrTriggering = isProcessing || isEnhancing || isTriggerActive;
   const extractionMetadata = document?.metadata?.extraction;
+  const isExtractionRunning = extractionMetadata?.status === 'running';
+  const isProcessingOrTriggering = isProcessing || isEnhancing || isTriggerActive || isExtractionRunning;
   const extractedSchemaId = extractionMetadata?.schemaDocumentId as string | undefined;
   const extractedRecordCount = Number(extractionMetadata?.recordCount ?? 0);
   const hasExtractedEntities =
@@ -276,9 +281,9 @@ export default function DocumentDetailsPage({
 
   const handleDownload = (format?: string) => {
     if (format) {
-      window.open(`/api/documents/${resolvedParams.fileId}/export?format=${format}`, '_blank');
+      window.open(`/documents/api/documents/${resolvedParams.fileId}/export?format=${format}`, '_blank');
     } else {
-      window.open(`/api/documents/${resolvedParams.fileId}/download`, '_blank');
+      window.open(`/documents/api/documents/${resolvedParams.fileId}/download`, '_blank');
     }
   };
 
@@ -448,26 +453,57 @@ export default function DocumentDetailsPage({
     if (!document) return;
     setGeneratingSchema(true);
     try {
-      // Step 1: Call the schema-builder agent to analyze the document
-      const agentResponse = await fetch(`/documents/api/documents/${resolvedParams.fileId}/generate-schema`, {
+      // Step 1: Kick off async schema generation
+      const startResponse = await fetch(`/documents/api/documents/${resolvedParams.fileId}/generate-schema`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
 
-      if (!agentResponse.ok) {
-        const errData = await agentResponse.json().catch(() => ({}));
-        throw new Error(errData.error || errData.rawOutput || 'Schema generation failed');
+      if (!startResponse.ok) {
+        const errData = await startResponse.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to start schema generation');
       }
 
-      const agentResult = await agentResponse.json();
-      if (!agentResult.success || !agentResult.schema) {
-        throw new Error(agentResult.error || 'Agent did not return a valid schema');
+      const { runId } = await startResponse.json();
+      if (!runId) throw new Error('No runId returned from schema generation');
+
+      // Step 2: Poll until the background agent run completes
+      const MAX_POLL_TIME = 300_000; // 5 minutes
+      const POLL_INTERVAL = 3_000;
+      const startTime = Date.now();
+      let result: any = null;
+
+      while (Date.now() - startTime < MAX_POLL_TIME) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+
+        const pollResponse = await fetch(
+          `/documents/api/documents/${resolvedParams.fileId}/generate-schema?runId=${runId}`
+        );
+        const pollData = await pollResponse.json();
+
+        if (pollData.status === 'pending' || pollData.status === 'running') {
+          continue;
+        }
+
+        if (pollData.status === 'failed' || pollData.status === 'timeout') {
+          throw new Error(pollData.error || 'Schema generation failed');
+        }
+
+        if (pollData.status === 'succeeded' && pollData.schema) {
+          result = pollData;
+          break;
+        }
+
+        throw new Error(pollData.error || 'Unexpected schema generation status');
       }
 
-      // Use the agent-provided schema name (based on document type, not title)
-      const schemaName = agentResult.schemaName || 'Extraction Schema';
+      if (!result) {
+        throw new Error('Schema generation timed out');
+      }
 
-      // Step 2: Save the agent-generated schema as a data document
+      const schemaName = result.schemaName || 'Extraction Schema';
+
+      // Step 3: Save the agent-generated schema as a data document
       const response = await fetch('/documents/api/data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -479,7 +515,7 @@ export default function DocumentDetailsPage({
             sourceFileId: resolvedParams.fileId,
             sourceFileName: document.filename,
           },
-          schema: agentResult.schema,
+          schema: result.schema,
         }),
       });
 
@@ -491,6 +527,7 @@ export default function DocumentDetailsPage({
       const created = await response.json();
       const createdId = created?.id as string | undefined;
       await fetchSchemas(createdId);
+      setSchemaJustGenerated(true);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to generate schema');
     } finally {
@@ -512,18 +549,30 @@ export default function DocumentDetailsPage({
       });
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(text || 'Extraction failed');
+        throw new Error(text || 'Failed to start extraction');
       }
-      setShowSplitView(true);
-      setSplitRefreshKey((k) => k + 1);
-      setGraphRefreshKey((k) => k + 1);
+      // Extraction is now running in the background.
+      // Refresh document to pick up the "running" extraction status,
+      // which will trigger the existing polling mechanism.
       await fetchDocument(false);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Extraction failed');
+      alert(err instanceof Error ? err.message : 'Failed to start extraction');
     } finally {
       setExtracting(false);
     }
   };
+
+  // When extraction completes in the background, refresh the split view and graph.
+  const prevExtractionStatusRef = useRef<string | null>(null);
+  useEffect(() => {
+    const currentStatus = extractionMetadata?.status as string | undefined;
+    if (prevExtractionStatusRef.current === 'running' && currentStatus === 'completed') {
+      setShowSplitView(true);
+      setSplitRefreshKey((k) => k + 1);
+      setGraphRefreshKey((k) => k + 1);
+    }
+    prevExtractionStatusRef.current = currentStatus ?? null;
+  }, [extractionMetadata?.status]);
 
   const handleSeedDefaults = async () => {
     setSeedingDefaults(true);
@@ -1034,94 +1083,245 @@ export default function DocumentDetailsPage({
 
         {/* Schema Extraction Modal */}
         {!isMediaFile && showSchemaModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowSchemaModal(false)}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => !generatingSchema && setShowSchemaModal(false)}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Extract Structured Data</h3>
-                <button onClick={() => setShowSchemaModal(false)} className="text-gray-400 hover:text-gray-600">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <p className="text-sm text-gray-600 mb-4">
-                Use an extraction schema to pull structured records from this document.
-                Fields can be indexed for keyword search, semantic search, or added to the knowledge graph.
-              </p>
-              <div className="space-y-4">
-                {schemasError && (
-                  <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2">
-                    <p className="text-sm text-red-700">{schemasError}</p>
-                    <button onClick={() => fetchSchemas()} className="text-xs text-red-600 underline mt-1">Retry</button>
-                  </div>
+                {!generatingSchema && (
+                  <button onClick={() => setShowSchemaModal(false)} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-5 h-5" />
+                  </button>
                 )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Extraction Schema</label>
-                  {schemasLoading ? (
-                    <div className="flex items-center gap-2 py-2 text-sm text-gray-500">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Loading schemas...
+              </div>
+
+              {generatingSchema ? (
+                <div className="space-y-4">
+                  <div className="rounded-lg bg-indigo-50 border border-indigo-200 p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                        <Wand2 className="w-5 h-5 text-indigo-600 animate-pulse" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-indigo-900">Analyzing document&hellip;</p>
+                        <p className="text-xs text-indigo-700">AI is reading your document and building a custom extraction schema</p>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={selectedSchemaId}
-                        onChange={(e) => setSelectedSchemaId(e.target.value)}
-                        className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700"
-                      >
-                        <option value="">
-                          {schemas.length === 0 ? 'No schemas available' : 'Select schema...'}
-                        </option>
-                        {schemas.map((schema) => (
-                          <option key={schema.id} value={schema.id}>
-                            {schema.name}
-                          </option>
-                        ))}
-                      </select>
-                      <Button variant="secondary" size="sm" onClick={handleGenerateSchema} disabled={generatingSchema}>
-                        <Wand2 className="w-4 h-4 mr-2" />
-                        {generatingSchema ? 'Generating...' : 'Auto-Generate'}
-                      </Button>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-indigo-700">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Identifying document type, fields, and structure</span>
+                      </div>
+                      <div className="w-full bg-indigo-200/50 rounded-full h-1.5">
+                        <div className="bg-indigo-500 h-1.5 rounded-full animate-pulse" style={{ width: '60%' }} />
+                      </div>
                     </div>
-                  )}
+                  </div>
+                  <p className="text-xs text-gray-500 text-center">
+                    This typically takes 30&ndash;90 seconds. The schema will be saved automatically.
+                  </p>
                 </div>
-                {schemas.length === 0 && !schemasLoading && !schemasError && (
-                  <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-3">
-                    <p className="text-sm text-blue-800 mb-2">No extraction schemas found. You can:</p>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Use an extraction schema to pull structured records from this document.
+                    Fields can be indexed for keyword search, semantic search, or added to the knowledge graph.
+                  </p>
+                  <div className="space-y-4">
+                    {schemasError && (
+                      <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2">
+                        <p className="text-sm text-red-700">{schemasError}</p>
+                        <button onClick={() => fetchSchemas()} className="text-xs text-red-600 underline mt-1">Retry</button>
+                      </div>
+                    )}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Extraction Schema</label>
+                      {schemasLoading ? (
+                        <div className="flex items-center gap-2 py-2 text-sm text-gray-500">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading schemas...
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={selectedSchemaId}
+                              onChange={(e) => setSelectedSchemaId(e.target.value)}
+                              className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700"
+                            >
+                              <option value="">
+                                {schemas.length === 0 ? 'No schemas available' : 'Select schema...'}
+                              </option>
+                              {schemas.map((schema) => (
+                                <option key={schema.id} value={schema.id}>
+                                  {schema.name}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedSchemaId && (
+                              <button
+                                onClick={() => {
+                                  const bp = process.env.NEXT_PUBLIC_BASE_PATH || '';
+                                  window.open(`${bp}/schemas?selected=${selectedSchemaId}`, '_blank');
+                                }}
+                                className="flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                                title="Edit schema"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                          {schemaJustGenerated && selectedSchemaId && (
+                            <div className="rounded-md bg-green-50 border border-green-200 px-3 py-2.5">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Check className="w-4 h-4 text-green-600" />
+                                <span className="text-sm font-medium text-green-800">Schema generated successfully</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    const bp = process.env.NEXT_PUBLIC_BASE_PATH || '';
+                                    window.open(`${bp}/schemas?selected=${selectedSchemaId}`, '_blank');
+                                  }}
+                                  className="inline-flex items-center gap-1 text-xs text-green-700 hover:text-green-900 underline"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                  Review &amp; Edit Schema
+                                  <ExternalLink className="w-3 h-3" />
+                                </button>
+                                <span className="text-xs text-green-600">or extract records below</span>
+                              </div>
+                            </div>
+                          )}
+                          {!schemaJustGenerated && (
+                          <div className="rounded-md bg-gray-50 border border-gray-200 px-3 py-2.5 flex items-center justify-between">
+                            <div className="text-xs text-gray-600">
+                              No matching schema? Generate one from this document.
+                            </div>
+                            <Button variant="secondary" size="sm" onClick={handleGenerateSchema} disabled={generatingSchema}>
+                              <Wand2 className="w-4 h-4 mr-1.5" />
+                              Auto-Generate
+                            </Button>
+                          </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {schemas.length === 0 && !schemasLoading && !schemasError && (
+                      <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-3">
+                        <p className="text-sm text-blue-800 mb-2">No extraction schemas found. You can:</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button variant="secondary" size="sm" onClick={handleSeedDefaults} disabled={seedingDefaults}>
+                            <Database className="w-4 h-4 mr-2" />
+                            {seedingDefaults ? 'Loading...' : 'Load Default Schemas'}
+                          </Button>
+                          <span className="text-xs text-blue-600">or use Auto-Generate above</span>
+                        </div>
+                      </div>
+                    )}
+                    {isExtractionRunning && (
+                      <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                        <span className="text-sm text-amber-800">Extraction in progress&hellip; This may take a few minutes.</span>
+                      </div>
+                    )}
+                    {extractionMetadata?.status === 'failed' && (
+                      <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2">
+                        <span className="text-sm text-red-800">Extraction failed{extractionMetadata?.error ? `: ${extractionMetadata.error}` : ''}. Try again.</span>
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button variant="secondary" size="sm" onClick={handleSeedDefaults} disabled={seedingDefaults}>
-                        <Database className="w-4 h-4 mr-2" />
-                        {seedingDefaults ? 'Loading...' : 'Load Default Schemas'}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => { handleApplySchema(); }}
+                        disabled={extracting || isExtractionRunning || !selectedSchemaId}
+                      >
+                        <Wand2 className="w-4 h-4 mr-2" />
+                        {extracting ? 'Starting...' : isExtractionRunning ? 'Extracting...' : 'Extract Records'}
                       </Button>
-                      <span className="text-xs text-blue-600">or click Auto-Generate above</span>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => { setShowSplitView((v) => !v); setShowSchemaModal(false); }}
+                        disabled={!selectedSchemaId}
+                      >
+                        <SplitSquareVertical className="w-4 h-4 mr-2" />
+                        {showSplitView ? 'Hide Extractions' : 'View Extractions'}
+                      </Button>
                     </div>
                   </div>
-                )}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => { handleApplySchema(); }}
-                    disabled={extracting || !selectedSchemaId}
-                  >
-                    <Wand2 className="w-4 h-4 mr-2" />
-                    {extracting ? 'Extracting...' : 'Extract Records'}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => { setShowSplitView((v) => !v); setShowSchemaModal(false); }}
-                    disabled={!selectedSchemaId}
-                  >
-                    <SplitSquareVertical className="w-4 h-4 mr-2" />
-                    {showSplitView ? 'Hide Extractions' : 'View Extractions'}
-                  </Button>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           </div>
         )}
 
         {/* Main Content Area - Full Width */}
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+          {/* Content toolbar: view mode toggle + image controls */}
+          {!isMediaFile && !isCodeFile && (
+            <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-2">
+              <div className="flex items-center gap-1">
+                {selectedSchemaId && (
+                  <>
+                    <Button
+                      variant={!showSplitView ? 'primary' : 'ghost'}
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setShowSplitView(false)}
+                    >
+                      <Maximize2 className="w-3.5 h-3.5 mr-1" />
+                      Full View
+                    </Button>
+                    <Button
+                      variant={showSplitView ? 'primary' : 'ghost'}
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => { setShowSplitView(true); setShowSchemaModal(false); }}
+                      disabled={!selectedSchemaId}
+                    >
+                      <Columns2 className="w-3.5 h-3.5 mr-1" />
+                      Split View
+                    </Button>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  className={`inline-flex items-center h-7 px-2 text-xs rounded-md border transition-colors ${
+                    showImages
+                      ? 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                      : 'bg-gray-100 border-gray-300 text-gray-800'
+                  }`}
+                  onClick={() => setShowImages((v) => !v)}
+                  title={showImages ? 'Hide images' : 'Show images'}
+                >
+                  {showImages ? (
+                    <><ImageIcon className="w-3.5 h-3.5 mr-1" />Images</>
+                  ) : (
+                    <><ImageOff className="w-3.5 h-3.5 mr-1" />Hidden</>
+                  )}
+                </button>
+                {showImages && (
+                  <button
+                    className={`inline-flex items-center h-7 px-2 text-xs rounded-md border transition-colors ${
+                      showFilteredImages
+                        ? 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                        : 'bg-gray-100 border-gray-300 text-gray-800'
+                    }`}
+                    onClick={() => setShowFilteredImages((v) => !v)}
+                    title={showFilteredImages ? 'Hide decorative/duplicate images' : 'Show all images including decorative/duplicate'}
+                  >
+                    {showFilteredImages ? (
+                      <><Eye className="w-3.5 h-3.5 mr-1" />All</>
+                    ) : (
+                      <><EyeOff className="w-3.5 h-3.5 mr-1" />Filtered</>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
           {isMediaFile ? (
             <div className="p-6">
               <div className="flex items-center gap-2 mb-4 text-sm text-gray-500">
@@ -1166,6 +1366,8 @@ export default function DocumentDetailsPage({
                 fileId={resolvedParams.fileId}
                 schemaDocumentId={selectedSchemaId}
                 refreshKey={splitRefreshKey}
+                showImages={showImages}
+                showFilteredImages={showFilteredImages}
               />
             </div>
           ) : isCodeFile && !isProcessing ? (
@@ -1180,6 +1382,8 @@ export default function DocumentDetailsPage({
               onReprocess={handleReprocess}
               isProcessing={isProcessing}
               isEnhancing={isEnhancing}
+              showImages={showImages}
+              showFilteredImages={showFilteredImages}
               processingStage={
                 isEnhancing
                   ? 'available'

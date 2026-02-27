@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, apiError } from '@jazzmind/busibox-app/lib/next/middleware';
 import { getAuthorizationHeaderWithSession } from '@jazzmind/busibox-app/lib/authz/next-client';
 
+function getAgentApiUrl() {
+  return (
+    process.env.AGENT_API_URL ||
+    (process.env.AGENT_HOST
+      ? `http://${process.env.AGENT_HOST}:${process.env.AGENT_API_PORT || 8000}`
+      : 'http://localhost:8000')
+  );
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ fileId: string }> }
@@ -25,12 +34,7 @@ export async function POST(
       purpose: 'document-extract',
     });
 
-    const agentApiUrl =
-      process.env.AGENT_API_URL ||
-      (process.env.AGENT_HOST
-        ? `http://${process.env.AGENT_HOST}:${process.env.AGENT_API_PORT || 8000}`
-        : 'http://localhost:8000');
-    const response = await fetch(`${agentApiUrl}/extract`, {
+    const response = await fetch(`${getAgentApiUrl()}/extract`, {
       method: 'POST',
       headers: {
         Authorization: authHeader,

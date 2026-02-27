@@ -94,6 +94,7 @@ interface CloudModelsData {
   models: CloudModel[];
   api_key_configured: boolean;
   needs_key_resave?: boolean;
+  provider_error?: string;
 }
 
 interface PurposesData {
@@ -114,13 +115,13 @@ const CLOUD_PROVIDERS = [
   {
     id: 'openai',
     name: 'OpenAI',
-    description: 'GPT-4.1, o3/o4-mini and other OpenAI models',
+    description: 'GPT, sora and other OpenAI models',
     keyPlaceholder: 'sk-...',
   },
   {
     id: 'anthropic',
     name: 'Anthropic',
-    description: 'Claude Sonnet 4, Claude 3.7, Claude 3.5 Haiku',
+    description: 'Claude Sonnet, Opus and Haiku',
     keyPlaceholder: 'sk-ant-...',
   },
 ] as const;
@@ -1072,6 +1073,10 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
                           <>
                             <strong>API key needs to be re-saved.</strong> The key is stored in LiteLLM but is not accessible for listing models (this can happen after a service restart). Please re-enter and save your {provider.name} API key above to restore access.
                           </>
+                        ) : providerCloudData.provider_error ? (
+                          <>
+                            {providerCloudData.provider_error}
+                          </>
                         ) : (
                           <>
                             No models returned. If you just saved the key, click &quot;Refresh&quot; below to retry.
@@ -1430,6 +1435,10 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
                   {bedrockCloudData.needs_key_resave ? (
                     <>
                       <strong>Bedrock credentials need to be re-saved.</strong> The credentials are stored in LiteLLM but are not accessible for listing models (this can happen after a service restart). Please re-enter and save your Bedrock credentials above to restore access.
+                    </>
+                  ) : bedrockCloudData.provider_error ? (
+                    <>
+                      {bedrockCloudData.provider_error}
                     </>
                   ) : (
                     <>
