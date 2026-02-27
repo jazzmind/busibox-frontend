@@ -1,25 +1,26 @@
 /**
  * Admin Setup Page
  * 
- * First-time admin setup flow. ONLY accessible via magic link issued by
- * `make install` or `make login`. The URL must contain a valid ?token= param.
+ * First-time admin setup flow. Accessible via:
+ * - Magic link from `make install` → portal /setup consumes the token,
+ *   sets the busibox-session cookie, then redirects here with no token.
+ * - Direct navigation when an admin session cookie already exists.
  * 
  * Flow:
- * 1. Validate magic link token → creates session
+ * 1. Check for existing session (shared busibox-session cookie)
  * 2. Check passkeys → enroll if none
  * 3. Service installation
  * 4. Portal customization
  * 5. Mark setup complete
  * 
- * After token validation, a sessionStorage flag allows the user to
- * navigate through the multi-step wizard (and refresh) without
- * re-presenting the token.
+ * A sessionStorage flag allows the user to navigate through the
+ * multi-step wizard (and refresh) without re-checking the session.
  */
 
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { PasskeyEnrollmentPage } from '@/components/admin/PasskeyEnrollmentPage';
 import { ServiceInstallationFlow } from '@/components/admin/ServiceInstallationFlow';
 import { PortalCustomization } from '@/components/admin/PortalCustomization';
@@ -49,7 +50,6 @@ type InstallState = {
 
 function AdminSetupContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [setupState, setSetupState] = useState<SetupState>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [completionError, setCompletionError] = useState('');
@@ -58,18 +58,9 @@ function AdminSetupContent() {
   const [passkeyVerified, setPasskeyVerified] = useState(false);
 
   useEffect(() => {
-    const token = searchParams.get('token');
-
-    if (token) {
-      // Fresh magic link — validate it
-      validateAndSetup(token);
-      return;
-    }
-
-    // No token in URL — check if we're mid-setup (user refreshed or navigated back)
+    // Check if we're mid-setup (user refreshed or navigated back)
     const hasSetupSession = sessionStorage.getItem(SETUP_SESSION_KEY) === 'true';
     if (hasSetupSession) {
-      // Restore passkey state
       const verified = sessionStorage.getItem(SETUP_PASSKEY_KEY) === 'true';
       if (verified) {
         setPasskeyVerified(true);
@@ -78,10 +69,11 @@ function AdminSetupContent() {
       return;
     }
 
-    // No token and no active setup session — reject access
-    setSetupState('invalid_token');
-    setErrorMessage('This page requires a setup link. Use the link provided by the install script, or run `make login` to get a new one.');
-  }, [searchParams]);
+    // No active setup session — try to start one from the shared session cookie.
+    // The portal /setup page already consumed the magic link and set the cookie
+    // before redirecting here.
+    initSetupFromSession();
+  }, []);
 
   const resumeSetupSession = async () => {
     try {
@@ -134,35 +126,42 @@ function AdminSetupContent() {
     }
   };
 
-  const validateAndSetup = async (token: string) => {
+  const initSetupFromSession = async () => {
     setSetupState('validating');
 
     try {
-      const response = await fetch(`/api/auth/verify-magic-link?token=${encodeURIComponent(token)}`, {
+      const response = await fetch('/api/auth/session', {
         credentials: 'include',
       });
       const data = await response.json();
 
-      if (!data.success) {
+      if (!data.success || !data.data?.user) {
         setSetupState('invalid_token');
-        setErrorMessage(data.error || 'Invalid or expired setup link.');
+        setErrorMessage('This page requires a setup link. Use the link provided by the install script, or run `make login` to get a new one.');
         return;
       }
 
-      // Mark setup session as active so refreshes work without the token
+      const userRoles = data.data.user.roles || [];
+      const isAdmin = userRoles.some((r: { name?: string } | string) =>
+        typeof r === 'string' ? r === 'Admin' : r.name === 'Admin'
+      );
+
+      if (!isAdmin) {
+        setSetupState('unauthorized');
+        setErrorMessage('Your account does not have admin privileges.');
+        return;
+      }
+
+      // Mark setup session as active so refreshes work
       sessionStorage.setItem(SETUP_SESSION_KEY, 'true');
 
-      // Strip the token from the URL to prevent re-validation on refresh
-      router.replace('/setup');
-      
-      const userData = {
-        email: data.data.email,
-        userId: data.data.userId,
-      };
-      setUser(userData);
+      setUser({
+        email: data.data.user.email,
+        userId: data.data.user.id || data.data.user.user_id,
+      });
 
       await fetchInstallState();
-      
+
       const hasExistingPasskey = await checkUserHasPasskeys();
       if (hasExistingPasskey) {
         sessionStorage.setItem(SETUP_PASSKEY_KEY, 'true');
@@ -172,7 +171,7 @@ function AdminSetupContent() {
         setSetupState('passkey');
       }
     } catch (error) {
-      console.error('[AdminSetup] Setup validation error:', error);
+      console.error('[AdminSetup] Session check error:', error);
       setSetupState('invalid_token');
       setErrorMessage('An unexpected error occurred during setup.');
     }
@@ -285,7 +284,7 @@ function AdminSetupContent() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Validating Setup Link</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Preparing Setup</h2>
           <p className="text-gray-600">Please wait while we verify your admin access...</p>
         </div>
       </div>
