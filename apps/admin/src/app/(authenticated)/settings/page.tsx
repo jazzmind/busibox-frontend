@@ -17,7 +17,7 @@ import { EmailSettingsForm, type EmailSettingsData, type ImapSettingsData } from
 import { BridgeSettingsForm, type BridgeSettingsData } from '@/components/admin/BridgeSettingsForm';
 import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvider';
 import { useCustomization } from '@jazzmind/busibox-app';
-import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts/ApiContext';
+import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts';
 import {
   Palette,
   Cog,

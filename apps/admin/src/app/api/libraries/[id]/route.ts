@@ -65,7 +65,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       try {
         const options = await getAuthzOptionsWithToken(sessionJwt);
         const roleBindings = await getResourceRoles('library', id, options);
-        roles = roleBindings.map((rb: { id: string; name: string; description?: string }) => ({
+        roles = roleBindings.map((rb: { id: string; name: string; description?: string | null }) => ({
           id: rb.id,
           name: rb.name,
           description: rb.description || null,
@@ -161,7 +161,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     try {
       const options = await getAuthzOptionsWithToken(sessionJwt);
       const roleBindings = await getResourceRoles('library', id, options);
-      roles = roleBindings.map((rb: { id: string; name: string; description?: string }) => ({
+      roles = roleBindings.map((rb: { id: string; name: string; description?: string | null }) => ({
         id: rb.id,
         name: rb.name,
         description: rb.description || null,

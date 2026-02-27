@@ -12,7 +12,7 @@ import { Input } from '@jazzmind/busibox-app';
 import { RefreshCw, Check } from 'lucide-react';
 import type { PortalCustomization } from '@jazzmind/busibox-app';
 import { useAutosave } from '@jazzmind/busibox-app';
-import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts/ApiContext';
+import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts';
 
 type BrandingSection = 'identity' | 'colors' | 'location' | 'contact' | 'advanced';
 

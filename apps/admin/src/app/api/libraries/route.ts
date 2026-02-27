@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
     return apiSuccess({
       library: {
         ...library,
-        roles: selectedRoles.map((r: { id: string; name: string; description?: string }) => ({
+        roles: selectedRoles.map((r: { id: string; name: string; description?: string | null }) => ({
           id: r.id,
           name: r.name,
           description: r.description || null,

@@ -8,7 +8,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts/ApiContext';
+import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts';
 
 export type PortalCustomizationProps = {
   onComplete: () => void;

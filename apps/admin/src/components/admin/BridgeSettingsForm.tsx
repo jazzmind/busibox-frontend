@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Button } from '@jazzmind/busibox-app';
 import { Eye, EyeOff, RefreshCw, PlugZap, HelpCircle, Radio, Check } from 'lucide-react';
 import { useAutosave } from '@jazzmind/busibox-app';
-import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts/ApiContext';
+import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts';
 
 export interface BridgeSettingsData {
   signalEnabled: boolean;
