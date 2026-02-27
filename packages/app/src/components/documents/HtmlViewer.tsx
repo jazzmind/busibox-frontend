@@ -18,9 +18,10 @@ interface HtmlViewerProps {
   pagesProcessed?: number;
   totalPages?: number;
   progress?: number;
+  isEnhancing?: boolean;
 }
 
-export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage, statusMessage, pagesProcessed, totalPages, progress }: HtmlViewerProps) {
+export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage, statusMessage, pagesProcessed, totalPages, progress, isEnhancing }: HtmlViewerProps) {
   const api = useBusiboxApi();
   const resolve = useCrossAppApiPath();
   const documentsBase = useCrossAppBasePath('documents');
@@ -162,6 +163,14 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isProcessing]);
 
+  // Refetch HTML when enhancement pass info changes (better text available)
+  useEffect(() => {
+    if (isEnhancing && statusMessage) {
+      fetchHtml();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusMessage]);
+
   const scrollToSection = (sectionId: string) => {
     let element = document.getElementById(sectionId);
     if (!element) element = document.getElementById(`content-${sectionId}`);
@@ -273,8 +282,17 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
     );
   }
 
+  const enhancingBanner = isEnhancing ? (
+    <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950 border-b border-blue-100 dark:border-blue-900 text-sm text-blue-700 dark:text-blue-300">
+      <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+      <span>{statusMessage || 'Enhancing document quality...'}</span>
+    </div>
+  ) : null;
+
   return (
-    <div className="flex gap-6 p-4">
+    <div>
+      {enhancingBanner}
+      <div className="flex gap-6 p-4">
       {toc.length > 0 && (
         <div className="w-64 flex-shrink-0">
           <div className="sticky top-4">
@@ -364,6 +382,7 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
           "
           dangerouslySetInnerHTML={{ __html: html }}
         />
+      </div>
       </div>
     </div>
   );

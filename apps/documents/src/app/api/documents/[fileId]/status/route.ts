@@ -40,7 +40,7 @@ export async function GET(
 
       const data = await response.json();
 
-      // Return status from data-api
+      // Return status from data-api (pass through all status fields)
       return apiSuccess({
         fileId: data.fileId,
         filename: data.filename,
@@ -52,9 +52,18 @@ export async function GET(
         libraryId: data.libraryId || null,
         status: {
           stage: data.status?.stage || 'unknown',
-          progress: data.status?.progress || null,
+          progress: data.status?.progress ?? null,
+          chunksProcessed: data.status?.chunksProcessed ?? null,
+          totalChunks: data.status?.totalChunks ?? null,
+          pagesProcessed: data.status?.pagesProcessed ?? null,
+          totalPages: data.status?.totalPages ?? null,
           errorMessage: data.status?.errorMessage || null,
+          statusMessage: data.status?.statusMessage || null,
+          processingPass: data.status?.processingPass ?? null,
+          passDetails: data.status?.passDetails || null,
+          startedAt: data.status?.startedAt || null,
           completedAt: data.status?.completedAt || null,
+          updatedAt: data.status?.updatedAt || null,
         },
         documentType: data.documentType,
         primaryLanguage: data.primaryLanguage,

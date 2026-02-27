@@ -48,7 +48,22 @@ interface DocumentMetadata {
   extractedKeywords?: string[];
   status: {
     stage: string;
-    message?: string;
+    progress?: number | null;
+    chunksProcessed?: number | null;
+    totalChunks?: number | null;
+    pagesProcessed?: number | null;
+    totalPages?: number | null;
+    errorMessage?: string | null;
+    statusMessage?: string | null;
+    processingPass?: number | null;
+    passDetails?: {
+      currentPass: number;
+      totalPasses: number;
+      passName: string;
+    } | null;
+    startedAt?: string | null;
+    completedAt?: string | null;
+    updatedAt?: string | null;
   };
   metadata: {
     page_count?: number;
@@ -132,7 +147,8 @@ export default function DocumentDetailsPage({
   const prevProcessingRef = useRef<boolean | null>(null);
 
   const isProcessing = Boolean(document?.status?.stage && 
-    !['completed', 'failed'].includes(document.status.stage));
+    !['completed', 'failed', 'available'].includes(document.status.stage));
+  const isEnhancing = document?.status?.stage === 'available';
   const triggerStatus = document?.metadata?.triggerStatus as
     | {
         state?: 'pending' | 'running' | 'completed' | 'failed';
@@ -147,7 +163,7 @@ export default function DocumentDetailsPage({
     | undefined;
   const isTriggerActive =
     triggerStatus?.state === 'pending' || triggerStatus?.state === 'running';
-  const isProcessingOrTriggering = isProcessing || isTriggerActive;
+  const isProcessingOrTriggering = isProcessing || isEnhancing || isTriggerActive;
   const extractionMetadata = document?.metadata?.extraction;
   const extractedSchemaId = extractionMetadata?.schemaDocumentId as string | undefined;
   const extractedRecordCount = Number(extractionMetadata?.recordCount ?? 0);
@@ -182,7 +198,7 @@ export default function DocumentDetailsPage({
       };
       
       // Track status changes for backoff logic
-      const currentStatus = `${documentData.status?.stage}:${documentData.status?.message}`;
+      const currentStatus = `${documentData.status?.stage}:${documentData.status?.statusMessage}`;
       if (lastStatusRef.current === currentStatus) {
         unchangedCountRef.current++;
       } else {
@@ -681,10 +697,18 @@ export default function DocumentDetailsPage({
                     ? 'bg-green-100 text-green-800'
                     : document.status?.stage === 'failed'
                     ? 'bg-red-100 text-red-800'
+                    : document.status?.stage === 'available'
+                    ? 'bg-blue-100 text-blue-800'
                     : 'bg-yellow-100 text-yellow-800'
                 }`}>
-                  {document.status?.stage || 'completed'}
+                  {document.status?.stage === 'available' ? 'enhancing' : (document.status?.stage || 'completed')}
                 </span>
+                {isEnhancing && (document.status as any)?.passDetails && (
+                  <span className="inline-flex items-center gap-1 text-xs text-blue-600">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Pass {(document.status as any).passDetails.currentPass}/{(document.status as any).passDetails.totalPasses}: {(document.status as any).passDetails.passName}
+                  </span>
+                )}
                 {triggerStatus?.state === 'pending' && (
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                     Trigger queued
@@ -1155,17 +1179,24 @@ export default function DocumentDetailsPage({
               fileId={resolvedParams.fileId} 
               onReprocess={handleReprocess}
               isProcessing={isProcessing}
+              isEnhancing={isEnhancing}
               processingStage={
-                !isProcessing && triggerStatus?.state === 'running'
+                isEnhancing
+                  ? 'available'
+                  : !isProcessing && triggerStatus?.state === 'running'
                   ? 'trigger_running'
                   : !isProcessing && triggerStatus?.state === 'pending'
                   ? 'trigger_pending'
                   : document.status?.stage
               }
-              statusMessage={(document.status as Record<string, unknown>)?.statusMessage as string | undefined}
-              pagesProcessed={(document.status as Record<string, unknown>)?.pagesProcessed as number | undefined}
-              totalPages={(document.status as Record<string, unknown>)?.totalPages as number | undefined}
-              progress={(document.status as Record<string, unknown>)?.progress as number | undefined}
+              statusMessage={
+                isEnhancing
+                  ? `Enhancing quality${(document.status as any)?.passDetails?.passName ? ` — ${(document.status as any).passDetails.passName}` : ''}...`
+                  : (document.status?.statusMessage ?? undefined)
+              }
+              pagesProcessed={document.status?.pagesProcessed ?? undefined}
+              totalPages={document.status?.totalPages ?? undefined}
+              progress={document.status?.progress ?? undefined}
             />
           )}
         </div>
