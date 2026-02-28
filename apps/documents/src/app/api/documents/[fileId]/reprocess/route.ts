@@ -24,12 +24,16 @@ export async function POST(
     
     const { fileId } = await params;
     
-    // Parse request body for optional start_stage
+    // Parse request body for optional start_stage and config_overrides
     let startStage: ReprocessStage | undefined;
+    let configOverrides: Record<string, unknown> = {};
     try {
       const body = await request.json();
       if (body.start_stage && VALID_STAGES.includes(body.start_stage)) {
         startStage = body.start_stage;
+      }
+      if (body.config_overrides && typeof body.config_overrides === 'object') {
+        configOverrides = body.config_overrides;
       }
     } catch {
       // No body or invalid JSON - start from beginning
@@ -59,11 +63,12 @@ export async function POST(
       // Continue with empty config - the data-api worker will use its own defaults
     }
     
+    // Apply frontend config overrides (e.g. pass-specific marker/llm toggles)
+    Object.assign(processingConfig, configOverrides);
+
     // Add start_stage if specified
     if (startStage) {
       processingConfig.start_stage = startStage;
-      // When user explicitly selects entity extraction reprocess, force it on
-      // regardless of library settings - the user's action overrides the default
       if (startStage === 'entity_extraction') {
         processingConfig.entity_extraction_enabled = true;
       }
@@ -106,9 +111,9 @@ export async function GET() {
 
 function getStageDescription(stage: ReprocessStage): string {
   const descriptions: Record<ReprocessStage, string> = {
-    parsing: 'Re-extract text from original document (Marker/pdfplumber)',
-    chunking: 'Re-chunk existing text into segments',
-    cleanup: 'Re-run LLM cleanup on chunks',
+    parsing: 'Extract text from original document (Pass 1: pdfplumber, Pass 3: Marker)',
+    chunking: 'Re-chunk and re-embed text segments',
+    cleanup: 'LLM text cleanup (Pass 2)',
     markdown: 'Regenerate markdown and extract images',
     entity_extraction: 'Re-extract keywords and entities for knowledge graph',
     embedding: 'Regenerate embeddings for chunks',

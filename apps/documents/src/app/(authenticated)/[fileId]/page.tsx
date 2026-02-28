@@ -287,19 +287,22 @@ export default function DocumentDetailsPage({
     }
   };
 
-  const handleReprocess = async (startStage?: string) => {
+  const handleReprocess = async (startStage?: string, configOverrides?: Record<string, unknown>) => {
     const stageName = startStage ? `from ${startStage}` : 'from beginning';
     if (!confirm(`Reprocess this document ${stageName}?`)) return;
     
     try {
+      const body: Record<string, unknown> = {};
+      if (startStage) body.start_stage = startStage;
+      if (configOverrides) body.config_overrides = configOverrides;
+
       const response = await fetch(`/documents/api/documents/${resolvedParams.fileId}/reprocess`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: startStage ? JSON.stringify({ start_stage: startStage }) : undefined,
+        body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
       });
       if (!response.ok) throw new Error('Failed to reprocess document');
       
-      // Immediately update UI to show queued status
       setDocument(prev => prev ? {
         ...prev,
         status: { stage: 'queued', message: `Reprocessing ${stageName}` },
@@ -307,7 +310,6 @@ export default function DocumentDetailsPage({
         embeddingCount: startStage && startStage === 'indexing' ? prev.embeddingCount : 0,
       } : null);
       
-      // Then fetch actual status after a brief delay
       setTimeout(fetchDocument, 1000);
     } catch (err) {
       alert('Failed to start reprocessing');
@@ -945,56 +947,61 @@ export default function DocumentDetailsPage({
                     <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${reprocessOpen ? 'rotate-180' : ''}`} />
                   </button>
                   {reprocessOpen && (
-                    <div className="absolute right-0 mt-2 w-64 rounded-md border border-gray-200 bg-white shadow-lg z-10 overflow-hidden">
+                    <div className="absolute right-0 mt-2 w-72 rounded-md border border-gray-200 bg-white shadow-lg z-10 overflow-hidden">
+                      <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">Progressive Enhancement</div>
                       <button
                         type="button"
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
                         onClick={() => { handleReprocess(); setReprocessOpen(false); }}
                       >
                         <span className="font-medium">Full Reprocess</span>
-                        <span className="text-xs text-gray-500 ml-2">From beginning</span>
+                        <span className="block text-xs text-gray-500">All 3 passes from beginning</span>
                       </button>
                       <button
                         type="button"
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
-                        onClick={() => { handleReprocess('parsing'); setReprocessOpen(false); }}
+                        onClick={() => { handleReprocess('parsing', { start_pass: 1 }); setReprocessOpen(false); }}
                       >
-                        Re-parse Document <span className="text-xs text-gray-500 ml-2">Extract text again</span>
+                        <span className="font-medium">Pass 1: Fast Extract</span>
+                        <span className="block text-xs text-gray-500">pymupdf4llm text extraction only</span>
                       </button>
+                      <button
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                        onClick={() => { handleReprocess('parsing', { start_pass: 2 }); setReprocessOpen(false); }}
+                      >
+                        <span className="font-medium">Pass 2: OCR Enhancement</span>
+                        <span className="block text-xs text-gray-500">Tesseract OCR to improve scanned pages</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                        onClick={() => { handleReprocess('parsing', { start_pass: 3, llm_cleanup_enabled: true }); setReprocessOpen(false); }}
+                      >
+                        <span className="font-medium">Pass 3: LLM Cleanup + Marker</span>
+                        <span className="block text-xs text-gray-500">LLM text cleanup, Marker for complex pages (48GB+ RAM)</span>
+                      </button>
+                      <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-t border-b border-gray-100">Individual Stages</div>
                       <button
                         type="button"
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
                         onClick={() => { handleReprocess('chunking'); setReprocessOpen(false); }}
                       >
-                        Re-chunk <span className="text-xs text-gray-500 ml-2">Split into chunks</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
-                        onClick={() => { handleReprocess('cleanup'); setReprocessOpen(false); }}
-                      >
-                        Re-run Cleanup <span className="text-xs text-gray-500 ml-2">LLM text cleanup</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
-                        onClick={() => { handleReprocess('markdown'); setReprocessOpen(false); }}
-                      >
-                        Regenerate Markdown <span className="text-xs text-gray-500 ml-2">HTML view</span>
+                        Re-chunk + Re-embed <span className="text-xs text-gray-500">Split and embed text</span>
                       </button>
                       <button
                         type="button"
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
                         onClick={() => { handleReprocess('embedding'); setReprocessOpen(false); }}
                       >
-                        Re-embed <span className="text-xs text-gray-500 ml-2">Generate embeddings</span>
+                        Re-embed Only <span className="text-xs text-gray-500">Regenerate embeddings</span>
                       </button>
                       <button
                         type="button"
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
                         onClick={() => { handleReprocess('indexing'); setReprocessOpen(false); }}
                       >
-                        Re-index <span className="text-xs text-gray-500 ml-2">Update Milvus</span>
+                        Re-index Only <span className="text-xs text-gray-500">Update Milvus vectors</span>
                       </button>
                     </div>
                   )}
