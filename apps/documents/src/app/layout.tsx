@@ -31,12 +31,6 @@ export const metadata: Metadata = {
     default: "Busibox Documents | Document Management",
   },
   description: "Busibox Document Management - organize, upload, and search documents.",
-  icons: {
-    icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon.ico' },
-    ],
-  },
 };
 
 export default function RootLayout({

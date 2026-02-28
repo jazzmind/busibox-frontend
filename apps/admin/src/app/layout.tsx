@@ -31,12 +31,6 @@ export const metadata: Metadata = {
     default: "Busibox Admin | Admin Panel",
   },
   description: "Busibox Admin Panel",
-  icons: {
-    icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon.ico' },
-    ],
-  },
 };
 
 export default function RootLayout({

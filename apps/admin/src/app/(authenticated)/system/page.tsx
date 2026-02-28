@@ -13,7 +13,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useCustomization } from '@jazzmind/busibox-app';
-import { RefreshCw, Play, Square, RotateCcw, CheckCircle, XCircle, AlertCircle, Circle, ChevronDown, ChevronUp, Activity, Code2, Zap, Hammer } from 'lucide-react';
+import { RefreshCw, Play, Square, RotateCcw, CheckCircle, XCircle, AlertCircle, Circle, ChevronDown, ChevronUp, Activity, Code2, Zap, Hammer, Wrench } from 'lucide-react';
 
 const BUSIBOX_ENV = process.env.NEXT_PUBLIC_BUSIBOX_ENV;
 const IS_DEPLOYED = BUSIBOX_ENV === 'production' || BUSIBOX_ENV === 'staging';
@@ -36,6 +36,7 @@ interface DevModeData {
   description?: string;
   enabled?: boolean;
   currentMode?: string;
+  reinstalling?: boolean;
 }
 
 type ServiceTier = 'infrastructure' | 'llm' | 'api' | 'apps';
@@ -93,6 +94,10 @@ export default function SystemDashboardPage() {
   const [devModeLoading, setDevModeLoading] = useState(false);
   const [appActionInProgress, setAppActionInProgress] = useState<string | null>(null);
 
+  // Redeploy state
+  const [isRedeploying, setIsRedeploying] = useState(false);
+  const [redeployError, setRedeployError] = useState<string | null>(null);
+
   const fetchServiceStatus = useCallback(async (fresh = false) => {
     try {
       const url = fresh ? '/api/services/status?fresh=true' : '/api/services/status';
@@ -126,6 +131,9 @@ export default function SystemDashboardPage() {
         const data = await response.json();
         if (data.success && data.data) {
           setDevModeData(data.data);
+          if (data.data.reinstalling !== undefined) {
+            setIsRedeploying(data.data.reinstalling);
+          }
         }
       }
     } catch {
@@ -265,6 +273,48 @@ export default function SystemDashboardPage() {
     }
   };
 
+  const handleRedeploy = async () => {
+    if (isRedeploying) return;
+    setIsRedeploying(true);
+    setRedeployError(null);
+    try {
+      const response = await fetch('/api/services/core-apps-redeploy', {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        setRedeployError(err.error || 'Failed to start redeploy');
+        setIsRedeploying(false);
+        return;
+      }
+      // Poll until reinstall completes
+      for (let i = 0; i < 120; i++) {
+        await new Promise(r => setTimeout(r, 5000));
+        try {
+          const statusRes = await fetch('/api/services/core-dev-mode');
+          if (statusRes.ok) {
+            const data = await statusRes.json();
+            if (data.success && data.data) {
+              setDevModeData(data.data);
+              if (!data.data.reinstalling) {
+                setIsRedeploying(false);
+                return;
+              }
+            }
+          }
+        } catch {
+          // keep polling - the admin app may restart during redeploy
+        }
+      }
+      setRedeployError('Redeploy timed out');
+      setIsRedeploying(false);
+    } catch (error) {
+      console.error('Failed to redeploy:', error);
+      setRedeployError('Failed to start redeploy');
+      setIsRedeploying(false);
+    }
+  };
+
   const toggleGroup = (groupId: string) => {
     setExpandedGroups(prev => {
       const next = new Set(prev);
@@ -386,6 +436,30 @@ export default function SystemDashboardPage() {
         </div>
       </div>
 
+      {/* Maintenance Mode Banner */}
+      {isRedeploying && (
+        <div className="bg-amber-500 dark:bg-amber-600">
+          <div className="max-w-7xl mx-auto px-6 py-4">
+            <div className="flex items-center gap-4">
+              <div className="flex-shrink-0 p-2 bg-amber-600 dark:bg-amber-700 rounded-lg">
+                <Wrench className="w-6 h-6 text-white animate-pulse" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-semibold text-white">Maintenance Mode</h3>
+                <p className="text-sm text-amber-100">
+                  Redeploying all core apps — clearing caches, reinstalling dependencies, and rebuilding.
+                  This may take several minutes. Apps will be unavailable until complete.
+                </p>
+              </div>
+              <RefreshCw className="w-5 h-5 text-white animate-spin flex-shrink-0" />
+            </div>
+            {redeployError && (
+              <p className="mt-2 text-sm text-red-100 bg-red-600/30 rounded px-3 py-1">{redeployError}</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Developer Mode Panel — per-app controls (hidden in production/staging) */}
       {!IS_DEPLOYED && (
         <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
@@ -403,7 +477,11 @@ export default function SystemDashboardPage() {
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Developer Mode</h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {appActionInProgress !== null ? (
+                      {isRedeploying ? (
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">
+                          Redeploying — clearing caches, reinstalling deps, rebuilding all apps...
+                        </span>
+                      ) : appActionInProgress !== null ? (
                         <span className="text-amber-600 dark:text-amber-400 font-medium">
                           {appActionInProgress === '__all__'
                             ? 'Switching all apps — this may take a few minutes...'
@@ -418,26 +496,38 @@ export default function SystemDashboardPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {hasApps && appActionInProgress === '__all__' ? (
+                  {hasApps && (appActionInProgress === '__all__' || isRedeploying) ? (
                     <span className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Building &amp; switching apps...
+                      {isRedeploying ? 'Redeploying all apps...' : 'Building & switching apps...'}
                     </span>
                   ) : hasApps && (
                     <>
                       <button
                         onClick={() => handleSetAllMode('dev')}
-                        disabled={appActionInProgress !== null}
+                        disabled={appActionInProgress !== null || isRedeploying}
                         className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50 disabled:opacity-50 transition-colors"
                       >
                         All Dev
                       </button>
                       <button
                         onClick={() => handleSetAllMode('prod')}
-                        disabled={appActionInProgress !== null}
+                        disabled={appActionInProgress !== null || isRedeploying}
                         className="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
                       >
                         All Prod
+                      </button>
+                      <div className="w-px h-5 bg-gray-200 dark:bg-gray-600" />
+                      <button
+                        onClick={handleRedeploy}
+                        disabled={appActionInProgress !== null || isRedeploying}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50 transition-colors"
+                        title="Clean caches, reinstall deps, rebuild all apps"
+                      >
+                        <span className="flex items-center gap-1">
+                          <Wrench className="w-3 h-3" />
+                          Redeploy
+                        </span>
                       </button>
                     </>
                   )}
@@ -456,7 +546,7 @@ export default function SystemDashboardPage() {
               {hasApps ? (
                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
                   {Object.entries(devModeData!.apps).map(([appName, app]) => {
-                    const isThisAppBusy = appActionInProgress === appName || appActionInProgress === '__all__';
+                    const isThisAppBusy = appActionInProgress === appName || appActionInProgress === '__all__' || isRedeploying;
                     const isDev = app.mode === 'dev';
                     const displayName = APP_DISPLAY_NAMES[appName] || appName;
 

@@ -31,12 +31,6 @@ export const metadata: Metadata = {
     default: "Busibox Chat",
   },
   description: "Busibox Chat Interface",
-  icons: {
-    icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon.ico' },
-    ],
-  },
 };
 
 export default function RootLayout({

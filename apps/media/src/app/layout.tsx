@@ -31,12 +31,6 @@ export const metadata: Metadata = {
     default: "Busibox Media | Video Library",
   },
   description: "Busibox Media Library - Generate and manage AI videos.",
-  icons: {
-    icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon.ico' },
-    ],
-  },
 };
 
 export default function RootLayout({

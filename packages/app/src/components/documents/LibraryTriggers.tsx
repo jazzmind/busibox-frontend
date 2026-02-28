@@ -394,8 +394,8 @@ export function LibraryTriggers({
                   </div>
                 </div>
 
-                {canManage && (
-                  <div className="flex items-center gap-1 ml-2">
+                <div className="flex items-center gap-1 ml-2">
+                  {canManage && (
                     <button
                       onClick={() =>
                         toggleTrigger(trigger.id, trigger.isActive)
@@ -413,20 +413,23 @@ export function LibraryTriggers({
                         <ToggleLeft className="h-4 w-4 text-gray-400" />
                       )}
                     </button>
-                    <button
-                      onClick={() =>
-                        setExpandedTrigger(
-                          expandedTrigger === trigger.id ? null : trigger.id
-                        )
-                      }
-                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                    >
-                      <ChevronDown
-                        className={`h-4 w-4 text-gray-400 transition-transform ${
-                          expandedTrigger === trigger.id ? 'rotate-180' : ''
-                        }`}
-                      />
-                    </button>
+                  )}
+                  <button
+                    onClick={() =>
+                      setExpandedTrigger(
+                        expandedTrigger === trigger.id ? null : trigger.id
+                      )
+                    }
+                    className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                    title="Show details"
+                  >
+                    <ChevronDown
+                      className={`h-4 w-4 text-gray-400 transition-transform ${
+                        expandedTrigger === trigger.id ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                  {canManage && (
                     <button
                       onClick={() => deleteTrigger(trigger.id)}
                       className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
@@ -434,18 +437,72 @@ export function LibraryTriggers({
                     >
                       <Trash2 className="h-4 w-4 text-red-400 hover:text-red-600" />
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
-              {expandedTrigger === trigger.id && trigger.lastError && (
-                <div className="mt-2 ml-4 p-3 bg-red-50 dark:bg-red-900/20 rounded text-xs">
-                  <span className="font-medium text-red-600 dark:text-red-400">
-                    Last Error:
-                  </span>
-                  <p className="mt-1 text-red-600 dark:text-red-400">
-                    {trigger.lastError}
-                  </p>
+              {expandedTrigger === trigger.id && (
+                <div className="mt-2 ml-4 space-y-2">
+                  <div className="p-3 bg-gray-50 dark:bg-gray-900/40 rounded text-xs space-y-1.5">
+                    <div className="flex gap-2">
+                      <span className="font-medium text-gray-500 dark:text-gray-400 min-w-[5rem]">Type:</span>
+                      <span className="text-gray-900 dark:text-gray-100">
+                        {(trigger.triggerType ?? 'run_agent').replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    {trigger.agentId && (
+                      <div className="flex gap-2">
+                        <span className="font-medium text-gray-500 dark:text-gray-400 min-w-[5rem]">Agent:</span>
+                        <span className="text-gray-900 dark:text-gray-100">{getRunTargetName(trigger.agentId)}</span>
+                      </div>
+                    )}
+                    {trigger.schemaDocumentId && (
+                      <div className="flex gap-2">
+                        <span className="font-medium text-gray-500 dark:text-gray-400 min-w-[5rem]">Schema:</span>
+                        <span className="text-gray-900 dark:text-gray-100">{getSchemaName(trigger.schemaDocumentId)}</span>
+                      </div>
+                    )}
+                    {trigger.prompt && (
+                      <div className="flex gap-2">
+                        <span className="font-medium text-gray-500 dark:text-gray-400 min-w-[5rem]">Prompt:</span>
+                        <span className="text-gray-900 dark:text-gray-100 break-all">{trigger.prompt}</span>
+                      </div>
+                    )}
+                    {trigger.notificationConfig && (
+                      <div className="flex gap-2">
+                        <span className="font-medium text-gray-500 dark:text-gray-400 min-w-[5rem]">Channel:</span>
+                        <span className="text-gray-900 dark:text-gray-100">
+                          {trigger.notificationConfig.channel}: {trigger.notificationConfig.recipient}
+                        </span>
+                      </div>
+                    )}
+                    {trigger.name && (
+                      <div className="flex gap-2">
+                        <span className="font-medium text-gray-500 dark:text-gray-400 min-w-[5rem]">Name:</span>
+                        <span className="text-gray-900 dark:text-gray-100">{trigger.name}</span>
+                      </div>
+                    )}
+                    {trigger.description && (
+                      <div className="flex gap-2">
+                        <span className="font-medium text-gray-500 dark:text-gray-400 min-w-[5rem]">Description:</span>
+                        <span className="text-gray-900 dark:text-gray-100">{trigger.description}</span>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <span className="font-medium text-gray-500 dark:text-gray-400 min-w-[5rem]">ID:</span>
+                      <span className="text-gray-900 dark:text-gray-100 font-mono text-[10px]">{trigger.id}</span>
+                    </div>
+                  </div>
+                  {trigger.lastError && (
+                    <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded text-xs">
+                      <span className="font-medium text-red-600 dark:text-red-400">
+                        Last Error:
+                      </span>
+                      <p className="mt-1 text-red-600 dark:text-red-400">
+                        {trigger.lastError}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

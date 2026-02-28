@@ -39,6 +39,11 @@ export default function DocumentsPage() {
   const isMobile = useIsMobile();
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | undefined>(() => {
     if (typeof window !== 'undefined') {
+      const urlLibrary = new URLSearchParams(window.location.search).get('library');
+      if (urlLibrary) {
+        sessionStorage.setItem('documents:selectedLibraryId', urlLibrary);
+        return urlLibrary;
+      }
       return sessionStorage.getItem('documents:selectedLibraryId') || undefined;
     }
     return undefined;

@@ -31,12 +31,6 @@ export const metadata: Metadata = {
     default: "Busibox Portal | Internal Tools",
   },
   description: "Secure access to AI internal tools and applications.",
-  icons: {
-    icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon.ico' },
-    ],
-  },
 };
 
 export default function RootLayout({
