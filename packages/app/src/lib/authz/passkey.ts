@@ -48,15 +48,52 @@ const getRpId = () => {
 
 const getRpName = () => process.env.APP_NAME || 'Busibox Portal';
 
-const getOrigin = () => {
+/**
+ * Returns the expected origin(s) for WebAuthn verification.
+ * Supports multiple origins for SSH tunnel access (e.g., https://localhost:4443).
+ * When rpId is localhost, automatically includes common tunnel ports (443, 4443, 3000).
+ * Use WEBAUTHN_ADDITIONAL_ORIGINS (comma-separated) for extra origins.
+ */
+const getOrigin = (): string | string[] => {
   const url = getAppUrl();
+  let primaryOrigin: string;
   try {
-    // WebAuthn origin must be protocol + hostname only (no path)
     const parsed = new URL(url);
-    return `${parsed.protocol}//${parsed.hostname}${parsed.port ? ':' + parsed.port : ''}`;
+    primaryOrigin = `${parsed.protocol}//${parsed.hostname}${parsed.port ? ':' + parsed.port : ''}`;
   } catch {
-    return 'http://localhost:3000';
+    primaryOrigin = 'http://localhost:3000';
   }
+
+  const origins: string[] = [primaryOrigin];
+
+  // For localhost, also accept common tunnel ports (e.g., SSH tunnel on 4443)
+  const rpId = getRpId();
+  if (rpId === 'localhost') {
+    const localPorts = ['443', '4443', '3000'];
+    for (const port of localPorts) {
+      const candidate = `https://localhost:${port}`;
+      if (!origins.includes(candidate)) {
+        origins.push(candidate);
+      }
+    }
+    // Also accept https://localhost without port (port 443 is implicit)
+    if (!origins.includes('https://localhost')) {
+      origins.push('https://localhost');
+    }
+  }
+
+  // Support additional origins via environment variable
+  const additionalOrigins = process.env.WEBAUTHN_ADDITIONAL_ORIGINS;
+  if (additionalOrigins) {
+    for (const origin of additionalOrigins.split(',').map(o => o.trim()).filter(Boolean)) {
+      if (!origins.includes(origin)) {
+        origins.push(origin);
+      }
+    }
+  }
+
+  // Return single string if only one origin, otherwise array
+  return origins.length === 1 ? origins[0] : origins;
 };
 
 // ============================================================================
