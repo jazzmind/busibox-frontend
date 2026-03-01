@@ -1,6 +1,6 @@
 {
   "name": "@jazzmind/busibox-app",
-  "version": "3.0.11",
+  "version": "3.0.12",
   "description": "Reusable components for Busibox applications",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
