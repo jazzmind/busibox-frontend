@@ -31,6 +31,8 @@ import { VLLMServerStatus } from './VLLMServerStatus';
 import { MediaPlaygroundSTT } from './MediaPlaygroundSTT';
 import { MediaPlaygroundTTS } from './MediaPlaygroundTTS';
 import { MediaPlaygroundImage } from './MediaPlaygroundImage';
+import { ModelLibrary } from './ModelLibrary';
+import { GpuAllocation } from './GpuAllocation';
 
 // =============================================================================
 // Types
@@ -893,6 +895,10 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
 
       {/* ── Models & Providers ── */}
       {activeSection === 'models' && <>
+
+      <ModelLibrary />
+
+      <GpuAllocation />
 
       {/* Section 2: Registered Models */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
