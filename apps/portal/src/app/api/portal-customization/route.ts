@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/portal-customization - Update customization (admin only)
+// POST/PATCH /api/portal-customization - Update customization (admin only)
 export async function POST(request: NextRequest) {
   const authResult = await requireAdminAuth(request);
   if (authResult instanceof Response) {
@@ -84,3 +84,5 @@ export async function POST(request: NextRequest) {
     return apiError('Failed to save customization', 500);
   }
 }
+
+export const PATCH = POST;
