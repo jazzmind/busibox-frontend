@@ -52,7 +52,7 @@ const DEFAULT_CONFIG: PortalConfig = {
 
 type DataApiToken = { accessToken: string };
 
-type DocumentListItem = { id: string; name: string };
+type DocumentListItem = { id: string; name: string; visibility?: string };
 
 async function dataApiRequest<T>(
   token: string,
@@ -87,25 +87,43 @@ function normalizeConfigRecord(record: Record<string, unknown> | null): PortalCo
   };
 }
 
-async function findConfigDocumentId(token: string): Promise<string | null> {
+async function findConfigDocument(token: string): Promise<{ id: string; visibility?: string } | null> {
   const list = await dataApiRequest<{ documents: DocumentListItem[] }>(token, '/data');
   const existing = (list.documents || []).find((d) => d.name === DOCUMENT_NAME);
-  return existing?.id || null;
+  if (!existing) return null;
+  return { id: existing.id, visibility: existing.visibility };
+}
+
+async function findConfigDocumentId(token: string): Promise<string | null> {
+  const doc = await findConfigDocument(token);
+  return doc?.id || null;
+}
+
+async function migrateToAuthenticated(token: string, documentId: string): Promise<void> {
+  try {
+    await dataApiRequest(token, `/files/${documentId}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ visibility: 'authenticated' }),
+    });
+  } catch (error) {
+    console.warn('[PORTAL-CONFIG] Failed to migrate document to authenticated visibility:', error);
+  }
 }
 
 async function ensureConfigDocument(token: string, roleIds: string[]): Promise<string> {
-  const existingId = await findConfigDocumentId(token);
-  if (existingId) return existingId;
-  if (!roleIds.length) {
-    throw new Error('Cannot create shared config document without role IDs');
+  const existing = await findConfigDocument(token);
+  if (existing) {
+    if (existing.visibility === 'shared') {
+      await migrateToAuthenticated(token, existing.id);
+    }
+    return existing.id;
   }
 
   const created = await dataApiRequest<{ id: string }>(token, '/data', {
     method: 'POST',
     body: JSON.stringify({
       name: DOCUMENT_NAME,
-      visibility: 'shared',
-      role_ids: roleIds,
+      visibility: 'authenticated',
       roleIds: roleIds,
       sourceApp: 'busibox-portal',
       enableCache: false,
@@ -113,7 +131,7 @@ async function ensureConfigDocument(token: string, roleIds: string[]): Promise<s
         displayName: 'Portal Configuration',
         itemLabel: 'Setting',
         sourceApp: 'busibox-portal',
-        visibility: 'shared',
+        visibility: 'authenticated',
         allowSharing: true,
       },
     }),

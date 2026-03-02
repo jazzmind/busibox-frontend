@@ -6,7 +6,7 @@ import { getRoleByName, listRoleBindings, grantRoleResourceAccess } from '@jazzm
 
 const DOCUMENT_NAME = 'busibox-portal-app-config';
 
-type DocumentListItem = { id: string; name: string };
+type DocumentListItem = { id: string; name: string; visibility?: string };
 
 type DataApiOperationResponse = {
   count: number;
@@ -270,25 +270,43 @@ async function dataApiRequest<T>(token: string, path: string, init: RequestInit 
   return (await response.json()) as T;
 }
 
-async function findDocumentId(token: string): Promise<string | null> {
+async function findDocument(token: string): Promise<{ id: string; visibility?: string } | null> {
   const list = await dataApiRequest<{ documents: DocumentListItem[] }>(token, '/data');
   const existing = (list.documents || []).find((doc) => doc.name === DOCUMENT_NAME);
-  return existing?.id || null;
+  if (!existing) return null;
+  return { id: existing.id, visibility: existing.visibility };
+}
+
+async function findDocumentId(token: string): Promise<string | null> {
+  const doc = await findDocument(token);
+  return doc?.id || null;
+}
+
+async function migrateToAuthenticated(token: string, documentId: string): Promise<void> {
+  try {
+    await dataApiRequest(token, `/files/${documentId}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ visibility: 'authenticated' }),
+    });
+  } catch (error) {
+    console.warn('[APP-CONFIG] Failed to migrate document to authenticated visibility:', error);
+  }
 }
 
 async function ensureDocument(token: string, roleIds: string[]): Promise<string> {
-  const existingId = await findDocumentId(token);
-  if (existingId) return existingId;
-  if (!roleIds.length) {
-    throw new Error('Cannot create shared app-config document without role IDs');
+  const existing = await findDocument(token);
+  if (existing) {
+    if (existing.visibility === 'shared') {
+      await migrateToAuthenticated(token, existing.id);
+    }
+    return existing.id;
   }
 
   const created = await dataApiRequest<{ id: string }>(token, '/data', {
     method: 'POST',
     body: JSON.stringify({
       name: DOCUMENT_NAME,
-      visibility: 'shared',
-      role_ids: roleIds,
+      visibility: 'authenticated',
       roleIds: roleIds,
       sourceApp: 'busibox-portal',
       enableCache: false,
@@ -296,7 +314,7 @@ async function ensureDocument(token: string, roleIds: string[]): Promise<string>
         displayName: 'App Configuration',
         itemLabel: 'Application',
         sourceApp: 'busibox-portal',
-        visibility: 'shared',
+        visibility: 'authenticated',
         allowSharing: true,
       },
     }),
