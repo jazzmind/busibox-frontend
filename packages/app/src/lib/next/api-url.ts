@@ -71,9 +71,12 @@ export function absoluteApiUrl(path: string, baseUrl?: string): string {
 
 /**
  * Get the data-api URL for server-side calls.
- * Uses DATA_API_HOST and DATA_API_PORT environment variables.
+ * Uses DATA_API_URL, or falls back to DATA_API_HOST/DATA_API_PORT.
  */
 export function getDataApiUrl(): string {
+  if (process.env.DATA_API_URL) {
+    return process.env.DATA_API_URL;
+  }
   const host = process.env.DATA_API_HOST || 'localhost';
   const port = process.env.DATA_API_PORT || '8002';
   return `http://${host}:${port}`;
@@ -81,9 +84,12 @@ export function getDataApiUrl(): string {
 
 /**
  * Get the search-api URL for server-side calls.
- * Uses SEARCH_API_HOST and SEARCH_API_PORT environment variables.
+ * Uses SEARCH_API_URL, or falls back to SEARCH_API_HOST/SEARCH_API_PORT.
  */
 export function getSearchApiUrl(): string {
+  if (process.env.SEARCH_API_URL) {
+    return process.env.SEARCH_API_URL;
+  }
   const host = process.env.SEARCH_API_HOST || 'localhost';
   const port = process.env.SEARCH_API_PORT || '8003';
   return `http://${host}:${port}`;
