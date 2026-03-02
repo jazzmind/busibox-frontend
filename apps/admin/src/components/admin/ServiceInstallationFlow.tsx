@@ -259,6 +259,9 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
   } | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const installationStartedRef = useRef(false);  // Guard against React Strict Mode double-execution
+  const isLocalhost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  );
 
   // Fetch platform info on mount
   useEffect(() => {
@@ -1019,6 +1022,19 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
           <p className="mt-3 text-lg text-gray-600 max-w-2xl">
             Setting up your Busibox infrastructure. This may take a few minutes.
           </p>
+          {isLocalhost && (
+            <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+              <p className="font-semibold">Browser HTTPS setup for localhost</p>
+              <p className="mt-1">
+                If your browser warns about the local certificate, open the terminal launcher (`make`) and press <code className="bg-blue-100 px-1.5 py-0.5 rounded">c</code> for
+                <span className="font-medium"> HTTPS Certificate Setup</span>. Use local, target host, or both.
+              </p>
+              <p className="mt-2">
+                After install, fully restart the browser. If a warning still appears, use
+                <span className="font-medium"> Advanced → Proceed</span> once for <code className="bg-blue-100 px-1.5 py-0.5 rounded">https://localhost</code>.
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
