@@ -26,6 +26,9 @@ export function MagicLinkForm() {
   const [codeLoading, setCodeLoading] = useState(false);
   const [codeError, setCodeError] = useState('');
   
+  // Microsoft IdP availability
+  const [microsoftEnabled, setMicrosoftEnabled] = useState(false);
+  
   // Passkey support
   const {
     isSupported: passkeySupported,
@@ -39,6 +42,38 @@ export function MagicLinkForm() {
   const [showPasskeyOption, setShowPasskeyOption] = useState(false);
   const [autoPasskeyAttempted, setAutoPasskeyAttempted] = useState(false);
   
+  // Check for Microsoft IdP availability and URL error params on mount
+  useEffect(() => {
+    // Check for error from Microsoft callback redirect
+    const params = new URLSearchParams(window.location.search);
+    const urlError = params.get('error');
+    if (urlError) {
+      const errorMessages: Record<string, string> = {
+        microsoft_not_configured: 'Microsoft sign-in is not configured. Contact your administrator.',
+        microsoft_error: 'Microsoft sign-in encountered an error.',
+        microsoft_access_denied: 'Access was denied by Microsoft.',
+        state_mismatch: 'Security check failed. Please try again.',
+        domain_not_allowed: 'Your email domain is not allowed to sign in.',
+        auth_failed: 'Authentication failed. Please try again.',
+        token_exchange_failed: 'Failed to complete sign-in with Microsoft.',
+        no_email: 'Could not retrieve your email from Microsoft. Check your Azure AD configuration.',
+      };
+      setError(errorMessages[urlError] || 'An error occurred during sign-in.');
+      // Clean up the URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
+    // Check if Microsoft IdP is available
+    fetch('/api/auth/idp/providers')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.providers?.some((p: { provider: string; enabled: boolean }) => p.provider === 'microsoft' && p.enabled)) {
+          setMicrosoftEnabled(true);
+        }
+      })
+      .catch(() => { /* Microsoft not available -- button stays hidden */ });
+  }, []);
+
   // Check if passkey login is available on mount
   useEffect(() => {
     if (passkeySupported && passkeyAvailable) {
@@ -338,31 +373,35 @@ export function MagicLinkForm() {
             {loading ? 'Sending...' : 'Send sign-in link & code'}
           </Button>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Or continue with</span>
-            </div>
-          </div>
+          {microsoftEnabled && (
+            <>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                </div>
+              </div>
 
-          <Button
-            type="button"
-            variant="secondary"
-            fullWidth
-            onClick={() => {
-              window.location.href = '/api/auth/signin/microsoft';
-            }}
-          >
-            <svg className="w-5 h-5 mr-2" viewBox="0 0 23 23" fill="none">
-              <path d="M0 0h11v11H0z" fill="#f25022"/>
-              <path d="M12 0h11v11H12z" fill="#00a4ef"/>
-              <path d="M0 12h11v11H0z" fill="#ffb900"/>
-              <path d="M12 12h11v11H12z" fill="#7fba00"/>
-            </svg>
-            Sign in with Microsoft
-          </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                fullWidth
+                onClick={() => {
+                  window.location.href = '/api/auth/signin/microsoft';
+                }}
+              >
+                <svg className="w-5 h-5 mr-2" viewBox="0 0 23 23" fill="none">
+                  <path d="M0 0h11v11H0z" fill="#f25022"/>
+                  <path d="M12 0h11v11H12z" fill="#00a4ef"/>
+                  <path d="M0 12h11v11H0z" fill="#ffb900"/>
+                  <path d="M12 12h11v11H12z" fill="#7fba00"/>
+                </svg>
+                Sign in with Microsoft
+              </Button>
+            </>
+          )}
 
           <div className="text-center">
             <p className="text-sm text-gray-600">

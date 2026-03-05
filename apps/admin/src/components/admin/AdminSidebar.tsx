@@ -27,6 +27,7 @@ import {
   ChevronRight,
   Home,
   BookOpen,
+  Fingerprint,
 } from 'lucide-react';
 
 // Gate the test runner to non-production environments only.
@@ -93,6 +94,13 @@ const navItems: NavItem[] = [
     href: '/system',
     icon: <Server className="w-5 h-5" />,
     description: 'Service health & control',
+  },
+  {
+    id: 'identity-providers',
+    label: 'Identity',
+    href: '/identity-providers',
+    icon: <Fingerprint className="w-5 h-5" />,
+    description: 'Sign-in providers (SSO)',
   },
   {
     id: 'settings',
