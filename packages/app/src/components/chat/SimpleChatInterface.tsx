@@ -425,25 +425,43 @@ export function SimpleChatInterface({
 
             case 'error':
               const errorMessage = event.data?.message || event.data?.error || 'An error occurred';
-              toast.error(errorMessage);
-              
-              // Only add error message if we haven't already added a message
-              if (!hasAddedMessage) {
-                const errorAssistantMessage: DisplayMessage = {
-                  role: 'assistant',
-                  content: `⚠️ **Error:** ${errorMessage}`,
+              const errorSource = event.data?.source || event.data?.data?.source || '';
+              const isToolError = errorSource && !errorSource.includes('agent') && !errorSource.includes('dispatcher');
+
+              if (isToolError) {
+                // Tool-level error: log it as a thought, don't wipe content.
+                // The agent will continue and produce a final response.
+                collectedThoughts = [...collectedThoughts, {
+                  type: 'error' as const,
+                  source: errorSource,
+                  message: `Tool error (${errorSource}): ${errorMessage}`,
+                  data: event.data,
                   timestamp: new Date(),
-                  thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
-                  agentName: streamingAgentName,
-                };
-                setMessages((prev) => [...prev, errorAssistantMessage]);
-                hasAddedMessage = true;
+                }];
+                setThoughts(collectedThoughts);
+              } else {
+                // Fatal error: show toast and add error message
+                toast.error(errorMessage);
+
+                if (!hasAddedMessage) {
+                  const errorAssistantMessage: DisplayMessage = {
+                    role: 'assistant',
+                    content: fullContent.trim()
+                      ? `${fullContent}\n\n⚠️ **Error:** ${errorMessage}`
+                      : `⚠️ **Error:** ${errorMessage}`,
+                    timestamp: new Date(),
+                    thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
+                    agentName: streamingAgentName,
+                  };
+                  setMessages((prev) => [...prev, errorAssistantMessage]);
+                  hasAddedMessage = true;
+                }
+
+                setStreamingContent('');
+                setThoughts([]);
+                setInterimMessages([]);
+                setStreamingAgentName(undefined);
               }
-              
-              setStreamingContent('');
-              setThoughts([]);
-              setInterimMessages([]);
-              setStreamingAgentName(undefined);
               break;
           }
         }

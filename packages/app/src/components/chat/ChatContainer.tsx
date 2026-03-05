@@ -667,55 +667,74 @@ export function ChatContainer({
 
                   case 'error':
                     const errorMessage = parsed.message || parsed.error || 'An error occurred';
-                    if (isConversationActive(streamConversationId)) {
-                      toast.error(errorMessage);
-                    }
-                    
-                    if (!hasAddedMessage) {
-                      const errorAssistantMessage: Message = {
-                        id: `error-${Date.now()}`,
-                        conversationId: streamConversationId,
-                        role: 'assistant',
-                        content: `⚠️ **Error:** ${errorMessage}`,
-                        thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
-                        createdAt: new Date(),
-                      };
-                      
+                    const errorSource = parsed.data?.source || parsed.source || '';
+                    const isToolError = errorSource && !errorSource.includes('agent') && !errorSource.includes('dispatcher');
+
+                    if (isToolError) {
+                      // Tool-level error: log as thought, don't wipe content or end streaming.
+                      collectedThoughts = [...collectedThoughts, {
+                        type: 'error',
+                        source: errorSource,
+                        message: `Tool error (${errorSource}): ${errorMessage}`,
+                        timestamp: new Date().toISOString(),
+                      }];
                       if (isConversationActive(streamConversationId)) {
-                        setMessages(prev => {
-                          const withoutTemp = prev.filter(m => m.id !== tempUserMessage.id);
-                          return [
-                            ...withoutTemp,
-                            { ...tempUserMessage, id: `user-${Date.now()}` },
-                            errorAssistantMessage,
-                          ];
-                        });
-                      } else {
+                        setThoughts(collectedThoughts);
+                      }
+                    } else {
+                      // Fatal error
+                      if (isConversationActive(streamConversationId)) {
+                        toast.error(errorMessage);
+                      }
+
+                      if (!hasAddedMessage) {
+                        const errorAssistantMessage: Message = {
+                          id: `error-${Date.now()}`,
+                          conversationId: streamConversationId,
+                          role: 'assistant',
+                          content: fullContent.trim()
+                            ? `${fullContent}\n\n⚠️ **Error:** ${errorMessage}`
+                            : `⚠️ **Error:** ${errorMessage}`,
+                          thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
+                          createdAt: new Date(),
+                        };
+
+                        if (isConversationActive(streamConversationId)) {
+                          setMessages(prev => {
+                            const withoutTemp = prev.filter(m => m.id !== tempUserMessage.id);
+                            return [
+                              ...withoutTemp,
+                              { ...tempUserMessage, id: `user-${Date.now()}` },
+                              errorAssistantMessage,
+                            ];
+                          });
+                        } else {
+                          const streamState = streamMapRef.current.get(streamConversationId);
+                          if (streamState) {
+                            const withoutTemp = streamState.messages.filter(m => m.id !== tempUserMessage.id);
+                            streamState.messages = [
+                              ...withoutTemp,
+                              { ...tempUserMessage, id: `user-${Date.now()}` },
+                              errorAssistantMessage,
+                            ];
+                          }
+                        }
+                        hasAddedMessage = true;
                         const streamState = streamMapRef.current.get(streamConversationId);
                         if (streamState) {
-                          const withoutTemp = streamState.messages.filter(m => m.id !== tempUserMessage.id);
-                          streamState.messages = [
-                            ...withoutTemp,
-                            { ...tempUserMessage, id: `user-${Date.now()}` },
-                            errorAssistantMessage,
-                          ];
+                          streamState.hasAddedMessage = true;
                         }
                       }
-                      hasAddedMessage = true;
-                      const streamState = streamMapRef.current.get(streamConversationId);
-                      if (streamState) {
-                        streamState.hasAddedMessage = true;
+
+                      streamMapRef.current.delete(streamConversationId);
+                      setConversationStreamingStatus(streamConversationId, false);
+
+                      if (isConversationActive(streamConversationId)) {
+                        setStreamingContent('');
+                        setThoughts([]);
+                        setStreamingAgentName(undefined);
+                        setIsStreaming(false);
                       }
-                    }
-
-                    streamMapRef.current.delete(streamConversationId);
-                    setConversationStreamingStatus(streamConversationId, false);
-
-                    if (isConversationActive(streamConversationId)) {
-                      setStreamingContent('');
-                      setThoughts([]);
-                      setStreamingAgentName(undefined);
-                      setIsStreaming(false);
                     }
                     break;
                 }
