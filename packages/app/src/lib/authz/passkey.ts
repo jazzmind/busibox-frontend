@@ -37,21 +37,56 @@ import { getAuthzOptions, getAuthzBaseUrl, getAuthzOptionsWithToken } from './ne
 // This ensures the correct domain is used even if the build was done with different env vars.
 const getAppUrl = () => process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
+// Log on module load so we can verify the new code is actually running
+console.log('[PASSKEY] Module loaded (v2). WEBAUTHN_RP_ID=%s, APP_URL=%s, NEXT_PUBLIC_APP_URL=%s, PORTAL_URL=%s',
+  process.env.WEBAUTHN_RP_ID ?? '(unset)',
+  process.env.APP_URL ?? '(unset)',
+  process.env.NEXT_PUBLIC_APP_URL ?? '(unset)',
+  process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL ?? '(unset)',
+);
+
+/**
+ * Extract a valid public hostname from available environment variables.
+ * Priority: WEBAUTHN_RP_ID > APP_URL > NEXT_PUBLIC_APP_URL > NEXT_PUBLIC_BUSIBOX_PORTAL_URL.
+ * If the hostname derived from APP_URL looks like an internal name (no dots,
+ * not localhost), fall back to NEXT_PUBLIC_BUSIBOX_PORTAL_URL which is always
+ * set to the public-facing URL.
+ */
 const getRpId = () => {
-  // Explicit override takes priority — critical when APP_URL is an internal
-  // Docker/container hostname (e.g. "http://portal:3000") that doesn't match
-  // the browser's origin domain.
   if (process.env.WEBAUTHN_RP_ID) {
+    console.log(`[PASSKEY] getRpId: using WEBAUTHN_RP_ID="${process.env.WEBAUTHN_RP_ID}"`);
     return process.env.WEBAUTHN_RP_ID;
   }
+
   const url = getAppUrl();
   try {
     const hostname = new URL(url).hostname;
-    console.log(`[PASSKEY] getRpId: derived RP ID "${hostname}" from APP_URL="${url}"`);
-    return hostname;
+    // If the hostname has dots or is localhost, it's usable as an RP ID.
+    // Otherwise it's likely an internal Docker/container service name
+    // (e.g. "portal", "core-apps") and we need to find the real domain.
+    if (hostname.includes('.') || hostname === 'localhost') {
+      console.log(`[PASSKEY] getRpId: using hostname "${hostname}" from url="${url}"`);
+      return hostname;
+    }
+    console.log(`[PASSKEY] getRpId: hostname "${hostname}" looks internal, trying PORTAL_URL fallback`);
   } catch {
-    return 'localhost';
+    console.log(`[PASSKEY] getRpId: failed to parse url="${url}"`);
   }
+
+  // Fallback: derive from the portal URL which is always the public domain
+  const portalUrl = process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL;
+  if (portalUrl) {
+    try {
+      const portalHostname = new URL(portalUrl).hostname;
+      console.log(`[PASSKEY] getRpId: using portal hostname "${portalHostname}" from PORTAL_URL="${portalUrl}"`);
+      return portalHostname;
+    } catch {
+      // fall through
+    }
+  }
+
+  console.log('[PASSKEY] getRpId: all sources exhausted, falling back to localhost');
+  return 'localhost';
 };
 
 const getRpName = () => process.env.APP_NAME || 'Busibox Portal';
@@ -66,12 +101,13 @@ const getOrigin = (): string | string[] => {
   const rpId = getRpId();
   let primaryOrigin: string;
 
-  // When WEBAUTHN_RP_ID is explicitly set, APP_URL may be an internal hostname
-  // (e.g. http://portal:3000) that doesn't match the browser origin. Derive
-  // the primary origin from the RP ID instead.
-  if (process.env.WEBAUTHN_RP_ID) {
-    primaryOrigin = `https://${process.env.WEBAUTHN_RP_ID}`;
+  if (rpId === 'localhost') {
+    primaryOrigin = 'http://localhost:3000';
+  } else if (rpId.includes('.')) {
+    // Real domain — always https
+    primaryOrigin = `https://${rpId}`;
   } else {
+    // Internal hostname fallback — shouldn't happen after getRpId() improvements
     const url = getAppUrl();
     try {
       const parsed = new URL(url);
