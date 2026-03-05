@@ -38,6 +38,7 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
   const isProcessingRef = useRef(isProcessing);
   isProcessingRef.current = isProcessing;
   const enhanceFetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevPagesProcessedRef = useRef<number | undefined>(pagesProcessed);
 
   interface ImageMeta {
     is_duplicate?: boolean;
@@ -216,6 +217,20 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
     }
   }, [isProcessing, html, error, retryCount, fetchHtml]);
 
+  // Refetch HTML immediately when a new batch of pages has been processed.
+  useEffect(() => {
+    const prev = prevPagesProcessedRef.current;
+    if (
+      pagesProcessed !== undefined &&
+      pagesProcessed > 0 &&
+      pagesProcessed !== prev
+    ) {
+      fetchHtml();
+    }
+    prevPagesProcessedRef.current = pagesProcessed;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagesProcessed]);
+
   // Refetch HTML when enhancement completes or a new pass finishes.
   // Debounced to avoid flooding requests on rapid status message updates.
   useEffect(() => {
@@ -225,10 +240,8 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
     }
 
     if (!isEnhancing && prevIsEnhancingRef.current) {
-      // Enhancement just completed -- fetch final HTML immediately
       fetchHtml();
     } else if (isEnhancing && statusMessage) {
-      // Still enhancing -- debounce so we only fetch once per status burst
       enhanceFetchTimerRef.current = setTimeout(() => {
         fetchHtml();
         enhanceFetchTimerRef.current = null;
@@ -355,10 +368,26 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
     );
   }
 
+  const isBatchLoading = isEnhancing && totalPages && pagesProcessed !== undefined && pagesProcessed < totalPages;
+
   const enhancingBanner = isEnhancing ? (
     <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950 border-b border-blue-100 dark:border-blue-900 text-sm text-blue-700 dark:text-blue-300">
       <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-      <span>{statusMessage || 'Enhancing document quality...'}</span>
+      <div className="flex-1 flex items-center gap-3">
+        <span>
+          {isBatchLoading
+            ? `Loading pages ${pagesProcessed} of ${totalPages}...`
+            : statusMessage || 'Enhancing document quality...'}
+        </span>
+        {isBatchLoading && (
+          <div className="w-32 bg-blue-200 dark:bg-blue-800 rounded-full h-1.5">
+            <div
+              className="bg-blue-600 dark:bg-blue-400 h-1.5 rounded-full transition-all duration-500"
+              style={{ width: `${(pagesProcessed! / totalPages) * 100}%` }}
+            />
+          </div>
+        )}
+      </div>
     </div>
   ) : null;
 
