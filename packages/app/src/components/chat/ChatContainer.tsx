@@ -691,7 +691,7 @@ export function ChatContainer({
                         type: 'error',
                         source: errorSource,
                         message: `Tool error (${errorSource}): ${errorMessage}`,
-                        timestamp: new Date().toISOString(),
+                        timestamp: new Date(),
                       }];
                       if (isConversationActive(streamConversationId)) {
                         setThoughts(collectedThoughts);
