@@ -257,15 +257,11 @@ export function ChatContainer({
     applyStreamStateForConversation(conversation.id);
     setQuickReplies([]);
     setThoughts([]);
+    setInsights([]);
     if (isMobile) {
       setMobileSidebarOpen(false);
     }
     setIsLoadingMessages(true);
-
-    // Refresh insights if panel is open
-    if (showInsightsPanel) {
-      loadInsights(insightCategoryFilter, 0, false);
-    }
 
     try {
       const response = await apiCall(`/chat/${conversation.id}/history`);
@@ -283,7 +279,7 @@ export function ChatContainer({
         setIsLoadingMessages(false);
       }
     }
-  }, [apiCall, isMobile, updateUrlWithConversation, applyStreamStateForConversation, showInsightsPanel, insightCategoryFilter, loadInsights]);
+  }, [apiCall, isMobile, updateUrlWithConversation, applyStreamStateForConversation]);
 
   /** Create a new conversation and return its ID, or null on failure.
    *  Shared by the "New Chat" button, send-message auto-create, and attachment auto-create. */
@@ -903,6 +899,14 @@ export function ChatContainer({
       setIsLoadingInsights(false);
     }
   }, [apiCall]);
+
+  // Refresh insights when conversation changes (if panel is open)
+  useEffect(() => {
+    if (showInsightsPanel && currentConversation?.id) {
+      loadInsights(insightCategoryFilter, 0, false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentConversation?.id]);
 
   // Load more insights (infinite scroll)
   const loadMoreInsights = useCallback(() => {
