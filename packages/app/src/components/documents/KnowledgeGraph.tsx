@@ -309,7 +309,7 @@ interface LibraryOption {
   isPersonal?: boolean;
 }
 
-interface KnowledgeGraphProps {
+export interface KnowledgeGraphProps {
   documentId?: string;
   onDocumentClick?: (documentId: string) => void;
   libraryIds?: string[];

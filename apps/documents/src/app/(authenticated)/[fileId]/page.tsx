@@ -138,6 +138,7 @@ export default function DocumentDetailsPage({
   const [schemaJustGenerated, setSchemaJustGenerated] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [reprocessOpen, setReprocessOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const downloadDropdownRef = useRef<HTMLDivElement>(null);
   const reprocessDropdownRef = useRef<HTMLDivElement>(null);
   
@@ -151,7 +152,7 @@ export default function DocumentDetailsPage({
   const prevProcessingRef = useRef<boolean | null>(null);
 
   const isProcessing = Boolean(document?.status?.stage && 
-    !['completed', 'failed', 'available'].includes(document.status.stage));
+    !['completed', 'failed', 'available', 'cancelled'].includes(document.status.stage));
   const isEnhancing = document?.status?.stage === 'available';
   const triggerStatus = document?.metadata?.triggerStatus as
     | {
@@ -313,6 +314,21 @@ export default function DocumentDetailsPage({
       setTimeout(fetchDocument, 1000);
     } catch (err) {
       alert('Failed to start reprocessing');
+    }
+  };
+
+  const handleCancel = async () => {
+    setCancelling(true);
+    try {
+      const response = await fetch(`/documents/api/documents/${resolvedParams.fileId}/cancel`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to cancel');
+      setTimeout(fetchDocument, 1000);
+    } catch (err) {
+      alert('Failed to cancel processing');
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -757,6 +773,8 @@ export default function DocumentDetailsPage({
                     ? 'bg-green-100 text-green-800'
                     : document.status?.stage === 'failed'
                     ? 'bg-red-100 text-red-800'
+                    : document.status?.stage === 'cancelled'
+                    ? 'bg-gray-100 text-gray-800'
                     : document.status?.stage === 'available'
                     ? 'bg-blue-100 text-blue-800'
                     : 'bg-yellow-100 text-yellow-800'
@@ -779,6 +797,17 @@ export default function DocumentDetailsPage({
                       />
                     </span>
                   </span>
+                )}
+                {(isProcessing || isEnhancing) && (
+                  <button
+                    onClick={handleCancel}
+                    disabled={cancelling}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-50 text-red-600 hover:bg-red-100 transition-colors border border-red-200"
+                    title="Cancel processing"
+                  >
+                    <X className="w-3 h-3" />
+                    {cancelling ? 'Cancelling...' : 'Cancel'}
+                  </button>
                 )}
                 {triggerStatus?.state === 'pending' && (
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">

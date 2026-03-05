@@ -35,6 +35,8 @@ export { ChunksBrowser } from './documents/ChunksBrowser';
 export { HtmlViewer } from './documents/HtmlViewer';
 export { ProcessingHistoryModal } from './documents/ProcessingHistoryModal';
 export { ProcessingHistoryTab } from './documents/ProcessingHistoryTab';
+export { KnowledgeGraph } from './documents/KnowledgeGraph';
+export type { KnowledgeGraphProps } from './documents/KnowledgeGraph';
 
 // Components - Videos
 export { VideoUpload } from './videos/VideoUpload';

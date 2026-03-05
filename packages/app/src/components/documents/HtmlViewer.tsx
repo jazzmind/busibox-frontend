@@ -47,6 +47,29 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
   }
 
   const [filteredImageCount, setFilteredImageCount] = useState(0);
+  const [enhancingPage, setEnhancingPage] = useState<number | null>(null);
+  const [visionDropdownPage, setVisionDropdownPage] = useState<number | null>(null);
+  const fetchHtmlRef = useRef<() => void>(() => {});
+
+  const enhancePage = useCallback(async (pageNum: number, mode: string, contextText?: string) => {
+    setEnhancingPage(pageNum);
+    try {
+      const response = await fetch(`${documentsBase}/api/documents/${fileId}/pages/${pageNum}/enhance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, context_text: contextText }),
+      });
+      if (!response.ok) throw new Error('Enhancement failed');
+      const data = await response.json();
+      if (data.changed) {
+        fetchHtmlRef.current();
+      }
+    } catch (err) {
+      console.error('Page enhancement failed:', err);
+    } finally {
+      setEnhancingPage(null);
+    }
+  }, [fileId, documentsBase]);
 
   const fetchImageUrls = useCallback(async (fid: string): Promise<{ urls: Record<string, string>; metadata: Record<string, ImageMeta> }> => {
     try {
@@ -204,6 +227,8 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
     }
   }, [api.fallback, api.nextApiBasePath, api.serviceRequestHeaders, api.services?.dataApiUrl, fileId, resolve, fetchImageUrls]);
 
+  fetchHtmlRef.current = fetchHtml;
+
   // Initial fetch when fileId changes (or on mount)
   useEffect(() => {
     if (fileId) fetchHtml();
@@ -268,6 +293,185 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
       setActiveSection(sectionId);
     }
   };
+
+  // Inject page-level toolbars into data-page sections after HTML renders
+  useEffect(() => {
+    if (!html) return;
+
+    const container = document.getElementById('document-content');
+    if (!container) return;
+
+    // Remove any previously injected toolbars
+    container.querySelectorAll('.page-toolbar-injected').forEach(el => el.remove());
+
+    const pageSections = container.querySelectorAll('[data-page]');
+    pageSections.forEach((section) => {
+      const pageNum = parseInt(section.getAttribute('data-page') || '0', 10);
+      if (!pageNum) return;
+
+      // Make the section position-relative for the floating toolbar
+      (section as HTMLElement).style.position = 'relative';
+
+      const toolbar = document.createElement('div');
+      toolbar.className = 'page-toolbar-injected';
+      toolbar.innerHTML = `
+        <span class="page-toolbar-label">Page ${pageNum}</span>
+        <button class="page-toolbar-btn" data-action="llm_cleanup" data-page="${pageNum}" title="LLM Cleanup">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4V2"/><path d="M15 16v-2"/><path d="M8 9h2"/><path d="M20 9h2"/><path d="M17.8 11.8 19 13"/><path d="M15 9h0"/><path d="M17.8 6.2 19 5"/><path d="m3 21 9-9"/><path d="M12.2 6.2 11 5"/></svg>
+          Cleanup
+        </button>
+        <div class="page-toolbar-dropdown-wrapper">
+          <button class="page-toolbar-btn" data-action="vision_menu" data-page="${pageNum}" title="Vision Analysis">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            Vision ▾
+          </button>
+          <div class="page-toolbar-dropdown" data-dropdown-page="${pageNum}">
+            <button data-action="vision_describe" data-page="${pageNum}">Describe</button>
+            <button data-action="vision_table" data-page="${pageNum}">Extract Table</button>
+            <button data-action="vision_chart" data-page="${pageNum}">Extract Chart</button>
+            <button data-action="vision_ocr" data-page="${pageNum}">OCR Page</button>
+          </div>
+        </div>
+        <button class="page-toolbar-btn" data-action="view_pdf" data-page="${pageNum}" title="View Source PDF">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          PDF
+        </button>
+      `;
+
+      section.insertBefore(toolbar, section.firstChild);
+    });
+
+    // Delegate click events from toolbars
+    const handleToolbarClick = (e: Event) => {
+      const target = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
+      if (!target) return;
+
+      const action = target.getAttribute('data-action');
+      const pageNum = parseInt(target.getAttribute('data-page') || '0', 10);
+      if (!pageNum) return;
+
+      if (action === 'llm_cleanup') {
+        enhancePage(pageNum, 'llm_cleanup');
+      } else if (action === 'vision_describe' || action === 'vision_table' || action === 'vision_chart' || action === 'vision_ocr') {
+        enhancePage(pageNum, action);
+      } else if (action === 'vision_menu') {
+        const dropdown = container.querySelector(`[data-dropdown-page="${pageNum}"]`) as HTMLElement;
+        if (dropdown) {
+          const isVisible = dropdown.style.display === 'flex';
+          // Close all dropdowns first
+          container.querySelectorAll('.page-toolbar-dropdown').forEach(d => (d as HTMLElement).style.display = 'none');
+          dropdown.style.display = isVisible ? 'none' : 'flex';
+        }
+      } else if (action === 'view_pdf') {
+        window.open(`${documentsBase}/api/documents/${fileId}/download#page=${pageNum}`, '_blank');
+      }
+    };
+
+    container.addEventListener('click', handleToolbarClick);
+    return () => container.removeEventListener('click', handleToolbarClick);
+  }, [html, enhancePage, fileId, documentsBase]);
+
+  // Text selection context menu for targeted enhancement
+  useEffect(() => {
+    const container = document.getElementById('document-content');
+    if (!container) return;
+
+    let contextMenu: HTMLDivElement | null = null;
+
+    const removeMenu = () => {
+      if (contextMenu && contextMenu.parentNode) {
+        contextMenu.parentNode.removeChild(contextMenu);
+        contextMenu = null;
+      }
+    };
+
+    const handleMouseUp = () => {
+      removeMenu();
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.rangeCount) return;
+
+      const selectedText = selection.toString().trim();
+      if (selectedText.length < 10) return;
+
+      const range = selection.getRangeAt(0);
+      const startEl = range.startContainer.nodeType === Node.ELEMENT_NODE
+        ? (range.startContainer as Element)
+        : range.startContainer.parentElement;
+      const pageSection = startEl?.closest('[data-page]') as HTMLElement | null;
+
+      if (!pageSection) return;
+      const pageNum = parseInt(pageSection.getAttribute('data-page') || '0', 10);
+      if (!pageNum) return;
+
+      const rect = range.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+
+      contextMenu = document.createElement('div');
+      contextMenu.className = 'text-selection-menu';
+      contextMenu.style.top = `${rect.bottom - containerRect.top + container.scrollTop + 4}px`;
+      contextMenu.style.left = `${rect.left - containerRect.left + rect.width / 2}px`;
+      contextMenu.innerHTML = `
+        <button data-sel-action="llm_cleanup" data-sel-page="${pageNum}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4V2"/><path d="M15 16v-2"/><path d="M8 9h2"/><path d="M20 9h2"/><path d="m3 21 9-9"/></svg>
+          Clean up with LLM
+        </button>
+        <button data-sel-action="vision_describe" data-sel-page="${pageNum}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          Analyze with vision
+        </button>
+      `;
+
+      // Store selected text as data attribute
+      contextMenu.setAttribute('data-selected-text', selectedText);
+      container.appendChild(contextMenu);
+    };
+
+    const handleContextClick = (e: Event) => {
+      const btn = (e.target as HTMLElement).closest('[data-sel-action]') as HTMLElement | null;
+      if (!btn || !contextMenu) return;
+
+      const action = btn.getAttribute('data-sel-action')!;
+      const pageNum = parseInt(btn.getAttribute('data-sel-page') || '0', 10);
+      const selectedText = contextMenu.getAttribute('data-selected-text') || '';
+      removeMenu();
+      if (pageNum && selectedText) {
+        enhancePage(pageNum, action, selectedText);
+      }
+    };
+
+    const handleMouseDown = (e: Event) => {
+      if (contextMenu && !contextMenu.contains(e.target as Node)) {
+        removeMenu();
+      }
+    };
+
+    container.addEventListener('mouseup', handleMouseUp);
+    container.addEventListener('click', handleContextClick);
+    document.addEventListener('mousedown', handleMouseDown);
+
+    return () => {
+      container.removeEventListener('mouseup', handleMouseUp);
+      container.removeEventListener('click', handleContextClick);
+      document.removeEventListener('mousedown', handleMouseDown);
+      removeMenu();
+    };
+  }, [html, enhancePage]);
+
+  // Show loading state on the page being enhanced
+  useEffect(() => {
+    const container = document.getElementById('document-content');
+    if (!container) return;
+    container.querySelectorAll('.doc-page-section').forEach((section) => {
+      const p = parseInt(section.getAttribute('data-page') || '0', 10);
+      if (p === enhancingPage) {
+        (section as HTMLElement).style.opacity = '0.6';
+        (section as HTMLElement).style.pointerEvents = 'none';
+      } else {
+        (section as HTMLElement).style.opacity = '';
+        (section as HTMLElement).style.pointerEvents = '';
+      }
+    });
+  }, [enhancingPage]);
 
   if (isProcessing) {
     const displayMessage = statusMessage || (
@@ -446,6 +650,116 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
           }
           ${!showImages ? '#document-content img { display: none !important; }' : ''}
           ${showImages && !showFilteredImages ? '#document-content img.doc-image-filtered { display: none !important; }' : ''}
+
+          .doc-page-section { position: relative; }
+          .page-toolbar-injected {
+            display: none;
+            align-items: center;
+            gap: 0.375rem;
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            padding: 0.25rem 0.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            z-index: 10;
+            font-size: 0.75rem;
+          }
+          .doc-page-section:hover .page-toolbar-injected,
+          .page-toolbar-injected:hover {
+            display: flex;
+          }
+          .page-toolbar-label {
+            color: #9ca3af;
+            font-size: 0.675rem;
+            margin-right: 0.25rem;
+            white-space: nowrap;
+          }
+          .page-toolbar-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            border: none;
+            background: transparent;
+            color: #4b5563;
+            cursor: pointer;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            transition: background 0.15s, color 0.15s;
+          }
+          .page-toolbar-btn:hover { background: #f3f4f6; color: #1d4ed8; }
+          .page-toolbar-btn[disabled] { opacity: 0.5; pointer-events: none; }
+          .page-toolbar-dropdown-wrapper { position: relative; }
+          .page-toolbar-dropdown {
+            display: none;
+            flex-direction: column;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            min-width: 140px;
+            z-index: 20;
+            padding: 0.25rem 0;
+          }
+          .page-toolbar-dropdown button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 0.375rem 0.75rem;
+            border: none;
+            background: transparent;
+            color: #374151;
+            cursor: pointer;
+            font-size: 0.75rem;
+          }
+          .page-toolbar-dropdown button:hover { background: #eff6ff; color: #1d4ed8; }
+
+          .doc-page-section {
+            border-left: 2px solid transparent;
+            padding-left: 0.5rem;
+            margin-left: -0.5rem;
+            transition: border-color 0.2s;
+          }
+          .doc-page-section:hover {
+            border-left-color: #dbeafe;
+          }
+
+          .text-selection-menu {
+            position: absolute;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 0.25rem;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 0.25rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 50;
+            animation: fadeIn 0.15s ease-out;
+          }
+          @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(-4px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+          .text-selection-menu button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.375rem 0.625rem;
+            border: none;
+            background: transparent;
+            color: #374151;
+            cursor: pointer;
+            font-size: 0.75rem;
+            border-radius: 0.25rem;
+            white-space: nowrap;
+            transition: background 0.15s, color 0.15s;
+          }
+          .text-selection-menu button:hover { background: #eff6ff; color: #1d4ed8; }
         ` }} />
         <div
           id="document-content"
