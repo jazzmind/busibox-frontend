@@ -402,15 +402,31 @@ export async function getUserLibraries(
     const libraries = data.data || [];
     console.log(`[getUserLibraries] Got ${libraries.length} libraries from data-api`);
     
+    let authzAccessToken: string | undefined;
+    const hasSharedLibraries = libraries.some((lib: any) => !(lib.isPersonal ?? lib.is_personal ?? false));
+    if (hasSharedLibraries) {
+      try {
+        const tokenResponse = await exchangeWithSubjectToken({
+          sessionJwt,
+          audience: 'authz-api',
+          scopes: ['authz.bindings.read'],
+          purpose: 'library-role-lookup',
+        });
+        authzAccessToken = tokenResponse.accessToken;
+      } catch (error) {
+        console.error('[LIBRARIES] Failed to exchange token for authz:', error);
+      }
+    }
+
     const authzOptions = {
       ...getAuthzOptions(),
-      accessToken: sessionJwt,
+      ...(authzAccessToken ? { accessToken: authzAccessToken } : {}),
     };
     
     const librariesWithRoles = await Promise.all(
       libraries.map(async (lib: any) => {
         let roles: LibraryRoleInfo[] = [];
-        if (!lib.isPersonal) {
+        if (!lib.isPersonal && authzAccessToken) {
           try {
             const roleBindings = await getResourceRoles('library', lib.id, authzOptions);
             roles = roleBindings.map((rb: any) => ({
