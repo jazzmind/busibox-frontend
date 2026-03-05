@@ -38,9 +38,17 @@ import { getAuthzOptions, getAuthzBaseUrl, getAuthzOptionsWithToken } from './ne
 const getAppUrl = () => process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 const getRpId = () => {
+  // Explicit override takes priority — critical when APP_URL is an internal
+  // Docker/container hostname (e.g. "http://portal:3000") that doesn't match
+  // the browser's origin domain.
+  if (process.env.WEBAUTHN_RP_ID) {
+    return process.env.WEBAUTHN_RP_ID;
+  }
   const url = getAppUrl();
   try {
-    return new URL(url).hostname;
+    const hostname = new URL(url).hostname;
+    console.log(`[PASSKEY] getRpId: derived RP ID "${hostname}" from APP_URL="${url}"`);
+    return hostname;
   } catch {
     return 'localhost';
   }
@@ -55,19 +63,27 @@ const getRpName = () => process.env.APP_NAME || 'Busibox Portal';
  * Use WEBAUTHN_ADDITIONAL_ORIGINS (comma-separated) for extra origins.
  */
 const getOrigin = (): string | string[] => {
-  const url = getAppUrl();
+  const rpId = getRpId();
   let primaryOrigin: string;
-  try {
-    const parsed = new URL(url);
-    primaryOrigin = `${parsed.protocol}//${parsed.hostname}${parsed.port ? ':' + parsed.port : ''}`;
-  } catch {
-    primaryOrigin = 'http://localhost:3000';
+
+  // When WEBAUTHN_RP_ID is explicitly set, APP_URL may be an internal hostname
+  // (e.g. http://portal:3000) that doesn't match the browser origin. Derive
+  // the primary origin from the RP ID instead.
+  if (process.env.WEBAUTHN_RP_ID) {
+    primaryOrigin = `https://${process.env.WEBAUTHN_RP_ID}`;
+  } else {
+    const url = getAppUrl();
+    try {
+      const parsed = new URL(url);
+      primaryOrigin = `${parsed.protocol}//${parsed.hostname}${parsed.port ? ':' + parsed.port : ''}`;
+    } catch {
+      primaryOrigin = 'http://localhost:3000';
+    }
   }
 
   const origins: string[] = [primaryOrigin];
 
   // For localhost, also accept common tunnel ports (e.g., SSH tunnel on 4443)
-  const rpId = getRpId();
   if (rpId === 'localhost') {
     const localPorts = ['443', '4443', '3000'];
     for (const port of localPorts) {

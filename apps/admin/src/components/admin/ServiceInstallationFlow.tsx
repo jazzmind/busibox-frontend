@@ -26,6 +26,7 @@ type Service = {
   dockerService: string; // Docker compose service name
   companionServices?: string[]; // Additional docker services to deploy with this one
   healthEndpoint?: string; // Optional health check endpoint
+  requiresRedeploy?: boolean; // Always redeploy during setup (stateful services with credentials)
   status: ServiceStatus;
   error?: string;
   logs: LogEntry[];
@@ -52,6 +53,7 @@ const SERVICE_GROUPS: ServiceGroup[] = [
         description: 'Cache and job queue',
         features: [],
         dockerService: 'redis',
+        requiresRedeploy: true,
         status: 'pending',
         logs: [],
       },
@@ -62,6 +64,7 @@ const SERVICE_GROUPS: ServiceGroup[] = [
         features: [],
         dockerService: 'minio',
         healthEndpoint: '/minio/health/live',
+        requiresRedeploy: true,
         status: 'pending',
         logs: [],
       },
@@ -72,6 +75,7 @@ const SERVICE_GROUPS: ServiceGroup[] = [
         features: [],
         dockerService: 'milvus',
         healthEndpoint: '/healthz',
+        requiresRedeploy: true,
         status: 'pending',
         logs: [],
       },
@@ -82,6 +86,7 @@ const SERVICE_GROUPS: ServiceGroup[] = [
         features: [],
         dockerService: 'neo4j',
         healthEndpoint: '/',
+        requiresRedeploy: true,
         status: 'pending',
         logs: [],
       },
@@ -847,17 +852,18 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
       }
       
       // First check if service is already healthy (bust cache if force reinstall)
+      const mustRedeploy = forceReinstall || service.requiresRedeploy;
       updateServiceStatus(service.id, 'checking');
       addServiceLog(service.id, {
         type: 'info',
-        message: forceReinstall 
-          ? `Force reinstalling ${service.name}...`
+        message: mustRedeploy 
+          ? `${forceReinstall ? 'Force reinstalling' : 'Redeploying'} ${service.name}...`
           : `Checking if ${service.name} is already running...`,
         timestamp: Date.now(),
       });
 
-      const isHealthy = await checkServiceHealth(service, forceReinstall);
-      if (isHealthy && !forceReinstall) {
+      const isHealthy = await checkServiceHealth(service, mustRedeploy);
+      if (isHealthy && !mustRedeploy) {
         addServiceLog(service.id, {
           type: 'success',
           message: `${service.name} is already running and healthy - skipping deployment`,
