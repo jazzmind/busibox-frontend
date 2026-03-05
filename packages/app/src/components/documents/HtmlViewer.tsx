@@ -75,8 +75,10 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
     return { urls: {}, metadata: {} };
   }, [api.fallback, api.services?.dataApiUrl, api.serviceRequestHeaders, documentsBase]);
 
+  const hasContentRef = useRef(false);
+
   const fetchHtml = useCallback(async () => {
-    setLoading(true);
+    if (!hasContentRef.current) setLoading(true);
     setError(null);
 
     try {
@@ -180,6 +182,7 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
       }
 
       setHtml(processedHtml);
+      if (processedHtml) hasContentRef.current = true;
 
       const rawToc = data.toc || [];
       const cleanedToc = rawToc.map((item: TocItem) => ({
@@ -368,26 +371,10 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
     );
   }
 
-  const isBatchLoading = isEnhancing && totalPages && pagesProcessed !== undefined && pagesProcessed < totalPages;
-
   const enhancingBanner = isEnhancing ? (
     <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950 border-b border-blue-100 dark:border-blue-900 text-sm text-blue-700 dark:text-blue-300">
       <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-      <div className="flex-1 flex items-center gap-3">
-        <span>
-          {isBatchLoading
-            ? `Loading pages ${pagesProcessed} of ${totalPages}...`
-            : statusMessage || 'Enhancing document quality...'}
-        </span>
-        {isBatchLoading && (
-          <div className="w-32 bg-blue-200 dark:bg-blue-800 rounded-full h-1.5">
-            <div
-              className="bg-blue-600 dark:bg-blue-400 h-1.5 rounded-full transition-all duration-500"
-              style={{ width: `${(pagesProcessed! / totalPages) * 100}%` }}
-            />
-          </div>
-        )}
-      </div>
+      <span>{statusMessage || 'Enhancing document quality...'}</span>
     </div>
   ) : null;
 

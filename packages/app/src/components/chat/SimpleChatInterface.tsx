@@ -42,6 +42,11 @@ import type { ChatMessageRequest, Message, Attachment } from '../../types/chat';
 // Use ThoughtEvent as ExecutionEvent for consistency
 type ExecutionEvent = ThoughtEvent;
 
+const THINK_TAG_RE = /<think>[\s\S]*?<\/think>/g;
+function stripThinkTags(text: string): string {
+  return text.replace(THINK_TAG_RE, '').trim();
+}
+
 // Preprocess LaTeX to ensure proper rendering
 function preprocessLatex(content: string): string {
   return content
@@ -212,6 +217,7 @@ export function SimpleChatInterface({
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [showVoiceComingSoon, setShowVoiceComingSoon] = useState(false);
+  const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -278,11 +284,12 @@ export function SimpleChatInterface({
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  const handleSubmit = async (e: React.FormEvent | null, overrideMessage?: string) => {
+    e?.preventDefault();
+    const messageText = overrideMessage ?? input.trim();
+    if (!messageText || isLoading) return;
 
-    const userMessage = input.trim();
+    const userMessage = messageText;
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -300,6 +307,7 @@ export function SimpleChatInterface({
     onMessageSent?.(userMessage);
 
     setIsLoading(true);
+    setQuickReplies([]);
     
     // Create abort controller for cancellation
     const controller = new AbortController();
@@ -378,15 +386,22 @@ export function SimpleChatInterface({
               const messageText = event.data?.message || '';
               
               if (contentData.streaming && contentData.partial) {
-                // Append streaming chunk
                 fullContent += messageText;
               } else if (contentData.complete) {
-                // Final marker - content already accumulated, don't add empty message
+                // Final marker - content already accumulated
               } else if (messageText) {
-                // Non-streaming content - replace (but only if there's actual content)
                 fullContent = messageText;
               }
-              setStreamingContent(fullContent);
+              setStreamingContent(stripThinkTags(fullContent));
+              break;
+
+            case 'prompt':
+              {
+                const promptOptions = event.data?.data?.options || event.data?.options;
+                if (promptOptions && Array.isArray(promptOptions)) {
+                  setQuickReplies(promptOptions);
+                }
+              }
               break;
 
             case 'complete':
@@ -398,11 +413,11 @@ export function SimpleChatInterface({
               if (!hasAddedMessage) {
                 setConversationId(event.data.conversation_id);
                 
-                // Only add if there's actual content
-                if (fullContent.trim()) {
+                const cleanedContent = stripThinkTags(fullContent);
+                if (cleanedContent) {
                   const assistantMessage: DisplayMessage = {
                     role: 'assistant',
-                    content: fullContent,
+                    content: cleanedContent,
                     timestamp: new Date(),
                     thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
                     agentName: streamingAgentName,
@@ -415,10 +430,11 @@ export function SimpleChatInterface({
                 setThoughts([]);
                 setInterimMessages([]);
                 setStreamingAgentName(undefined);
+                setIsLoading(false);
 
                 // Callback
-                if (fullContent.trim()) {
-                  onResponseReceived?.(fullContent);
+                if (cleanedContent) {
+                  onResponseReceived?.(cleanedContent);
                 }
               }
               break;
@@ -607,6 +623,11 @@ export function SimpleChatInterface({
     }
   };
 
+  const handleQuickReply = (reply: string) => {
+    setQuickReplies([]);
+    handleSubmit(null, reply);
+  };
+
   const handleNewChat = () => {
     // Cancel any ongoing request
     if (abortController) {
@@ -623,6 +644,7 @@ export function SimpleChatInterface({
     setIsLoading(false);
     setAttachments([]);
     setStreamingAgentName(undefined);
+    setQuickReplies([]);
     setInput('');
     
     toast.success('Started new chat');
@@ -906,6 +928,22 @@ export function SimpleChatInterface({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Quick-reply buttons */}
+      {quickReplies.length > 0 && !isLoading && (
+        <div className="flex-shrink-0 px-3 pt-2 pb-1 flex flex-wrap gap-2 justify-center border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+          {quickReplies.map((reply) => (
+            <button
+              key={reply}
+              type="button"
+              onClick={() => handleQuickReply(reply)}
+              className="px-4 py-1.5 text-sm font-medium rounded-full border border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+            >
+              {reply}
+            </button>
+          ))}
         </div>
       )}
 

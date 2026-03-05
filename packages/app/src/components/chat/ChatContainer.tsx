@@ -27,6 +27,11 @@ import type { AgentDefinition, ToolDefinition } from '../../lib/agent/agent-serv
 import { useIsMobile } from '../../lib/hooks/useIsMobile';
 import { useCrossAppApiPath } from '../../contexts/ApiContext';
 
+const THINK_TAG_RE = /<think>[\s\S]*?<\/think>/g;
+function stripThinkTags(text: string): string {
+  return text.replace(THINK_TAG_RE, '').trim();
+}
+
 /**
  * Map snake_case API response to camelCase Conversation type
  */
@@ -146,6 +151,7 @@ export function ChatContainer({
   const [streamingAgentName, setStreamingAgentName] = useState<string | undefined>(undefined);
   const [thoughts, setThoughts] = useState<ThoughtEvent[]>([]);
   const [streamingConvIds, setStreamingConvIds] = useState<Set<string>>(new Set());
+  const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const streamMapRef = useRef<Map<string, StreamState>>(new Map());
   const currentConversationRef = useRef<string | null>(initialConversation?.id ?? null);
 
@@ -246,6 +252,7 @@ export function ChatContainer({
     setCurrentConversation(conversation);
     updateUrlWithConversation(conversation.id);
     applyStreamStateForConversation(conversation.id);
+    setQuickReplies([]);
     if (isMobile) {
       setMobileSidebarOpen(false);
     }
@@ -348,6 +355,7 @@ export function ChatContainer({
     attachmentMeta?: MessageAttachment[]
   ) => {
     if (!content.trim()) return;
+    setQuickReplies([]);
 
     // Create conversation if none exists
     const convId = await ensureConversation();
@@ -565,22 +573,21 @@ export function ChatContainer({
                     const messageText = parsed.message || '';
                     
                     if (contentData.streaming && contentData.partial) {
-                      // Append streaming chunk
                       fullContent += messageText;
                     } else if (contentData.complete) {
                       // Final marker - content already accumulated
                     } else if (messageText) {
-                      // Non-streaming content - replace
                       fullContent = messageText;
                     }
                     {
+                      const cleanContent = stripThinkTags(fullContent);
                       const streamState = streamMapRef.current.get(streamConversationId);
                       if (streamState) {
-                        streamState.content = fullContent;
+                        streamState.content = cleanContent;
                       }
-                    }
-                    if (isConversationActive(streamConversationId)) {
-                      setStreamingContent(fullContent);
+                      if (isConversationActive(streamConversationId)) {
+                        setStreamingContent(cleanContent);
+                      }
                     }
                     break;
 
@@ -608,18 +615,26 @@ export function ChatContainer({
                     }
                     break;
 
+                  case 'prompt':
+                    if (parsed.options && Array.isArray(parsed.options)) {
+                      setQuickReplies(parsed.options);
+                    } else if (parsed.data?.options && Array.isArray(parsed.data.options)) {
+                      setQuickReplies(parsed.data.options);
+                    }
+                    break;
+
                   case 'message_complete':
                     // Only add message if we haven't already
                     if (!hasAddedMessage) {
                       const completedConversationId = parsed.conversation_id || streamConversationId;
                       
-                      // Only add if there's actual content
-                      if (fullContent.trim()) {
+                      const cleanedFinalContent = stripThinkTags(fullContent);
+                      if (cleanedFinalContent) {
                         const assistantMessage: Message = {
                           id: parsed.message_id || `assistant-${Date.now()}`,
                           conversationId: completedConversationId,
                           role: 'assistant',
-                          content: fullContent,
+                          content: cleanedFinalContent,
                           model: parsed.model,
                           agentName: parsed.agent_name || capturedAgentName,
                           thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
@@ -1281,6 +1296,22 @@ export function ChatContainer({
             />
           )}
         </div>
+
+        {/* Quick-reply buttons */}
+        {quickReplies.length > 0 && !isStreaming && (
+          <div className="flex-shrink-0 px-3 pt-2 pb-1 flex flex-wrap gap-2 justify-center border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+            {quickReplies.map((reply) => (
+              <button
+                key={reply}
+                type="button"
+                onClick={() => { setQuickReplies([]); handleSendMessage(reply); }}
+                className="px-4 py-1.5 text-sm font-medium rounded-full border border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+              >
+                {reply}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Message Input */}
         <MessageInput

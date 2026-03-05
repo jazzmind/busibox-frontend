@@ -769,6 +769,17 @@ export default function DocumentDetailsPage({
                     Pass {(document.status as any).passDetails.currentPass}/{(document.status as any).passDetails.totalPasses}: {(document.status as any).passDetails.passName}
                   </span>
                 )}
+                {isEnhancing && (document.status?.totalPages ?? 0) > 0 && (document.status?.pagesProcessed ?? 0) < (document.status?.totalPages ?? 0) && (
+                  <span className="inline-flex items-center gap-2 text-xs text-blue-600">
+                    <span>Pages {document.status?.pagesProcessed ?? 0} / {document.status?.totalPages}</span>
+                    <span className="inline-block w-20 bg-blue-200 rounded-full h-1.5">
+                      <span
+                        className="block bg-blue-600 h-1.5 rounded-full transition-all duration-500"
+                        style={{ width: `${((document.status?.pagesProcessed ?? 0) / (document.status?.totalPages ?? 1)) * 100}%` }}
+                      />
+                    </span>
+                  </span>
+                )}
                 {triggerStatus?.state === 'pending' && (
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                     Trigger queued
