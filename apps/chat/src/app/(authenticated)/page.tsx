@@ -102,6 +102,7 @@ export default async function Page({ searchParams }: PageProps) {
         client={client}
         showInsights={true}
         allowConversationManagement={true}
+        showAgentSelector={false}
         initialConversationId={initialConversationId}
         source="busibox-portal"
       />

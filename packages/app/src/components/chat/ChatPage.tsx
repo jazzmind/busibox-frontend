@@ -42,6 +42,8 @@ export interface ChatPageProps {
   source?: string;
   /** URL query parameter name for persisting the active conversation (default: 'conversation') */
   conversationQueryParam?: string;
+  /** Show the agent selector button and panel (default: true) */
+  showAgentSelector?: boolean;
   /** Custom CSS class */
   className?: string;
 }
@@ -53,6 +55,7 @@ export async function ChatPage({
   initialConversationId,
   source,
   conversationQueryParam,
+  showAgentSelector = true,
   className,
 }: ChatPageProps) {
   return (
@@ -64,6 +67,7 @@ export async function ChatPage({
         initialConversationId={initialConversationId}
         source={source}
         conversationQueryParam={conversationQueryParam}
+        showAgentSelector={showAgentSelector}
         className={className}
       />
     </Suspense>
@@ -81,6 +85,7 @@ async function ChatPageContent({
   initialConversationId,
   source,
   conversationQueryParam,
+  showAgentSelector,
   className,
 }: {
   client: AgentClient;
@@ -89,6 +94,7 @@ async function ChatPageContent({
   initialConversationId?: string;
   source?: string;
   conversationQueryParam?: string;
+  showAgentSelector?: boolean;
   className?: string;
 }) {
   // Fetch initial data server-side (filter by source if provided)
@@ -157,6 +163,7 @@ async function ChatPageContent({
       allowConversationManagement={allowConversationManagement}
       source={source}
       conversationQueryParam={conversationQueryParam}
+      showAgentSelector={showAgentSelector}
       className={className}
     />
   );

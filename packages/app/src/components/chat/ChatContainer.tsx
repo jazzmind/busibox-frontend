@@ -101,6 +101,8 @@ export interface ChatContainerProps {
   source?: string;
   /** URL query parameter name for persisting the active conversation (default: 'conversation') */
   conversationQueryParam?: string;
+  /** Show the agent selector button and panel (default: true) */
+  showAgentSelector?: boolean;
   className?: string;
 }
 
@@ -115,6 +117,7 @@ export function ChatContainer({
   allowConversationManagement,
   source,
   conversationQueryParam = 'conversation',
+  showAgentSelector = true,
   className = '',
 }: ChatContainerProps) {
   const isMobile = useIsMobile();
@@ -253,10 +256,16 @@ export function ChatContainer({
     updateUrlWithConversation(conversation.id);
     applyStreamStateForConversation(conversation.id);
     setQuickReplies([]);
+    setThoughts([]);
     if (isMobile) {
       setMobileSidebarOpen(false);
     }
     setIsLoadingMessages(true);
+
+    // Refresh insights if panel is open
+    if (showInsightsPanel) {
+      loadInsights(insightCategoryFilter, 0, false);
+    }
 
     try {
       const response = await apiCall(`/chat/${conversation.id}/history`);
@@ -274,7 +283,7 @@ export function ChatContainer({
         setIsLoadingMessages(false);
       }
     }
-  }, [apiCall, isMobile, updateUrlWithConversation, applyStreamStateForConversation]);
+  }, [apiCall, isMobile, updateUrlWithConversation, applyStreamStateForConversation, showInsightsPanel, insightCategoryFilter, loadInsights]);
 
   /** Create a new conversation and return its ID, or null on failure.
    *  Shared by the "New Chat" button, send-message auto-create, and attachment auto-create. */
@@ -861,11 +870,14 @@ export function ChatContainer({
   }, [messages, handleSendMessage]);
 
   // Load insights list (paginated, with optional category filter)
+  // Passes conversation_id so thread-scoped insights (goal, context) are filtered
   const loadInsights = useCallback(async (category: string | null, offset: number, append: boolean = false) => {
     setIsLoadingInsights(true);
     try {
       const params = new URLSearchParams();
       if (category) params.set('category', category);
+      const convId = currentConversationRef.current;
+      if (convId) params.set('conversation_id', convId);
       params.set('offset', String(offset));
       params.set('limit', String(INSIGHT_PAGE_SIZE));
       
@@ -884,7 +896,6 @@ export function ChatContainer({
       setInsightOffset(offset);
     } catch (error: any) {
       console.error('Failed to load insights:', error);
-      // Don't show toast on initial load failure - might be expected
       if (offset > 0) {
         toast.error('Failed to load more insights');
       }
@@ -1168,7 +1179,7 @@ export function ChatContainer({
               </h3>
               <div className="hidden sm:flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                 <span>{messages.length} messages</span>
-                {selectedAgents.length > 0 && (
+                {showAgentSelector && selectedAgents.length > 0 && (
                   <>
                     <span className="text-gray-300 dark:text-gray-600">•</span>
                     <span className="flex items-center gap-1 truncate">
@@ -1196,6 +1207,7 @@ export function ChatContainer({
             {/* Right side - Panel toggle buttons */}
             <div className="flex items-center gap-2 flex-shrink-0">
               {/* Agents Button */}
+              {showAgentSelector && (
               <button
                 onClick={() => {
                   setShowAgentPanel(!showAgentPanel);
@@ -1224,6 +1236,7 @@ export function ChatContainer({
                   </span>
                 )}
               </button>
+              )}
 
               {/* Insights Button */}
               {showInsights && (
@@ -1550,7 +1563,7 @@ export function ChatContainer({
       )}
 
       {/* Agent Selection Panel */}
-      {showAgentPanel && (
+      {showAgentSelector && showAgentPanel && (
         <AgentSelectionPanel
           selectedAgents={selectedAgents}
           onAgentsChange={setSelectedAgents}
