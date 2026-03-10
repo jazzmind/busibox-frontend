@@ -790,10 +790,10 @@ export default function DocumentDetailsPage({
                 {isEnhancing && (document.status?.totalPages ?? 0) > 0 && (document.status?.pagesProcessed ?? 0) < (document.status?.totalPages ?? 0) && (
                   <span className="inline-flex items-center gap-2 text-xs text-blue-600">
                     <span>Pages {document.status?.pagesProcessed ?? 0} / {document.status?.totalPages}</span>
-                    <span className="inline-block w-20 bg-blue-200 rounded-full h-1.5">
+                    <span className="inline-block w-20 bg-blue-200 rounded-full h-1.5 overflow-hidden">
                       <span
                         className="block bg-blue-600 h-1.5 rounded-full transition-all duration-500"
-                        style={{ width: `${((document.status?.pagesProcessed ?? 0) / (document.status?.totalPages ?? 1)) * 100}%` }}
+                        style={{ width: `${Math.min(100, ((document.status?.pagesProcessed ?? 0) / (document.status?.totalPages ?? 1)) * 100)}%` }}
                       />
                     </span>
                   </span>
@@ -988,14 +988,14 @@ export default function DocumentDetailsPage({
                   </button>
                   {reprocessOpen && (
                     <div className="absolute right-0 mt-2 w-72 rounded-md border border-gray-200 bg-white shadow-lg z-10 overflow-hidden">
-                      <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">Progressive Enhancement</div>
+                      <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">Extraction</div>
                       <button
                         type="button"
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
                         onClick={() => { handleReprocess(); setReprocessOpen(false); }}
                       >
                         <span className="font-medium">Full Reprocess</span>
-                        <span className="block text-xs text-gray-500">All 3 passes from beginning</span>
+                        <span className="block text-xs text-gray-500">Re-extract text and re-run OCR/vision enhancement</span>
                       </button>
                       <button
                         type="button"
@@ -1010,16 +1010,8 @@ export default function DocumentDetailsPage({
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
                         onClick={() => { handleReprocess('parsing', { start_pass: 2 }); setReprocessOpen(false); }}
                       >
-                        <span className="font-medium">Pass 2: OCR Enhancement</span>
-                        <span className="block text-xs text-gray-500">Tesseract OCR to improve scanned pages</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
-                        onClick={() => { handleReprocess('parsing', { start_pass: 3, llm_cleanup_enabled: true }); setReprocessOpen(false); }}
-                      >
-                        <span className="font-medium">Pass 3: LLM Cleanup + Marker</span>
-                        <span className="block text-xs text-gray-500">LLM text cleanup, Marker for complex pages (48GB+ RAM)</span>
+                        <span className="font-medium">Pass 2: OCR + Vision</span>
+                        <span className="block text-xs text-gray-500">OCR and vision analysis on flagged pages</span>
                       </button>
                       <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-t border-b border-gray-100">Individual Stages</div>
                       <button
@@ -1043,6 +1035,9 @@ export default function DocumentDetailsPage({
                       >
                         Re-index Only <span className="text-xs text-gray-500">Update Milvus vectors</span>
                       </button>
+                      <div className="px-3 py-1.5 text-xs text-gray-400 border-t border-gray-100">
+                        Hover over page sections for per-page cleanup &amp; vision tools. Select text for targeted LLM cleanup.
+                      </div>
                     </div>
                   )}
                 </div>

@@ -37,8 +37,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    if (res.status === 404) {
+      return NextResponse.json({ provider, enabled: false, client_id: '', tenant_id: '', has_client_secret: false, metadata: {} });
+    }
+
     if (!res.ok) {
-      return apiError(`IdP config not found: ${provider}`, res.status);
+      const text = await res.text();
+      console.error('[IdP Config] GET error from authz:', res.status, text);
+      return apiError(`Failed to fetch IdP config: ${text}`, res.status);
     }
 
     return NextResponse.json(await res.json());
@@ -68,8 +74,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     if (!res.ok) {
       const text = await res.text();
-      console.error('[IdP Config] PUT error:', res.status, text);
-      return apiError('Failed to save IdP configuration', res.status);
+      console.error('[IdP Config] PUT error from authz:', res.status, text);
+      let detail = 'Failed to save IdP configuration';
+      try {
+        const errJson = JSON.parse(text);
+        detail = errJson.detail || errJson.message || detail;
+      } catch { /* use default */ }
+      return apiError(detail, res.status);
     }
 
     return NextResponse.json(await res.json());

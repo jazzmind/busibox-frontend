@@ -36,6 +36,9 @@ export async function GET(request: NextRequest) {
     if (!res.ok) {
       const text = await res.text();
       console.error('[IdP Config] Failed to fetch from authz:', res.status, text);
+      if (res.status === 404 || res.status === 422) {
+        return NextResponse.json({ configs: [] });
+      }
       return apiError('Failed to fetch IdP configuration', res.status);
     }
 

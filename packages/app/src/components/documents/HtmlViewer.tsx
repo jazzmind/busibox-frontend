@@ -499,12 +499,12 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
           <div className="mt-4 w-64">
             <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
               <span>Page {pagesProcessed || 0} of {totalPages}</span>
-              <span>{progress || 0}%</span>
+              <span>{Math.min(100, progress || 0)}%</span>
             </div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
               <div
                 className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${totalPages > 0 ? ((pagesProcessed || 0) / totalPages) * 100 : 0}%` }}
+                style={{ width: `${Math.min(100, totalPages > 0 ? ((pagesProcessed || 0) / totalPages) * 100 : 0)}%` }}
               />
             </div>
           </div>
@@ -512,12 +512,12 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
         {!showPageProgress && typeof progress === 'number' && progress > 0 && (
           <div className="mt-4 w-64">
             <div className="flex justify-end text-xs text-gray-500 dark:text-gray-400 mb-1">
-              <span>{progress}%</span>
+              <span>{Math.min(100, progress)}%</span>
             </div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
               <div
                 className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${progress}%` }}
+                style={{ width: `${Math.min(100, progress)}%` }}
               />
             </div>
           </div>
@@ -653,32 +653,37 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
 
           .doc-page-section { position: relative; }
           .page-toolbar-injected {
-            display: none;
+            display: flex;
             align-items: center;
             gap: 0.375rem;
             position: absolute;
             top: 0;
             right: 0;
-            background: white;
-            border: 1px solid #e5e7eb;
+            background: transparent;
+            border: 1px solid transparent;
             border-radius: 0.375rem;
             padding: 0.25rem 0.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             z-index: 10;
             font-size: 0.75rem;
           }
           .doc-page-section:hover .page-toolbar-injected,
           .page-toolbar-injected:hover {
-            display: flex;
+            background: white;
+            border-color: #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
           }
           .page-toolbar-label {
-            color: #9ca3af;
+            color: #d1d5db;
             font-size: 0.675rem;
             margin-right: 0.25rem;
             white-space: nowrap;
+            transition: color 0.15s;
+          }
+          .doc-page-section:hover .page-toolbar-label {
+            color: #9ca3af;
           }
           .page-toolbar-btn {
-            display: inline-flex;
+            display: none;
             align-items: center;
             gap: 0.25rem;
             padding: 0.25rem 0.5rem;
@@ -691,9 +696,20 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
             white-space: nowrap;
             transition: background 0.15s, color 0.15s;
           }
+          .doc-page-section:hover .page-toolbar-btn,
+          .page-toolbar-injected:hover .page-toolbar-btn {
+            display: inline-flex;
+          }
           .page-toolbar-btn:hover { background: #f3f4f6; color: #1d4ed8; }
           .page-toolbar-btn[disabled] { opacity: 0.5; pointer-events: none; }
-          .page-toolbar-dropdown-wrapper { position: relative; }
+          .page-toolbar-dropdown-wrapper {
+            position: relative;
+            display: none;
+          }
+          .doc-page-section:hover .page-toolbar-dropdown-wrapper,
+          .page-toolbar-injected:hover .page-toolbar-dropdown-wrapper {
+            display: block;
+          }
           .page-toolbar-dropdown {
             display: none;
             flex-direction: column;
