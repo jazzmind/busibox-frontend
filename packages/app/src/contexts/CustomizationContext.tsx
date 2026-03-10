@@ -113,7 +113,11 @@ export function CustomizationProvider({
 
       const data = await response.json();
 
-      if (data.success && data.data?.customization) {
+      if (data.branding) {
+        // config-api format: { branding: { companyName, siteName, ... } }
+        setCustomization({ ...defaultCustomization, ...data.branding });
+      } else if (data.success && data.data?.customization) {
+        // Legacy portal API format: { success: true, data: { customization: {...} } }
         setCustomization(data.data.customization);
       } else {
         setError(data.error || 'Failed to load customization');

@@ -113,6 +113,19 @@ export function getDeployApiUrl(): string {
 }
 
 /**
+ * Get the config-api URL for server-side calls.
+ * Uses CONFIG_API_URL, or falls back to CONFIG_API_HOST/CONFIG_API_PORT.
+ */
+export function getConfigApiUrl(): string {
+  if (process.env.CONFIG_API_URL) {
+    return process.env.CONFIG_API_URL;
+  }
+  const host = process.env.CONFIG_API_HOST || 'localhost';
+  const port = process.env.CONFIG_API_PORT || '8012';
+  return `http://${host}:${port}`;
+}
+
+/**
  * Get the bridge-api URL for server-side calls.
  * Uses BRIDGE_API_URL or BRIDGE_API_HOST/BRIDGE_API_PORT environment variables.
  */

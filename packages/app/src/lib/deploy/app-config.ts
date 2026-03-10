@@ -1,21 +1,20 @@
-import { getDataApiUrl } from '../next/api-url';
-import { exchangeWithSubjectToken, getAuthzOptionsWithToken } from '../authz/next-client';
-import { getSeededApps, getSeededAppIds } from './default-apps';
-import { getSharedRoleIdsForConfig } from '../data/portal-config';
-import { getRoleByName, listRoleBindings, grantRoleResourceAccess } from '@jazzmind/busibox-app';
+/**
+ * App Config Store — backed by config-api.
+ *
+ * This module provides the same exported interface as the previous data-api–backed
+ * implementation, but delegates all storage to the config-api service.
+ */
 
-const DOCUMENT_NAME = 'busibox-portal-app-config';
-
-type DocumentListItem = { id: string; name: string; visibility?: string };
-
-type DataApiOperationResponse = {
-  count: number;
-  recordIds?: string[];
-};
-
-type DataApiQueryResponse = {
-  records?: Array<Record<string, unknown>>;
-};
+import {
+  getConfigApiToken,
+  listApps as configListApps,
+  getApp as configGetApp,
+  adminCreateApp,
+  adminUpdateApp,
+  adminDeleteApp,
+  adminReorderApps,
+  type AppRegistryEntry,
+} from '../config/client';
 
 export type AppConfigType = 'BUILT_IN' | 'LIBRARY' | 'EXTERNAL' | 'INTERNAL';
 
@@ -66,72 +65,9 @@ export type AppConfigStoreContext = {
   roleIds: string[];
 };
 
-const DEFAULT_APP_TEMPLATE: Omit<AppConfigRecord, 'id' | 'name' | 'type' | 'createdAt' | 'updatedAt'> = {
-  ssoAudience: null,
-  description: null,
-  url: null,
-  deployedPath: null,
-  iconUrl: null,
-  selectedIcon: null,
-  displayOrder: 0,
-  isActive: true,
-  healthEndpoint: null,
-  oauthClientSecret: null,
-  githubToken: null,
-  githubRepo: null,
-  lastDeploymentId: null,
-  lastDeploymentStatus: null,
-  lastDeploymentLogs: null,
-  lastDeploymentStartedAt: null,
-  lastDeploymentEndedAt: null,
-  lastDeploymentError: null,
-  deployedVersion: null,
-  latestVersion: null,
-  latestVersionCheckedAt: null,
-  updateAvailable: false,
-  devMode: false,
-  primaryColor: null,
-  secondaryColor: null,
-};
-
-function asDate(value: unknown, fallback: Date): Date {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
-  if (typeof value === 'string' || typeof value === 'number') {
-    const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) return date;
-  }
-  return fallback;
-}
-
-function asNullableDate(value: unknown): Date | null {
-  if (value === null || value === undefined || value === '') return null;
-  const date = asDate(value, new Date(0));
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function asStringOrNull(value: unknown): string | null {
-  if (typeof value === 'string') return value;
-  return null;
-}
-
-function asBoolean(value: unknown, fallback = false): boolean {
-  if (typeof value === 'boolean') return value;
-  return fallback;
-}
-
-function asNumber(value: unknown, fallback = 0): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const parsed = Number.parseInt(value, 10);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return fallback;
-}
-
-function normalizeType(value: unknown): AppConfigType {
-  if (value === 'BUILT_IN' || value === 'LIBRARY' || value === 'EXTERNAL' || value === 'INTERNAL') return value;
-  return 'EXTERNAL';
-}
+// ============================================================================
+// Helpers
+// ============================================================================
 
 function sanitizeAudienceSegment(value: string): string {
   return value
@@ -186,302 +122,102 @@ export function resolveStableSsoAudience(input: {
   return sanitizeAudienceSegment(input.id) || `app-${crypto.randomUUID()}`;
 }
 
-function toStoreRecord(raw: Record<string, unknown>): AppConfigRecord {
+function registryToRecord(entry: AppRegistryEntry): AppConfigRecord {
   const now = new Date();
-  const record: AppConfigRecord = {
-    id: typeof raw.id === 'string' ? raw.id : crypto.randomUUID(),
-    name: typeof raw.name === 'string' ? raw.name : 'Unnamed App',
-    type: normalizeType(raw.type),
-    createdAt: asDate(raw.createdAt, now),
-    updatedAt: asDate(raw.updatedAt, now),
-    ...DEFAULT_APP_TEMPLATE,
-    ssoAudience: asStringOrNull(raw.ssoAudience),
-    description: asStringOrNull(raw.description),
-    url: asStringOrNull(raw.url),
-    deployedPath: asStringOrNull(raw.deployedPath),
-    iconUrl: asStringOrNull(raw.iconUrl),
-    selectedIcon: asStringOrNull(raw.selectedIcon),
-    displayOrder: asNumber(raw.displayOrder, 0),
-    isActive: asBoolean(raw.isActive, true),
-    healthEndpoint: asStringOrNull(raw.healthEndpoint),
-    oauthClientSecret: asStringOrNull(raw.oauthClientSecret),
-    githubToken: asStringOrNull(raw.githubToken),
-    githubRepo: asStringOrNull(raw.githubRepo),
-    lastDeploymentId: asStringOrNull(raw.lastDeploymentId),
-    lastDeploymentStatus: asStringOrNull(raw.lastDeploymentStatus),
-    lastDeploymentLogs: asStringOrNull(raw.lastDeploymentLogs),
-    lastDeploymentStartedAt: asNullableDate(raw.lastDeploymentStartedAt),
-    lastDeploymentEndedAt: asNullableDate(raw.lastDeploymentEndedAt),
-    lastDeploymentError: asStringOrNull(raw.lastDeploymentError),
-    deployedVersion: asStringOrNull(raw.deployedVersion),
-    latestVersion: asStringOrNull(raw.latestVersion),
-    latestVersionCheckedAt: asNullableDate(raw.latestVersionCheckedAt),
-    updateAvailable: asBoolean(raw.updateAvailable, false),
-    devMode: asBoolean(raw.devMode, false),
-    primaryColor: asStringOrNull(raw.primaryColor),
-    secondaryColor: asStringOrNull(raw.secondaryColor),
-  };
-  record.ssoAudience = resolveStableSsoAudience(record);
-  return record;
-}
-
-function fromSeededDefaults(): AppConfigRecord[] {
-  return getSeededApps().map((app) =>
-    toStoreRecord({
-      ...app,
-      oauthClientSecret: null,
-      githubToken: null,
-      lastDeploymentId: null,
-      lastDeploymentStartedAt: null,
-      lastDeploymentError: null,
-      lastDeploymentLogs: null,
-      lastDeploymentStatus: app.lastDeploymentStatus,
-      lastDeploymentEndedAt: app.lastDeploymentEndedAt,
-    })
-  );
-}
-
-function serializeRecordForDataApi(record: AppConfigRecord): Record<string, unknown> {
   return {
-    ...record,
-    createdAt: record.createdAt.toISOString(),
-    updatedAt: record.updatedAt.toISOString(),
-    lastDeploymentStartedAt: record.lastDeploymentStartedAt?.toISOString() ?? null,
-    lastDeploymentEndedAt: record.lastDeploymentEndedAt?.toISOString() ?? null,
-    latestVersionCheckedAt: record.latestVersionCheckedAt?.toISOString() ?? null,
+    id: entry.id,
+    name: entry.name,
+    ssoAudience: entry.ssoAudience ?? null,
+    description: entry.description ?? null,
+    type: (entry.type as AppConfigType) || 'LIBRARY',
+    url: entry.url ?? null,
+    deployedPath: entry.deployedPath ?? null,
+    iconUrl: entry.iconUrl ?? null,
+    selectedIcon: entry.selectedIcon ?? null,
+    displayOrder: entry.displayOrder ?? 0,
+    isActive: entry.isActive ?? true,
+    healthEndpoint: entry.healthEndpoint ?? null,
+    oauthClientSecret: null,
+    githubToken: null,
+    githubRepo: entry.githubRepo ?? null,
+    lastDeploymentId: null,
+    lastDeploymentStatus: null,
+    lastDeploymentLogs: null,
+    lastDeploymentStartedAt: null,
+    lastDeploymentEndedAt: null,
+    lastDeploymentError: null,
+    deployedVersion: entry.deployedVersion ?? null,
+    latestVersion: entry.latestVersion ?? null,
+    latestVersionCheckedAt: null,
+    updateAvailable: entry.updateAvailable ?? false,
+    devMode: entry.devMode ?? false,
+    primaryColor: entry.primaryColor ?? null,
+    secondaryColor: entry.secondaryColor ?? null,
+    createdAt: entry.createdAt ? new Date(entry.createdAt) : now,
+    updatedAt: entry.updatedAt ? new Date(entry.updatedAt) : now,
   };
 }
 
-async function dataApiRequest<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${getDataApiUrl()}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      ...(init.headers || {}),
-    },
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`data-api ${response.status} ${path}: ${text}`);
-  }
-
-  return (await response.json()) as T;
+function recordToRegistryInput(record: AppConfigRecord): Record<string, unknown> {
+  return {
+    id: record.id,
+    name: record.name,
+    description: record.description,
+    type: record.type,
+    ssoAudience: record.ssoAudience,
+    url: record.url,
+    deployedPath: record.deployedPath,
+    iconUrl: record.iconUrl,
+    selectedIcon: record.selectedIcon,
+    displayOrder: record.displayOrder,
+    isActive: record.isActive,
+    healthEndpoint: record.healthEndpoint,
+    githubRepo: record.githubRepo,
+    deployedVersion: record.deployedVersion,
+    latestVersion: record.latestVersion,
+    updateAvailable: record.updateAvailable,
+    devMode: record.devMode,
+    primaryColor: record.primaryColor,
+    secondaryColor: record.secondaryColor,
+  };
 }
 
-async function findDocument(token: string): Promise<{ id: string; visibility?: string } | null> {
-  const list = await dataApiRequest<{ documents: DocumentListItem[] }>(token, '/data');
-  const existing = (list.documents || []).find((doc) => doc.name === DOCUMENT_NAME);
-  if (!existing) return null;
-  return { id: existing.id, visibility: existing.visibility };
+// ============================================================================
+// Store context
+// ============================================================================
+
+export async function getAppConfigStoreContextForUser(
+  userId: string,
+  sessionJwt: string,
+): Promise<AppConfigStoreContext & { sessionJwt: string }> {
+  const accessToken = await getConfigApiToken(userId, sessionJwt);
+  return { accessToken, roleIds: [], sessionJwt };
 }
 
-async function findDocumentId(token: string): Promise<string | null> {
-  const doc = await findDocument(token);
-  return doc?.id || null;
-}
-
-async function migrateToAuthenticated(token: string, documentId: string): Promise<void> {
-  try {
-    await dataApiRequest(token, `/files/${documentId}/move`, {
-      method: 'POST',
-      body: JSON.stringify({ visibility: 'authenticated' }),
-    });
-  } catch (error) {
-    console.warn('[APP-CONFIG] Failed to migrate document to authenticated visibility:', error);
-  }
-}
-
-async function ensureDocument(token: string, roleIds: string[]): Promise<string> {
-  const existing = await findDocument(token);
-  if (existing) {
-    if (existing.visibility === 'shared') {
-      await migrateToAuthenticated(token, existing.id);
-    }
-    return existing.id;
-  }
-
-  const created = await dataApiRequest<{ id: string }>(token, '/data', {
-    method: 'POST',
-    body: JSON.stringify({
-      name: DOCUMENT_NAME,
-      visibility: 'authenticated',
-      roleIds: roleIds,
-      sourceApp: 'busibox-portal',
-      enableCache: false,
-      schema: {
-        displayName: 'App Configuration',
-        itemLabel: 'Application',
-        sourceApp: 'busibox-portal',
-        visibility: 'authenticated',
-        allowSharing: true,
-      },
-    }),
-  });
-
-  return created.id;
-}
-
-async function queryAllAppRecords(token: string, documentId: string): Promise<AppConfigRecord[]> {
-  const result = await dataApiRequest<DataApiQueryResponse>(token, `/data/${documentId}/query`, {
-    method: 'POST',
-    body: JSON.stringify({
-      limit: 1000,
-      offset: 0,
-    }),
-  });
-
-  return (result.records || []).map(toStoreRecord);
-}
-
-async function ensureSeededRecords(token: string, documentId: string): Promise<boolean> {
-  const records = await queryAllAppRecords(token, documentId);
-  const seededDefaults = fromSeededDefaults();
-
-  if (records.length === 0) {
-    const seeded = seededDefaults.map(serializeRecordForDataApi);
-    await dataApiRequest<DataApiOperationResponse>(token, `/data/${documentId}/records`, {
-      method: 'POST',
-      body: JSON.stringify({
-        records: seeded,
-        validate: false,
-      }),
-    });
-    return true;
-  }
-
-  const existingById = new Map(records.map((record) => [record.id, record]));
-  let changed = false;
-
-  for (const seeded of seededDefaults) {
-    const existing = existingById.get(seeded.id);
-    if (!existing) {
-      await dataApiRequest<DataApiOperationResponse>(token, `/data/${documentId}/records`, {
-        method: 'POST',
-        body: JSON.stringify({
-          records: [serializeRecordForDataApi(seeded)],
-          validate: false,
-        }),
-      });
-      changed = true;
-      continue;
-    }
-
-    // Keep seeded defaults authoritative for seeded app identity/visibility fields.
-    const needsSeedSync =
-      existing.name !== seeded.name ||
-      existing.type !== seeded.type ||
-      existing.url !== seeded.url ||
-      existing.healthEndpoint !== seeded.healthEndpoint ||
-      existing.isActive !== seeded.isActive ||
-      existing.selectedIcon !== seeded.selectedIcon ||
-      existing.description !== seeded.description;
-
-    if (!needsSeedSync) continue;
-
-    const merged = toStoreRecord({
-      ...existing,
-      ...seeded,
-      id: existing.id,
-      displayOrder: existing.displayOrder,
-      createdAt: existing.createdAt.toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    await dataApiRequest<DataApiOperationResponse>(token, `/data/${documentId}/records`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        updates: serializeRecordForDataApi(merged),
-        where: { field: 'id', op: 'eq', value: existing.id },
-        validate: false,
-      }),
-    });
-    changed = true;
-  }
-
-  return changed;
-}
-
-/**
- * Idempotently grant Admin role access to all seeded apps.
- * Fails gracefully if authz is not ready (e.g. during initial bootstrap).
- */
-async function ensureAdminBindingsForSeededApps(sessionJwt: string): Promise<void> {
-  try {
-    const options = await getAuthzOptionsWithToken(sessionJwt);
-    const adminRole = await getRoleByName('Admin', options);
-    if (!adminRole) {
-      console.warn('[app-config-store] Admin role not found in authz — skipping seed bindings');
-      return;
-    }
-
-    const seededIds = getSeededAppIds();
-    for (const appId of seededIds) {
-      try {
-        const existing = await listRoleBindings(
-          { role_id: adminRole.id, resource_type: 'app', resource_id: appId },
-          options
-        );
-        if (existing.length > 0) continue;
-
-        await grantRoleResourceAccess(adminRole.id, 'app', appId, undefined, options);
-        console.log(`[app-config-store] Granted Admin access to seeded app: ${appId}`);
-      } catch (bindingError) {
-        console.warn(`[app-config-store] Failed to grant Admin access to ${appId}:`, bindingError);
-      }
-    }
-  } catch (error) {
-    console.warn('[app-config-store] Could not create admin bindings for seeded apps (authz may not be ready):', error);
-  }
-}
-
-async function ensureDocumentAndSeed(token: string, roleIds: string[], sessionJwt?: string): Promise<string> {
-  const documentId = await ensureDocument(token, roleIds);
-  const didSeed = await ensureSeededRecords(token, documentId);
-  if (sessionJwt) {
-    // Fire-and-forget: keep Admin bindings aligned for all seeded apps.
-    ensureAdminBindingsForSeededApps(sessionJwt).catch((err) =>
-      console.warn('[app-config-store] Background admin binding failed:', err)
-    );
-  }
-  return documentId;
-}
-
-export async function getAppConfigStoreContextForUser(userId: string, sessionJwt: string): Promise<AppConfigStoreContext & { sessionJwt: string }> {
-  const tokenResult = await exchangeWithSubjectToken({
-    userId,
-    sessionJwt,
-    audience: 'data-api',
-    purpose: 'busibox-portal-app-config',
-  });
-
-  const roleIds = getSharedRoleIdsForConfig(tokenResult.accessToken, sessionJwt);
-  return { accessToken: tokenResult.accessToken, roleIds, sessionJwt };
-}
+// ============================================================================
+// Read operations
+// ============================================================================
 
 export async function listAppsFromStore(accessToken: string): Promise<AppConfigRecord[]> {
-  const documentId = await findDocumentId(accessToken);
-  if (!documentId) {
-    return fromSeededDefaults();
+  try {
+    const entries = await configListApps(accessToken);
+    return entries.map(registryToRecord).sort((a, b) => (a.displayOrder - b.displayOrder) || a.name.localeCompare(b.name));
+  } catch {
+    return [];
   }
-
-  const records = await queryAllAppRecords(accessToken, documentId);
-  if (!records.length) {
-    return fromSeededDefaults();
-  }
-  return records.sort((a, b) => (a.displayOrder - b.displayOrder) || a.name.localeCompare(b.name));
 }
 
-export async function listAppsForWrite(accessToken: string, roleIds: string[], sessionJwt?: string): Promise<AppConfigRecord[]> {
-  const documentId = await ensureDocumentAndSeed(accessToken, roleIds, sessionJwt);
-  const records = await queryAllAppRecords(accessToken, documentId);
-  return records.sort((a, b) => (a.displayOrder - b.displayOrder) || a.name.localeCompare(b.name));
+export async function listAppsForWrite(
+  accessToken: string,
+  _roleIds: string[],
+  _sessionJwt?: string,
+): Promise<AppConfigRecord[]> {
+  return listAppsFromStore(accessToken);
 }
 
 export async function getAppByIdFromStore(accessToken: string, appId: string): Promise<AppConfigRecord | null> {
-  const apps = await listAppsFromStore(accessToken);
-  return apps.find((app) => app.id === appId) || null;
+  const entry = await configGetApp(accessToken, appId);
+  return entry ? registryToRecord(entry) : null;
 }
 
 export async function getAppByNameFromStore(accessToken: string, appName: string): Promise<AppConfigRecord | null> {
@@ -496,156 +232,92 @@ export async function getAppsByIdsFromStore(accessToken: string, appIds: string[
   return apps.filter((app) => wanted.has(app.id));
 }
 
+// ============================================================================
+// Write operations
+// ============================================================================
+
 export async function createAppInStore(
   accessToken: string,
-  roleIds: string[],
+  _roleIds: string[],
   input: AppConfigCreateInput,
-  sessionJwt?: string
+  _sessionJwt?: string,
 ): Promise<AppConfigRecord> {
-  const documentId = await ensureDocumentAndSeed(accessToken, roleIds, sessionJwt);
-  const now = new Date();
-
-  const nextRecord = toStoreRecord({
-    ...DEFAULT_APP_TEMPLATE,
-    ...input,
-    id: input.id,
-    name: input.name,
-    type: input.type,
-    createdAt: (input.createdAt || now).toISOString(),
-    updatedAt: (input.updatedAt || now).toISOString(),
-  });
-
-  await dataApiRequest<DataApiOperationResponse>(accessToken, `/data/${documentId}/records`, {
-    method: 'POST',
-    body: JSON.stringify({
-      records: [serializeRecordForDataApi(nextRecord)],
-      validate: false,
-    }),
-  });
-
-  return nextRecord;
+  const data = recordToRegistryInput(input as AppConfigRecord);
+  const entry = await adminCreateApp(accessToken, data as any);
+  return registryToRecord(entry);
 }
 
 export async function updateAppInStore(
   accessToken: string,
-  roleIds: string[],
+  _roleIds: string[],
   appId: string,
   updates: AppConfigUpdateInput,
-  sessionJwt?: string
+  _sessionJwt?: string,
 ): Promise<AppConfigRecord | null> {
-  const documentId = await ensureDocumentAndSeed(accessToken, roleIds, sessionJwt);
-  const existing = await getAppByIdFromStore(accessToken, appId);
-  if (!existing) return null;
-
-  const merged = toStoreRecord({
-    ...existing,
-    ...updates,
-    id: existing.id,
-    updatedAt: (updates.updatedAt || new Date()).toISOString(),
-  });
-
-  await dataApiRequest<DataApiOperationResponse>(accessToken, `/data/${documentId}/records`, {
-    method: 'PUT',
-    body: JSON.stringify({
-      updates: serializeRecordForDataApi(merged),
-      where: { field: 'id', op: 'eq', value: appId },
-      validate: false,
-    }),
-  });
-
-  return merged;
+  const entry = await adminUpdateApp(accessToken, appId, updates as any);
+  return entry ? registryToRecord(entry) : null;
 }
 
-export async function deleteAppInStore(accessToken: string, roleIds: string[], appId: string, sessionJwt?: string): Promise<boolean> {
-  const documentId = await ensureDocumentAndSeed(accessToken, roleIds, sessionJwt);
-  const result = await dataApiRequest<DataApiOperationResponse>(accessToken, `/data/${documentId}/records`, {
-    method: 'DELETE',
-    body: JSON.stringify({
-      recordIds: [appId],
-    }),
-  });
-
-  return result.count > 0;
+export async function deleteAppInStore(
+  accessToken: string,
+  _roleIds: string[],
+  appId: string,
+  _sessionJwt?: string,
+): Promise<boolean> {
+  return adminDeleteApp(accessToken, appId);
 }
 
 export async function reorderAppsInStore(
   accessToken: string,
-  roleIds: string[],
-  updates: Array<{ id: string; displayOrder: number }>
+  _roleIds: string[],
+  updates: Array<{ id: string; displayOrder: number }>,
 ): Promise<number> {
-  const documentId = await ensureDocumentAndSeed(accessToken, roleIds);
-  const apps = await queryAllAppRecords(accessToken, documentId);
-  const appById = new Map(apps.map((a) => [a.id, a]));
-
-  let applied = 0;
-
-  for (const item of updates) {
-    const existing = appById.get(item.id);
-    if (!existing || existing.displayOrder === item.displayOrder) continue;
-
-    const merged = toStoreRecord({
-      ...existing,
-      displayOrder: item.displayOrder,
-      updatedAt: new Date().toISOString(),
-    });
-
-    await dataApiRequest<DataApiOperationResponse>(accessToken, `/data/${documentId}/records`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        updates: serializeRecordForDataApi(merged),
-        where: { field: 'id', op: 'eq', value: item.id },
-        validate: false,
-      }),
-    });
-    applied += 1;
-  }
-
-  return applied;
+  return adminReorderApps(accessToken, updates);
 }
 
 export async function countAppsInStore(
   accessToken: string,
-  predicate?: (app: AppConfigRecord) => boolean
+  predicate?: (app: AppConfigRecord) => boolean,
 ): Promise<number> {
   const apps = await listAppsFromStore(accessToken);
   if (!predicate) return apps.length;
   return apps.filter(predicate).length;
 }
 
-// Compatibility wrappers for StoreContext-based API ({ userId, sessionJwt })
+// ============================================================================
+// StoreContext-based API (compatibility wrappers)
+// ============================================================================
+
 type StoreContext = { userId: string; sessionJwt: string };
 
-export async function getAppConfigById(
-  context: StoreContext,
-  appId: string
-): Promise<AppConfigRecord | null> {
+export async function getAppConfigById(context: StoreContext, appId: string): Promise<AppConfigRecord | null> {
   const { accessToken } = await getAppConfigStoreContextForUser(context.userId, context.sessionJwt);
   return getAppByIdFromStore(accessToken, appId);
 }
 
 export async function getAllAppConfigs(context: StoreContext): Promise<AppConfigRecord[]> {
-  const { accessToken, roleIds, sessionJwt } = await getAppConfigStoreContextForUser(context.userId, context.sessionJwt);
-  return listAppsForWrite(accessToken, roleIds, sessionJwt);
+  const { accessToken } = await getAppConfigStoreContextForUser(context.userId, context.sessionJwt);
+  return listAppsFromStore(accessToken);
 }
 
 export async function updateAppConfig(
   context: StoreContext,
   appId: string,
-  updates: AppConfigUpdateInput
+  updates: AppConfigUpdateInput,
 ): Promise<AppConfigRecord | null> {
-  const { accessToken, roleIds, sessionJwt } = await getAppConfigStoreContextForUser(context.userId, context.sessionJwt);
-  return updateAppInStore(accessToken, roleIds, appId, updates, sessionJwt);
+  const { accessToken } = await getAppConfigStoreContextForUser(context.userId, context.sessionJwt);
+  return adminUpdateApp(accessToken, appId, updates as any).then(e => e ? registryToRecord(e) : null);
 }
 
 export async function deleteAppConfig(context: StoreContext, appId: string): Promise<void> {
-  const { accessToken, roleIds, sessionJwt } = await getAppConfigStoreContextForUser(context.userId, context.sessionJwt);
-  await deleteAppInStore(accessToken, roleIds, appId, sessionJwt);
+  const { accessToken } = await getAppConfigStoreContextForUser(context.userId, context.sessionJwt);
+  await adminDeleteApp(accessToken, appId);
 }
 
 export async function findAppConfigByPath(
   context: StoreContext,
   path: string,
-  opts: { excludeId?: string; builtInAndLibraryOnly?: boolean } = {}
+  opts: { excludeId?: string; builtInAndLibraryOnly?: boolean } = {},
 ): Promise<AppConfigRecord | null> {
   const apps = await getAllAppConfigs(context);
   return (
@@ -659,7 +331,7 @@ export async function findAppConfigByPath(
 
 export async function listAppConfigs(
   context: StoreContext,
-  opts: { type?: AppConfigType | null; includeDisabled?: boolean } = {}
+  opts: { type?: AppConfigType | null; includeDisabled?: boolean } = {},
 ): Promise<AppConfigRecord[]> {
   const apps = await getAllAppConfigs(context);
   const typeFilter = opts.type ?? null;
@@ -674,8 +346,8 @@ export async function listAppConfigs(
 
 export async function reorderAppConfigs(
   context: StoreContext,
-  orderUpdates: Array<{ id: string; displayOrder: number }>
+  orderUpdates: Array<{ id: string; displayOrder: number }>,
 ): Promise<void> {
-  const { accessToken, roleIds } = await getAppConfigStoreContextForUser(context.userId, context.sessionJwt);
-  await reorderAppsInStore(accessToken, roleIds, orderUpdates);
+  const { accessToken } = await getAppConfigStoreContextForUser(context.userId, context.sessionJwt);
+  await adminReorderApps(accessToken, orderUpdates);
 }

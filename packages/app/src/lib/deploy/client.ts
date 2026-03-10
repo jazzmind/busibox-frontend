@@ -226,93 +226,22 @@ export async function syncReleases(token: string, configId: string) {
 }
 
 // ============================================================================
-// Config store endpoints (runtime configuration in deploy-api postgres)
+// Config store — re-exported from config-api client
 // ============================================================================
+// Config operations have moved to the dedicated config-api service.
+// These re-exports maintain backward compatibility for existing callers.
 
-export interface ConfigValue {
-  key: string;
-  value: string;
-  encrypted: boolean;
-  category?: string | null;
-  description?: string | null;
-}
-
-export interface ConfigSetRequest {
-  value: string;
-  encrypted?: boolean;
-  category?: string | null;
-  description?: string | null;
-}
-
-export interface ConfigBulkSetRequest {
-  configs: Record<string, ConfigSetRequest>;
-}
-
-export interface ConfigListResponse {
-  configs: ConfigValue[];
-  total: number;
-}
-
-/** List all config keys, optionally filtered by category. */
-export async function listConfigs(token: string, category?: string) {
-  const qs = category ? `?category=${encodeURIComponent(category)}` : '';
-  return deployApiRequest<ConfigListResponse>(token, 'GET', `/api/v1/config${qs}`);
-}
-
-/** Get a single config value (masked if encrypted). */
-export async function getConfig(token: string, key: string) {
-  return deployApiRequest<ConfigValue>(token, 'GET', `/api/v1/config/${encodeURIComponent(key)}`);
-}
-
-/** Get the raw (unmasked) value for a config key. */
-export async function getConfigRaw(token: string, key: string) {
-  return deployApiRequest<{ key: string; value: string; encrypted: boolean }>(
-    token, 'GET', `/api/v1/config/${encodeURIComponent(key)}/raw`,
-  );
-}
-
-/** Set a single config value (upsert). */
-export async function setConfig(token: string, key: string, data: ConfigSetRequest) {
-  return deployApiRequest<ConfigValue>(
-    token, 'PUT', `/api/v1/config/${encodeURIComponent(key)}`, data,
-  );
-}
-
-/** Bulk-set multiple config values at once. */
-export async function bulkSetConfigs(token: string, data: ConfigBulkSetRequest) {
-  return deployApiRequest<ConfigListResponse>(token, 'POST', '/api/v1/config/bulk', data);
-}
-
-/** Delete a config key. */
-export async function deleteConfig(token: string, key: string) {
-  return deployApiRequest<{ deleted: boolean; key: string }>(
-    token, 'DELETE', `/api/v1/config/${encodeURIComponent(key)}`,
-  );
-}
-
-/**
- * Load all config values for a category using raw (unmasked) values.
- * Fetches the category listing first, then gets raw values for each key.
- */
-export async function loadConfigCategoryRaw(
-  token: string,
-  category: string,
-): Promise<Record<string, string>> {
-  const listing = await listConfigs(token, category);
-  const result: Record<string, string> = {};
-
-  // Fetch raw (unmasked) values for each key
-  for (const cfg of listing.configs) {
-    try {
-      const raw = await getConfigRaw(token, cfg.key);
-      result[cfg.key] = raw.value;
-    } catch {
-      // If key disappeared or error, skip
-    }
-  }
-
-  return result;
-}
+export {
+  type ConfigValue,
+  type ConfigSetRequest,
+  type ConfigListResponse,
+  listConfigs,
+  getConfig,
+  getConfigRaw,
+  setConfig,
+  deleteConfig,
+  loadConfigCategoryRaw,
+} from '../config/client';
 
 // ============================================================================
 // Service management (restart / apply config)
