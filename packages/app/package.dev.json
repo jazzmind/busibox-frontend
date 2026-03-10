@@ -61,6 +61,14 @@
       "types": "./src/lib/search/index.ts",
       "default": "./src/lib/search/index.ts"
     },
+    "./lib/config": {
+      "types": "./dist/lib/config/index.d.ts",
+      "default": "./dist/lib/config/index.js"
+    },
+    "./lib/config/*": {
+      "types": "./dist/lib/config/*.d.ts",
+      "default": "./dist/lib/config/*.js"
+    },
     "./sso": {
       "types": "./src/sso/index.ts",
       "default": "./src/sso/index.ts"
