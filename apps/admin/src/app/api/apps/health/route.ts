@@ -144,18 +144,24 @@ export async function GET(request: NextRequest) {
       // Fall back to session token if exchange fails for other reasons
     }
 
-    // Get active app configs and keep only routed apps that expose health endpoints.
-    // EXTERNAL apps are handled by deploy-api separately.
+    // Get active app configs and keep only apps that expose health endpoints.
     const apps = (await listAppConfigs(
       { userId: user.id, sessionJwt },
       { includeDisabled: true }
-    )).filter((app) => Boolean(app.url && app.healthEndpoint));
+    )).filter((app) => {
+      if (!app.healthEndpoint) return false;
+      // EXTERNAL apps need a deployedPath to health-check; built-in/library need url
+      if (app.type === 'EXTERNAL') return Boolean(app.deployedPath);
+      return Boolean(app.url);
+    });
 
-    // Check health for each routed app via deploy-api
+    // Check health for each app via deploy-api
     const startTime = Date.now();
     const healthChecks = await Promise.all(
       apps.map(async (app): Promise<HealthStatus> => {
-        const appPath = app.url;
+        // For EXTERNAL apps the routable path is deployedPath (url is the GitHub repo);
+        // for BUILT_IN / LIBRARY apps it's url (the Next.js route path).
+        const appPath = app.type === 'EXTERNAL' ? app.deployedPath : app.url;
         
         if (!appPath) {
           return {
@@ -169,13 +175,10 @@ export async function GET(request: NextRequest) {
         const healthEndpoint = app.healthEndpoint || '/api/health';
         const cleanAppPath = appPath.endsWith('/') ? appPath.slice(0, -1) : appPath;
 
-        // If healthEndpoint already starts with the app path, use it as-is;
-        // otherwise prepend the app path (e.g. /agents + /api/health -> /agents/api/health)
         const fullEndpoint = healthEndpoint.startsWith(cleanAppPath)
           ? healthEndpoint
           : `${cleanAppPath}${healthEndpoint}`;
         
-        // Map seeded app metadata to deploy-api service names.
         const serviceName = resolveServiceName(app);
         
         console.log(`[Health Check] Checking ${app.name} via deploy-api (service: ${serviceName}, endpoint: ${fullEndpoint})`);
