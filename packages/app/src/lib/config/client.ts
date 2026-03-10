@@ -118,6 +118,7 @@ export interface AppRegistryEntry {
   devMode: boolean;
   primaryColor: string | null;
   secondaryColor: string | null;
+  lastDeploymentStatus: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }

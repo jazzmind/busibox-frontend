@@ -13,6 +13,9 @@ import {
   adminUpdateApp,
   adminDeleteApp,
   adminReorderApps,
+  setConfig,
+  getConfigRaw,
+  deleteConfig,
   type AppRegistryEntry,
 } from '../config/client';
 
@@ -122,6 +125,103 @@ export function resolveStableSsoAudience(input: {
   return sanitizeAudienceSegment(input.id) || `app-${crypto.randomUUID()}`;
 }
 
+// App-scoped secret keys stored in config_entries
+const APP_SECRET_KEYS = {
+  githubToken: (appId: string) => `app.${appId}.github_token`,
+  oauthClientSecret: (appId: string) => `app.${appId}.oauth_client_secret`,
+} as const;
+
+async function _setAppSecret(token: string, appId: string, field: keyof typeof APP_SECRET_KEYS, value: string | null): Promise<void> {
+  const key = APP_SECRET_KEYS[field](appId);
+  if (!value) {
+    try { await deleteConfig(token, key); } catch { /* ignore if not found */ }
+    return;
+  }
+  await setConfig(token, key, {
+    value,
+    encrypted: true,
+    scope: 'app',
+    app_id: appId,
+    tier: 'app',
+    category: 'app_secrets',
+    description: `${field} for ${appId}`,
+  });
+}
+
+async function _getAppSecret(token: string, appId: string, field: keyof typeof APP_SECRET_KEYS): Promise<string | null> {
+  try {
+    const raw = await getConfigRaw(token, APP_SECRET_KEYS[field](appId));
+    return raw.value || null;
+  } catch {
+    return null;
+  }
+}
+
+// Deployment metadata stored as config entries (not encrypted, not secret)
+const DEPLOY_META_FIELDS = [
+  'lastDeploymentId',
+  'lastDeploymentStatus',
+  'lastDeploymentLogs',
+  'lastDeploymentError',
+  'lastDeploymentStartedAt',
+  'lastDeploymentEndedAt',
+] as const;
+
+type DeployMetaField = (typeof DEPLOY_META_FIELDS)[number];
+
+function _deployMetaKey(appId: string, field: DeployMetaField): string {
+  const snakeField = field.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+  return `app.${appId}.deploy.${snakeField}`;
+}
+
+async function _setDeployMeta(token: string, appId: string, field: DeployMetaField, value: string | null): Promise<void> {
+  const key = _deployMetaKey(appId, field);
+  if (value == null || value === '') {
+    try { await deleteConfig(token, key); } catch { /* ok */ }
+    return;
+  }
+  await setConfig(token, key, {
+    value,
+    scope: 'app',
+    app_id: appId,
+    tier: 'admin',
+    category: 'deploy_meta',
+  });
+}
+
+async function _getDeployMeta(token: string, appId: string, field: DeployMetaField): Promise<string | null> {
+  try {
+    const raw = await getConfigRaw(token, _deployMetaKey(appId, field));
+    return raw.value || null;
+  } catch {
+    return null;
+  }
+}
+
+async function _loadDeployMeta(token: string, appId: string, record: AppConfigRecord): Promise<void> {
+  const [id, status, logs, error, startedAt, endedAt] = await Promise.all(
+    DEPLOY_META_FIELDS.map((f) => _getDeployMeta(token, appId, f)),
+  );
+  record.lastDeploymentId = id;
+  record.lastDeploymentStatus = status;
+  record.lastDeploymentLogs = logs;
+  record.lastDeploymentError = error;
+  record.lastDeploymentStartedAt = startedAt ? new Date(startedAt) : null;
+  record.lastDeploymentEndedAt = endedAt ? new Date(endedAt) : null;
+}
+
+async function _saveDeployUpdates(token: string, appId: string, updates: AppConfigUpdateInput): Promise<void> {
+  const ops: Promise<void>[] = [];
+  for (const field of DEPLOY_META_FIELDS) {
+    if (field in updates) {
+      let val = (updates as Record<string, unknown>)[field];
+      if (val instanceof Date) val = val.toISOString();
+      ops.push(_setDeployMeta(token, appId, field, val != null ? String(val) : null));
+    }
+  }
+  if (ops.length) await Promise.all(ops);
+}
+
 function registryToRecord(entry: AppRegistryEntry): AppConfigRecord {
   const now = new Date();
   return {
@@ -141,7 +241,7 @@ function registryToRecord(entry: AppRegistryEntry): AppConfigRecord {
     githubToken: null,
     githubRepo: entry.githubRepo ?? null,
     lastDeploymentId: null,
-    lastDeploymentStatus: null,
+    lastDeploymentStatus: entry.lastDeploymentStatus ?? null,
     lastDeploymentLogs: null,
     lastDeploymentStartedAt: null,
     lastDeploymentEndedAt: null,
@@ -217,7 +317,14 @@ export async function listAppsForWrite(
 
 export async function getAppByIdFromStore(accessToken: string, appId: string): Promise<AppConfigRecord | null> {
   const entry = await configGetApp(accessToken, appId);
-  return entry ? registryToRecord(entry) : null;
+  if (!entry) return null;
+  const record = registryToRecord(entry);
+  await Promise.all([
+    _getAppSecret(accessToken, appId, 'githubToken').then((v) => { record.githubToken = v; }),
+    _getAppSecret(accessToken, appId, 'oauthClientSecret').then((v) => { record.oauthClientSecret = v; }),
+    _loadDeployMeta(accessToken, appId, record),
+  ]);
+  return record;
 }
 
 export async function getAppByNameFromStore(accessToken: string, appName: string): Promise<AppConfigRecord | null> {
@@ -244,7 +351,18 @@ export async function createAppInStore(
 ): Promise<AppConfigRecord> {
   const data = recordToRegistryInput(input as AppConfigRecord);
   const entry = await adminCreateApp(accessToken, data as any);
-  return registryToRecord(entry);
+  const record = registryToRecord(entry);
+
+  if (input.githubToken) {
+    await _setAppSecret(accessToken, record.id, 'githubToken', input.githubToken);
+    record.githubToken = input.githubToken;
+  }
+  if (input.oauthClientSecret) {
+    await _setAppSecret(accessToken, record.id, 'oauthClientSecret', input.oauthClientSecret);
+    record.oauthClientSecret = input.oauthClientSecret;
+  }
+
+  return record;
 }
 
 export async function updateAppInStore(
@@ -254,6 +372,16 @@ export async function updateAppInStore(
   updates: AppConfigUpdateInput,
   _sessionJwt?: string,
 ): Promise<AppConfigRecord | null> {
+  const sideEffects: Promise<void>[] = [];
+  if (updates.githubToken !== undefined) {
+    sideEffects.push(_setAppSecret(accessToken, appId, 'githubToken', updates.githubToken));
+  }
+  if (updates.oauthClientSecret !== undefined) {
+    sideEffects.push(_setAppSecret(accessToken, appId, 'oauthClientSecret', updates.oauthClientSecret));
+  }
+  sideEffects.push(_saveDeployUpdates(accessToken, appId, updates));
+  if (sideEffects.length) await Promise.all(sideEffects);
+
   const entry = await adminUpdateApp(accessToken, appId, updates as any);
   return entry ? registryToRecord(entry) : null;
 }
@@ -264,6 +392,8 @@ export async function deleteAppInStore(
   appId: string,
   _sessionJwt?: string,
 ): Promise<boolean> {
+  await _setAppSecret(accessToken, appId, 'githubToken', null);
+  await _setAppSecret(accessToken, appId, 'oauthClientSecret', null);
   return adminDeleteApp(accessToken, appId);
 }
 
@@ -292,7 +422,7 @@ type StoreContext = { userId: string; sessionJwt: string };
 
 export async function getAppConfigById(context: StoreContext, appId: string): Promise<AppConfigRecord | null> {
   const { accessToken } = await getAppConfigStoreContextForUser(context.userId, context.sessionJwt);
-  return getAppByIdFromStore(accessToken, appId);
+  return getAppByIdFromStore(accessToken, appId); // already loads secrets
 }
 
 export async function getAllAppConfigs(context: StoreContext): Promise<AppConfigRecord[]> {
@@ -306,11 +436,25 @@ export async function updateAppConfig(
   updates: AppConfigUpdateInput,
 ): Promise<AppConfigRecord | null> {
   const { accessToken } = await getAppConfigStoreContextForUser(context.userId, context.sessionJwt);
-  return adminUpdateApp(accessToken, appId, updates as any).then(e => e ? registryToRecord(e) : null);
+
+  const sideEffects: Promise<void>[] = [];
+  if (updates.githubToken !== undefined) {
+    sideEffects.push(_setAppSecret(accessToken, appId, 'githubToken', updates.githubToken));
+  }
+  if (updates.oauthClientSecret !== undefined) {
+    sideEffects.push(_setAppSecret(accessToken, appId, 'oauthClientSecret', updates.oauthClientSecret));
+  }
+  sideEffects.push(_saveDeployUpdates(accessToken, appId, updates));
+  if (sideEffects.length) await Promise.all(sideEffects);
+
+  const entry = await adminUpdateApp(accessToken, appId, updates as any);
+  return entry ? registryToRecord(entry) : null;
 }
 
 export async function deleteAppConfig(context: StoreContext, appId: string): Promise<void> {
   const { accessToken } = await getAppConfigStoreContextForUser(context.userId, context.sessionJwt);
+  await _setAppSecret(accessToken, appId, 'githubToken', null);
+  await _setAppSecret(accessToken, appId, 'oauthClientSecret', null);
   await adminDeleteApp(accessToken, appId);
 }
 

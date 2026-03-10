@@ -31,6 +31,13 @@ type HealthStatus = {
 
 function resolveServiceName(app: { id: string; name: string; url: string | null }): string {
   const byId: Record<string, string> = {
+    'busibox-agents': 'busibox-agents',
+    'busibox-appbuilder': 'busibox-appbuilder',
+    'busibox-chat': 'busibox-chat',
+    'busibox-documents': 'busibox-documents',
+    'busibox-media': 'busibox-media',
+    'busibox-admin': 'busibox-admin',
+    // Legacy seed IDs
     'seed-agents': 'busibox-agents',
     'seed-appbuilder': 'busibox-appbuilder',
     'seed-chat': 'busibox-chat',
@@ -50,7 +57,6 @@ function resolveServiceName(app: { id: string; name: string; url: string | null 
   };
   if (app.url && byPath[app.url]) return byPath[app.url];
 
-  // Fallback for existing records that were named from seeded defaults.
   return app.name.toLowerCase().replace(/\s+/g, '-');
 }
 
@@ -160,12 +166,14 @@ export async function GET(request: NextRequest) {
           };
         }
 
-        // Use app.healthEndpoint or default to /api/health
         const healthEndpoint = app.healthEndpoint || '/api/health';
-        
-        // Construct full health endpoint path (e.g., /agents/api/health)
         const cleanAppPath = appPath.endsWith('/') ? appPath.slice(0, -1) : appPath;
-        const fullEndpoint = `${cleanAppPath}${healthEndpoint}`;
+
+        // If healthEndpoint already starts with the app path, use it as-is;
+        // otherwise prepend the app path (e.g. /agents + /api/health -> /agents/api/health)
+        const fullEndpoint = healthEndpoint.startsWith(cleanAppPath)
+          ? healthEndpoint
+          : `${cleanAppPath}${healthEndpoint}`;
         
         // Map seeded app metadata to deploy-api service names.
         const serviceName = resolveServiceName(app);
