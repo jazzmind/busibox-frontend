@@ -141,7 +141,6 @@ async function _setAppSecret(token: string, appId: string, field: keyof typeof A
     value,
     encrypted: true,
     scope: 'app',
-    app_id: appId,
     tier: 'app',
     category: 'app_secrets',
     description: `${field} for ${appId}`,
@@ -183,7 +182,6 @@ async function _setDeployMeta(token: string, appId: string, field: DeployMetaFie
   await setConfig(token, key, {
     value,
     scope: 'app',
-    app_id: appId,
     tier: 'admin',
     category: 'deploy_meta',
   });
