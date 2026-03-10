@@ -240,6 +240,7 @@ export {
   getConfigRaw,
   setConfig,
   deleteConfig,
+  bulkSetConfigs,
   loadConfigCategoryRaw,
 } from '../config/client';
 

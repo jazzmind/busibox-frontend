@@ -205,6 +205,23 @@ export async function deleteConfig(token: string, key: string): Promise<{ delete
   return configApiRequest(token, 'DELETE', `/admin/config/${encodeURIComponent(key)}`);
 }
 
+export async function bulkSetConfigs(
+  token: string,
+  payload: { configs: Record<string, ConfigSetRequest> },
+): Promise<{ count: number }> {
+  const items = Object.entries(payload.configs).map(([key, req]) => ({
+    key,
+    value: req.value,
+    encrypted: req.encrypted ?? false,
+    scope: req.scope ?? 'platform',
+    app_id: req.app_id ?? null,
+    tier: req.tier ?? 'admin',
+    category: req.category ?? null,
+    description: req.description ?? null,
+  }));
+  return configApiRequest<{ count: number }>(token, 'POST', '/admin/config/bulk', { configs: items });
+}
+
 export async function loadConfigCategoryRaw(
   token: string,
   category: string,
