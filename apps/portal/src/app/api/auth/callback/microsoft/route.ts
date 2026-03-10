@@ -17,8 +17,7 @@ const AUTHZ_BASE_URL = process.env.AUTHZ_BASE_URL || 'http://authz-api:8010';
 
 function getCallbackUrl(): string {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000';
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-  return `${appUrl}${basePath}/api/auth/callback/microsoft`;
+  return `${appUrl}/api/auth/callback/microsoft`;
 }
 
 function getHomeUrl(): string {
