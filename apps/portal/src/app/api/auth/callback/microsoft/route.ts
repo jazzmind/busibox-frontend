@@ -20,14 +20,16 @@ function getCallbackUrl(): string {
   return `${appUrl}/api/auth/callback/microsoft`;
 }
 
+function getAppBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000';
+}
+
 function getHomeUrl(): string {
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-  return `${basePath}/`;
+  return `${getAppBaseUrl()}/`;
 }
 
 function getLoginUrl(error: string): string {
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-  return `${basePath}/login?error=${encodeURIComponent(error)}`;
+  return `${getAppBaseUrl()}/login?error=${encodeURIComponent(error)}`;
 }
 
 /**
@@ -52,19 +54,19 @@ export async function GET(request: NextRequest) {
     // Handle errors from Microsoft
     if (error) {
       console.error('[Microsoft Callback] Microsoft returned error:', error, errorDescription);
-      return NextResponse.redirect(new URL(getLoginUrl(`microsoft_${error}`), request.url));
+      return NextResponse.redirect(getLoginUrl(`microsoft_${error}`));
     }
 
     if (!code || !state) {
       console.error('[Microsoft Callback] Missing code or state parameter');
-      return NextResponse.redirect(new URL(getLoginUrl('missing_params'), request.url));
+      return NextResponse.redirect(getLoginUrl('missing_params'));
     }
 
     // Verify CSRF state
     const storedState = request.cookies.get('microsoft-oauth-state')?.value;
     if (!storedState || storedState !== state) {
       console.error('[Microsoft Callback] State mismatch - possible CSRF attack');
-      return NextResponse.redirect(new URL(getLoginUrl('state_mismatch'), request.url));
+      return NextResponse.redirect(getLoginUrl('state_mismatch'));
     }
 
     // Fetch Microsoft IdP config from authz including the client_secret.
@@ -75,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     if (!configRes.ok) {
       console.error('[Microsoft Callback] Failed to get Microsoft token config from authz:', configRes.status);
-      return NextResponse.redirect(new URL(getLoginUrl('config_error'), request.url));
+      return NextResponse.redirect(getLoginUrl('config_error'));
     }
 
     const msConfig = await configRes.json();
@@ -83,7 +85,7 @@ export async function GET(request: NextRequest) {
 
     if (!clientSecret) {
       console.error('[Microsoft Callback] No client_secret in authz Microsoft config');
-      return NextResponse.redirect(new URL(getLoginUrl('config_error'), request.url));
+      return NextResponse.redirect(getLoginUrl('config_error'));
     }
 
     // Exchange authorization code for tokens with Microsoft
@@ -105,7 +107,7 @@ export async function GET(request: NextRequest) {
     if (!tokenRes.ok) {
       const tokenError = await tokenRes.text();
       console.error('[Microsoft Callback] Token exchange failed:', tokenRes.status, tokenError);
-      return NextResponse.redirect(new URL(getLoginUrl('token_exchange_failed'), request.url));
+      return NextResponse.redirect(getLoginUrl('token_exchange_failed'));
     }
 
     const tokenData = await tokenRes.json();
@@ -113,7 +115,7 @@ export async function GET(request: NextRequest) {
 
     if (!idToken) {
       console.error('[Microsoft Callback] No id_token in token response');
-      return NextResponse.redirect(new URL(getLoginUrl('no_id_token'), request.url));
+      return NextResponse.redirect(getLoginUrl('no_id_token'));
     }
 
     // Decode the ID token to get user claims
@@ -122,7 +124,7 @@ export async function GET(request: NextRequest) {
     const email = (claims.email || claims.preferred_username || claims.upn) as string | undefined;
     if (!email) {
       console.error('[Microsoft Callback] No email in ID token claims:', Object.keys(claims));
-      return NextResponse.redirect(new URL(getLoginUrl('no_email'), request.url));
+      return NextResponse.redirect(getLoginUrl('no_email'));
     }
 
     // Extract user info from claims
@@ -156,16 +158,16 @@ export async function GET(request: NextRequest) {
       console.error('[Microsoft Callback] Authz IdP authenticate failed:', authzRes.status, authzError);
 
       if (authzRes.status === 403) {
-        return NextResponse.redirect(new URL(getLoginUrl('domain_not_allowed'), request.url));
+        return NextResponse.redirect(getLoginUrl('domain_not_allowed'));
       }
-      return NextResponse.redirect(new URL(getLoginUrl('auth_failed'), request.url));
+      return NextResponse.redirect(getLoginUrl('auth_failed'));
     }
 
     const authResult = await authzRes.json();
     const { session } = authResult;
 
     // Set session cookie and redirect to home
-    const response = NextResponse.redirect(new URL(getHomeUrl(), request.url));
+    const response = NextResponse.redirect(getHomeUrl());
 
     const expiresAt = new Date(session.expires_at);
     const maxAge = Math.floor((expiresAt.getTime() - Date.now()) / 1000);
@@ -184,6 +186,6 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (error) {
     console.error('[Microsoft Callback] Unexpected error:', error);
-    return NextResponse.redirect(new URL(getLoginUrl('unexpected_error'), request.url));
+    return NextResponse.redirect(getLoginUrl('unexpected_error'));
   }
 }
