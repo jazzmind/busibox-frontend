@@ -71,6 +71,7 @@ const SERVICE_METADATA: Record<string, { name: string; tier: ServiceTier; descri
   'agent-api': { name: 'Agent', tier: 'api', description: 'AI Agents', order: 5 },
   'docs-api': { name: 'Docs', tier: 'api', description: 'Documentation', order: 6 },
   'bridge-api': { name: 'Bridge', tier: 'api', description: 'Email & Messaging', order: 7 },
+  'config-api': { name: 'Config', tier: 'api', description: 'Configuration Management', order: 8 },
   // Apps (core-apps is the container; busibox-portal/busibox-agents are sub-services)
   'core-apps': { name: 'Core Apps', tier: 'apps', description: 'Portal, Agent Manager, and App Builder', order: 1 },
   'busibox-portal': { name: 'Busibox Portal', tier: 'apps', description: 'Admin Dashboard', order: 2 },
@@ -410,7 +411,7 @@ async function buildFallbackFromHealthChecks(
   const serviceIds = [
     'postgres', 'redis', 'milvus', 'etcd', 'milvus-minio', 'minio', 'neo4j', 'nginx',
     'litellm', 'embedding-api', 'mlx', 'vllm', 'host-agent',
-    'authz-api', 'deploy-api', 'data-api', 'data-worker', 'search-api', 'agent-api', 'docs-api', 'bridge-api',
+    'authz-api', 'deploy-api', 'config-api', 'data-api', 'data-worker', 'search-api', 'agent-api', 'docs-api', 'bridge-api',
     'busibox-portal', 'busibox-agents',
   ];
 
