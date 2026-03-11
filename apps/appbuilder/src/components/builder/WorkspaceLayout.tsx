@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { SimpleChatInterface } from "@jazzmind/busibox-app";
-import { useCrossAppBasePath } from "@jazzmind/busibox-app/contexts/ApiContext";
+import { useCrossAppBasePath } from "@jazzmind/busibox-app/contexts";
 
 import { FileExplorer } from "./FileExplorer";
 import { LogPanel } from "./LogPanel";
