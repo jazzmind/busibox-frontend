@@ -72,6 +72,9 @@ export type {
   ListRoleBindingsParams,
 } from './authz/rbac';
 
+// Config service (config-api client)
+export * from './config';
+
 // Icons
 export * from './icons';
 
