@@ -15,9 +15,17 @@ import { useDropzone } from 'react-dropzone';
 import { useBusiboxApi, useCrossAppApiPath, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
 
+type FileUploadStatus = {
+  name: string;
+  status: 'pending' | 'uploading' | 'success' | 'error';
+  error?: string;
+};
+
 export type DocumentUploadProps = {
   onUploadComplete?: () => void;
   libraryId?: string; // Pre-selected library (e.g., from current folder)
+  /** Allow selecting multiple files at once. Default false. */
+  multiple?: boolean;
   /** Render a denser layout for constrained viewports (e.g., mobile full-screen sheet). */
   compact?: boolean;
   /**
@@ -31,7 +39,7 @@ export type DocumentUploadProps = {
   }) => ReactNode;
 };
 
-export function DocumentUpload({ onUploadComplete, libraryId, compact = false, renderLibrarySelector }: DocumentUploadProps) {
+export function DocumentUpload({ onUploadComplete, libraryId, multiple = false, compact = false, renderLibrarySelector }: DocumentUploadProps) {
   const api = useBusiboxApi();
   const resolve = useCrossAppApiPath();
   const documentsBase = useCrossAppBasePath('documents');
@@ -41,88 +49,131 @@ export function DocumentUpload({ onUploadComplete, libraryId, compact = false, r
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | undefined>(libraryId);
+  const [fileStatuses, setFileStatuses] = useState<FileUploadStatus[]>([]);
 
   // Sync with prop when it changes
   useEffect(() => {
     if (libraryId) setSelectedLibraryId(libraryId);
   }, [libraryId]);
 
+  const uploadSingleFile = useCallback(
+    async (file: File): Promise<boolean> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (selectedLibraryId) {
+        formData.append('libraryId', selectedLibraryId);
+      }
+
+      const res = await fetchServiceFirstFallbackNext({
+        service: {
+          baseUrl: api.services?.dataApiUrl,
+          path: '/upload',
+          init: { method: 'POST', body: formData },
+        },
+        next: {
+          nextApiBasePath: documentsBase,
+          path: '/api/documents/upload',
+          init: { method: 'POST', body: formData },
+        },
+        fallback: {
+          fallbackOnNetworkError: api.fallback?.fallbackOnNetworkError ?? true,
+          fallbackStatuses: [
+            ...(api.fallback?.fallbackStatuses ?? [404, 405, 501, 502, 503, 504]),
+            400, 401, 403, 409, 415, 422,
+          ],
+        },
+        serviceHeaders: api.serviceRequestHeaders,
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((data as any).error || 'Upload failed');
+      }
+      return true;
+    },
+    [api.fallback, api.serviceRequestHeaders, api.services?.dataApiUrl, documentsBase, selectedLibraryId]
+  );
+
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       if (acceptedFiles.length === 0) return;
 
-      const file = acceptedFiles[0];
       setUploading(true);
       setError(null);
       setSuccess(null);
       setProgress(0);
 
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-
-        // Add libraryId if selected (Next route understands this; data service may ignore it)
-        if (selectedLibraryId) {
-          formData.append('libraryId', selectedLibraryId);
+      if (!multiple) {
+        // Single-file upload (original behaviour)
+        const file = acceptedFiles[0];
+        try {
+          await uploadSingleFile(file);
+          setSuccess(`File "${file.name}" uploaded successfully! Processing...`);
+          setProgress(100);
+          if (onUploadComplete) {
+            setTimeout(onUploadComplete, 1500);
+          }
+        } catch (err: any) {
+          console.error('Upload error:', err);
+          setError(err?.message || 'Failed to upload file');
+        } finally {
+          setUploading(false);
         }
+        return;
+      }
 
-        const res = await fetchServiceFirstFallbackNext({
-          service: {
-            baseUrl: api.services?.dataApiUrl,
-            path: '/upload',
-            init: {
-              method: 'POST',
-              body: formData,
-            },
-          },
-          next: {
-            nextApiBasePath: documentsBase,
-            path: '/api/documents/upload',
-            init: {
-              method: 'POST',
-              body: formData,
-            },
-          },
-          // Upload endpoint shapes differ between data and Next; fallback on a wider set of statuses.
-          fallback: {
-            fallbackOnNetworkError: api.fallback?.fallbackOnNetworkError ?? true,
-            fallbackStatuses: [
-              ...(api.fallback?.fallbackStatuses ?? [404, 405, 501, 502, 503, 504]),
-              400,
-              401,
-              403,
-              409,
-              415,
-              422,
-            ],
-          },
-          serviceHeaders: api.serviceRequestHeaders,
-        });
+      // Multi-file: upload sequentially with per-file status tracking
+      const statuses: FileUploadStatus[] = acceptedFiles.map((f) => ({
+        name: f.name,
+        status: 'pending' as const,
+      }));
+      setFileStatuses(statuses);
 
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error((data as any).error || 'Upload failed');
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (let i = 0; i < acceptedFiles.length; i++) {
+        setFileStatuses((prev) =>
+          prev.map((s, idx) => (idx === i ? { ...s, status: 'uploading' } : s))
+        );
+        setProgress(Math.round((i / acceptedFiles.length) * 100));
+
+        try {
+          await uploadSingleFile(acceptedFiles[i]);
+          successCount++;
+          setFileStatuses((prev) =>
+            prev.map((s, idx) => (idx === i ? { ...s, status: 'success' } : s))
+          );
+        } catch (err: any) {
+          errorCount++;
+          setFileStatuses((prev) =>
+            prev.map((s, idx) =>
+              idx === i ? { ...s, status: 'error', error: err?.message || 'Failed' } : s
+            )
+          );
         }
+      }
 
-        setSuccess(`File "${file.name}" uploaded successfully! Processing...`);
-        setProgress(100);
+      setProgress(100);
+      if (errorCount === 0) {
+        setSuccess(`All ${successCount} file${successCount !== 1 ? 's' : ''} uploaded successfully! Processing...`);
+      } else if (successCount > 0) {
+        setSuccess(`${successCount} uploaded, ${errorCount} failed.`);
+      } else {
+        setError(`All ${errorCount} uploads failed.`);
+      }
 
-        if (onUploadComplete) {
-          setTimeout(onUploadComplete, 1500);
-        }
-      } catch (err: any) {
-        console.error('Upload error:', err);
-        setError(err?.message || 'Failed to upload file');
-      } finally {
-        setUploading(false);
+      setUploading(false);
+      if (successCount > 0 && onUploadComplete) {
+        setTimeout(onUploadComplete, 1500);
       }
     },
-    [api.fallback, api.nextApiBasePath, api.serviceRequestHeaders, api.services?.dataApiUrl, onUploadComplete, selectedLibraryId]
+    [multiple, uploadSingleFile, onUploadComplete]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    multiple: false,
+    multiple,
     disabled: uploading,
     accept: {
       'application/pdf': ['.pdf'],
@@ -182,14 +233,14 @@ export function DocumentUpload({ onUploadComplete, libraryId, compact = false, r
             {uploading ? (
               <>
                 <p className={`mb-2 ${compact ? 'text-base' : 'text-lg'} font-medium text-gray-900 dark:text-gray-100`}>Uploading...</p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Please wait while your file is being uploaded</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Please wait while your {multiple ? 'files are' : 'file is'} being uploaded</p>
               </>
             ) : isDragActive ? (
-              <p className={`mb-2 ${compact ? 'text-base' : 'text-lg'} font-medium text-blue-600 dark:text-blue-400`}>Drop the file here</p>
+              <p className={`mb-2 ${compact ? 'text-base' : 'text-lg'} font-medium text-blue-600 dark:text-blue-400`}>Drop {multiple ? 'files' : 'the file'} here</p>
             ) : (
               <>
                 <p className={`mb-2 ${compact ? 'text-base' : 'text-lg'} font-medium text-gray-900 dark:text-gray-100`}>
-                  Drag & drop a file here, or click to select
+                  Drag & drop {multiple ? 'files' : 'a file'} here, or click to select
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-300">Supports PDF, DOCX, DOC, TXT, and MD files</p>
               </>
@@ -203,6 +254,27 @@ export function DocumentUpload({ onUploadComplete, libraryId, compact = false, r
             <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
               <div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
             </div>
+          </div>
+        )}
+
+        {/* Per-file status list (multi-file mode) */}
+        {multiple && fileStatuses.length > 0 && (
+          <div className={`${compact ? 'mt-3' : 'mt-4'} max-h-40 overflow-y-auto space-y-1`}>
+            {fileStatuses.map((fs, idx) => (
+              <div key={idx} className="flex items-center gap-2 text-xs">
+                {fs.status === 'pending' && <span className="w-4 h-4 rounded-full bg-gray-300 dark:bg-gray-600 inline-block flex-shrink-0" />}
+                {fs.status === 'uploading' && <span className="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin inline-block flex-shrink-0" />}
+                {fs.status === 'success' && (
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                )}
+                {fs.status === 'error' && (
+                  <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                )}
+                <span className={`truncate ${fs.status === 'error' ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                  {fs.name}{fs.error ? ` — ${fs.error}` : ''}
+                </span>
+              </div>
+            ))}
           </div>
         )}
 
