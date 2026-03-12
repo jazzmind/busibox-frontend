@@ -21,6 +21,17 @@ import { getAuthzOptions } from '@jazzmind/busibox-app/lib/authz/next-client';
  * Redirect-style logout. Used when we need to log out via URL redirect
  * (e.g., when session is invalid and we need to force re-login).
  */
+function getRedirectBase(request: NextRequest): string {
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+  return process.env.NEXT_PUBLIC_APP_URL
+    || process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL
+    || request.url;
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Try to get session JWT to delete it from authz
@@ -36,21 +47,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get the base path for redirect
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-    
-    // Create redirect response to login page
-    const response = NextResponse.redirect(new URL(`${basePath}/login`, request.url));
-    
-    // Clear the session cookie
+    const response = NextResponse.redirect(new URL(`${basePath}/login`, getRedirectBase(request)));
     response.cookies.delete('busibox-session');
 
     return response;
   } catch (error) {
     console.error('[API] GET Logout error:', error);
-    // On error, still try to redirect to login
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-    const response = NextResponse.redirect(new URL(`${basePath}/login`, request.url));
+    const response = NextResponse.redirect(new URL(`${basePath}/login`, getRedirectBase(request)));
     response.cookies.delete('busibox-session');
     return response;
   }

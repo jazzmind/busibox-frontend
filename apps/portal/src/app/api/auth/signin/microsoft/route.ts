@@ -18,6 +18,17 @@ function getCallbackUrl(): string {
   return `${appUrl}/api/auth/callback/microsoft`;
 }
 
+function getRedirectBase(request: NextRequest): string {
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+  return process.env.NEXT_PUBLIC_APP_URL
+    || process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL
+    || request.url;
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Fetch Microsoft IdP config from authz
@@ -27,7 +38,7 @@ export async function GET(request: NextRequest) {
 
     if (!configRes.ok) {
       console.error('[Microsoft Sign-In] Microsoft auth not configured in authz:', configRes.status);
-      const loginUrl = new URL('/login', request.url);
+      const loginUrl = new URL('/login', getRedirectBase(request));
       loginUrl.searchParams.set('error', 'microsoft_not_configured');
       return NextResponse.redirect(loginUrl);
     }
@@ -62,7 +73,7 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (error) {
     console.error('[Microsoft Sign-In] Error initiating Microsoft auth:', error);
-    const loginUrl = new URL('/login', request.url);
+    const loginUrl = new URL('/login', getRedirectBase(request));
     loginUrl.searchParams.set('error', 'microsoft_error');
     return NextResponse.redirect(loginUrl);
   }

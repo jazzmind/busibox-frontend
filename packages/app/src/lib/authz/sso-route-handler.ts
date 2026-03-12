@@ -27,6 +27,9 @@ interface NextRequestLike {
       get(name: string): string | null;
     };
   };
+  headers: {
+    get(name: string): string | null;
+  };
   url: string;
 }
 
@@ -147,9 +150,17 @@ export function createSSOGetHandler<T extends ResponseInstance>(
     
     const verbose = options?.verbose ?? false;
 
+    const forwardedHost = request.headers.get('x-forwarded-host');
+    const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
+    const redirectBase = forwardedHost
+      ? `${forwardedProto}://${forwardedHost}`
+      : (process.env.NEXT_PUBLIC_APP_URL
+        || process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL
+        || request.url);
+
     if (!token) {
       console.error('[SSO] No token provided');
-      return NextResponse.redirect(new URL('/login?error=no_token', request.url));
+      return NextResponse.redirect(new URL('/login?error=no_token', redirectBase));
     }
 
     try {
@@ -163,7 +174,7 @@ export function createSSOGetHandler<T extends ResponseInstance>(
       if (!validation.valid) {
         console.error('[SSO] Token validation failed:', validation.error);
         return NextResponse.redirect(
-          new URL(`/login?error=${validation.error}`, request.url)
+          new URL(`/login?error=${validation.error}`, redirectBase)
         );
       }
 
@@ -182,7 +193,7 @@ export function createSSOGetHandler<T extends ResponseInstance>(
         redirectUrl = `${config.basePath}${returnUrl}`;
       }
 
-      const response = NextResponse.redirect(new URL(redirectUrl, request.url));
+      const response = NextResponse.redirect(new URL(redirectUrl, redirectBase));
 
       if (verbose) {
         console.log(`[SSO] GET: Setting cookies for app, path: ${config.basePath}`);
@@ -213,7 +224,7 @@ export function createSSOGetHandler<T extends ResponseInstance>(
     } catch (error) {
       console.error('[SSO] GET Error:', error);
       return NextResponse.redirect(
-        new URL('/login?error=sso_failed', request.url)
+        new URL('/login?error=sso_failed', redirectBase)
       );
     }
   };
