@@ -13,11 +13,13 @@ import { Eye, EyeOff, Send, RefreshCw, Check } from 'lucide-react';
 import { useAutosave } from '@jazzmind/busibox-app';
 
 export interface EmailSettingsData {
+  smtpEnabled: boolean;
   smtpHost: string | null;
   smtpPort: number | null;
   smtpUser: string | null;
   smtpPassword: string | null;
   smtpSecure: boolean;
+  resendEnabled: boolean;
   emailFrom: string | null;
   resendApiKey: string | null;
 }
@@ -42,7 +44,17 @@ interface EmailSettingsFormProps {
 }
 
 export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSuccess }: EmailSettingsFormProps) {
-  const [formData, setFormData] = useState<EmailSettingsData>({ ...settings });
+  const [formData, setFormData] = useState<EmailSettingsData>({
+    smtpEnabled: settings.smtpEnabled ?? false,
+    smtpHost: settings.smtpHost ?? null,
+    smtpPort: settings.smtpPort ?? null,
+    smtpUser: settings.smtpUser ?? null,
+    smtpPassword: settings.smtpPassword ?? null,
+    smtpSecure: settings.smtpSecure ?? false,
+    resendEnabled: settings.resendEnabled ?? false,
+    emailFrom: settings.emailFrom ?? null,
+    resendApiKey: settings.resendApiKey ?? null,
+  });
   const [imapData, setImapData] = useState<ImapSettingsData>(imapSettings ?? {
     emailInboundEnabled: false,
     imapHost: null,
@@ -220,9 +232,24 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-1">SMTP Configuration</h3>
         <p className="text-sm text-gray-500 mb-4">
-          Primary email delivery method. Configure your SMTP server for sending magic links and notifications.
+          Configure SMTP credentials, then explicitly enable SMTP below.
         </p>
         <div className="space-y-4">
+          <div className="flex items-start">
+            <div className="flex items-center h-5">
+              <input
+                id="smtpEnabled"
+                type="checkbox"
+                checked={formData.smtpEnabled}
+                onChange={(e) => updateEmailImmediate('smtpEnabled', e.target.checked, e.target)}
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+            </div>
+            <div className="ml-3">
+              <label htmlFor="smtpEnabled" className="font-medium text-gray-900">Enable SMTP Provider</label>
+              <p className="text-sm text-gray-500 mt-1">When enabled and credentials are complete, Bridge will use SMTP.</p>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="smtpHost" className="block text-sm font-medium text-gray-700 mb-1">SMTP Host</label>
@@ -307,9 +334,24 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-1">Resend Configuration</h3>
         <p className="text-sm text-gray-500 mb-4">
-          Fallback email delivery via Resend API. Used when SMTP is not configured or unavailable.
+          Configure Resend credentials, then explicitly enable Resend below.
         </p>
         <div className="space-y-4">
+          <div className="flex items-start">
+            <div className="flex items-center h-5">
+              <input
+                id="resendEnabled"
+                type="checkbox"
+                checked={formData.resendEnabled}
+                onChange={(e) => updateEmailImmediate('resendEnabled', e.target.checked, e.target)}
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+            </div>
+            <div className="ml-3">
+              <label htmlFor="resendEnabled" className="font-medium text-gray-900">Enable Resend Provider</label>
+              <p className="text-sm text-gray-500 mt-1">When enabled and API key is present, Bridge can use Resend.</p>
+            </div>
+          </div>
           <div>
             <label htmlFor="resendApiKey" className="block text-sm font-medium text-gray-700 mb-1">Resend API Key</label>
             <div className="relative">

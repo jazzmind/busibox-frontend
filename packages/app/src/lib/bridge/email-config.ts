@@ -36,11 +36,13 @@ const CONFIG_CATEGORY = 'smtp';
  * config-api config keys (which match the env var names bridge reads).
  */
 const FIELD_TO_KEY: Record<keyof EmailConfig, string> = {
+  smtpEnabled:  'SMTP_ENABLED',
   smtpHost:     'SMTP_HOST',
   smtpPort:     'SMTP_PORT',
   smtpUser:     'SMTP_USER',
   smtpPassword: 'SMTP_PASSWORD',
   smtpSecure:   'SMTP_SECURE',
+  resendEnabled:'RESEND_ENABLED',
   emailFrom:    'EMAIL_FROM',
   resendApiKey: 'RESEND_API_KEY',
 };
@@ -57,21 +59,25 @@ const ENCRYPTED_KEYS = new Set<string>(['SMTP_PASSWORD', 'RESEND_API_KEY']);
 // ---------------------------------------------------------------------------
 
 export type EmailConfig = {
+  smtpEnabled: boolean;
   smtpHost: string | null;
   smtpPort: number | null;
   smtpUser: string | null;
   smtpPassword: string | null;
   smtpSecure: boolean;
+  resendEnabled: boolean;
   emailFrom: string | null;
   resendApiKey: string | null;
 };
 
 const DEFAULT_CONFIG: EmailConfig = {
+  smtpEnabled: false,
   smtpHost: null,
   smtpPort: null,
   smtpUser: null,
   smtpPassword: null,
   smtpSecure: false,
+  resendEnabled: false,
   emailFrom: null,
   resendApiKey: null,
 };
@@ -154,6 +160,8 @@ export async function getEmailConfigFromDeployApi(
 
 function configValuesToEmailConfig(values: Record<string, string>): EmailConfig {
   const config = { ...DEFAULT_CONFIG };
+  let hasSmtpEnabledKey = false;
+  let hasResendEnabledKey = false;
 
   for (const [key, value] of Object.entries(values)) {
     const field = KEY_TO_FIELD[key];
@@ -175,9 +183,25 @@ function configValuesToEmailConfig(values: Record<string, string>): EmailConfig 
       case 'smtpSecure':
         config.smtpSecure = value === 'true';
         break;
+      case 'smtpEnabled':
+        hasSmtpEnabledKey = true;
+        config.smtpEnabled = value === 'true';
+        break;
+      case 'resendEnabled':
+        hasResendEnabledKey = true;
+        config.resendEnabled = value === 'true';
+        break;
       default:
         (config as any)[field] = value;
     }
+  }
+
+  // Backward compatibility: older configs may not include explicit enable flags.
+  if (!hasSmtpEnabledKey && config.smtpHost && config.smtpPort && config.smtpUser) {
+    config.smtpEnabled = true;
+  }
+  if (!hasResendEnabledKey && config.resendApiKey) {
+    config.resendEnabled = true;
   }
 
   return config;

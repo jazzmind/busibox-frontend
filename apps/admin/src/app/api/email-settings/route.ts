@@ -19,6 +19,14 @@ import {
 } from '@jazzmind/busibox-app/lib/bridge/email-config';
 import { getBridgeApiUrl } from '@jazzmind/busibox-app/lib/next/api-url';
 
+function detectConfiguredProvider(config: EmailConfig): string {
+  const hasSmtpCreds = Boolean(config.smtpHost && config.smtpPort && config.smtpUser);
+  const hasResendKey = Boolean(config.resendApiKey);
+  if (config.smtpEnabled && hasSmtpCreds) return 'smtp';
+  if (config.resendEnabled && hasResendKey) return 'resend';
+  return 'none';
+}
+
 // -------------------------------------------------------------------------
 // GET — read config (masked)
 // -------------------------------------------------------------------------
@@ -32,22 +40,20 @@ export async function GET(request: NextRequest) {
     const token = await getEmailConfigToken(user.id, sessionJwt);
     const config = await getEmailConfigFromDeployApi(token);
 
-    // Check bridge health to determine active provider
-    let activeProvider = 'unknown';
+    const configuredProvider = detectConfiguredProvider(config);
+    // Bridge reachability is still useful to display "service down" state.
+    let bridgeReachable = true;
     try {
       const bridgeUrl = getBridgeApiUrl();
       const resp = await fetch(`${bridgeUrl}/health`);
-      if (resp.ok) {
-        const health = await resp.json();
-        activeProvider = health.email_provider || 'none';
-      }
+      bridgeReachable = resp.ok;
     } catch {
-      activeProvider = 'unreachable';
+      bridgeReachable = false;
     }
 
     return apiSuccess({
       config: maskEmailConfig(config),
-      activeProvider,
+      activeProvider: bridgeReachable ? configuredProvider : 'unreachable',
     });
   } catch (error) {
     console.error('[API] Get email settings error:', error);
@@ -73,6 +79,9 @@ export async function PATCH(request: NextRequest) {
     // Build updates, skipping masked values (unchanged passwords)
     const updates: Partial<EmailConfig> = {};
 
+    if (body.smtpEnabled !== undefined) {
+      updates.smtpEnabled = body.smtpEnabled === true || body.smtpEnabled === 'true';
+    }
     if (body.smtpHost !== undefined) {
       updates.smtpHost = body.smtpHost || null;
     }
@@ -88,6 +97,9 @@ export async function PATCH(request: NextRequest) {
     }
     if (body.smtpSecure !== undefined) {
       updates.smtpSecure = body.smtpSecure === true || body.smtpSecure === 'true';
+    }
+    if (body.resendEnabled !== undefined) {
+      updates.resendEnabled = body.resendEnabled === true || body.resendEnabled === 'true';
     }
     if (body.emailFrom !== undefined) {
       updates.emailFrom = body.emailFrom || null;
