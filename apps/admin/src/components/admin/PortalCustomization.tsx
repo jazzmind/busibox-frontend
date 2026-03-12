@@ -26,10 +26,10 @@ export function PortalCustomization({ onComplete, onSkip }: PortalCustomizationP
     setIsSaving(true);
 
     try {
-      // Save customization settings
-      await fetch(resolve('portal-customization', '/api/portal-customization'), {
+      const response = await fetch(resolve('portal-customization', '/api/portal-customization'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           companyName: companyName.trim() || undefined,
           logoUrl: logoUrl.trim() || undefined,
@@ -37,10 +37,14 @@ export function PortalCustomization({ onComplete, onSkip }: PortalCustomizationP
         }),
       });
 
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        console.error('Failed to save customization:', response.status, data);
+      }
+
       onComplete();
     } catch (error) {
       console.error('Failed to save customization:', error);
-      // Continue anyway
       onComplete();
     } finally {
       setIsSaving(false);
