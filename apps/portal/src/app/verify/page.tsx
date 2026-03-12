@@ -11,6 +11,8 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '/portal';
+
 export default function VerifyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -76,9 +78,8 @@ export default function VerifyPage() {
 
       if (data.success) {
         setStatus('success');
-        // Small delay to ensure cookie is set before redirect
         setTimeout(() => {
-          window.location.href = '/';
+          window.location.href = `${basePath}/home`;
         }, 100);
       } else {
         const isExpired = data.error?.toLowerCase().includes('expired') || 
@@ -129,9 +130,8 @@ export default function VerifyPage() {
 
       if (data.success) {
         setStatus('success');
-        // Small delay to ensure cookie is set before redirect
         setTimeout(() => {
-          window.location.href = '/';
+          window.location.href = `${basePath}/home`;
         }, 100);
       } else {
         const isExpired = data.error?.toLowerCase().includes('expired') || 

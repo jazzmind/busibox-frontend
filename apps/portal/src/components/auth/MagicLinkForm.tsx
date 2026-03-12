@@ -13,6 +13,8 @@ import { Button, Input } from '@jazzmind/busibox-app';
 import { useCustomization } from '@jazzmind/busibox-app';
 import { usePasskey } from '@/hooks/usePasskey';
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '/portal';
+
 export function MagicLinkForm() {
   const { customization } = useCustomization();
   const [email, setEmail] = useState('');
@@ -99,7 +101,7 @@ export function MagicLinkForm() {
     const success = await authenticateWithPasskey();
     if (success) {
       // Redirect to home on success
-      window.location.href = '/';
+      window.location.href = `${basePath}/home`;
     } else {
       // If auto-attempt failed, allow manual retry
       setAutoPasskeyAttempted(true);
@@ -130,7 +132,7 @@ export function MagicLinkForm() {
       const data = await response.json();
 
       if (data.success) {
-        window.location.href = '/';
+        window.location.href = `${basePath}/home`;
       } else {
         setCodeError(data.error || 'Invalid code. Please try again.');
       }
