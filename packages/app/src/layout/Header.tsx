@@ -39,6 +39,8 @@ export type HeaderProps = {
   accountLink?: string;
 };
 
+const DEFAULT_ADMIN_NAV: NavigationItem = { href: '/admin', label: 'Admin Dashboard' };
+
 export function Header({ 
   session, 
   onLogout,
@@ -51,6 +53,11 @@ export function Header({
 
   const { user } = session;
   const isAdmin = user?.roles?.includes('Admin');
+
+  const fullAdminNav = React.useMemo(() => {
+    const hasAdminDashboard = adminNavigation.some(item => item.href === '/admin');
+    return hasAdminDashboard ? adminNavigation : [DEFAULT_ADMIN_NAV, ...adminNavigation];
+  }, [adminNavigation]);
 
   const handleLogout = async () => {
     try {
@@ -124,11 +131,11 @@ export function Header({
                 onLogout={handleLogout}
                 accountLink={accountLink}
                 menuSections={
-                  isAdmin && adminNavigation.length > 0
+                  isAdmin
                     ? [
                         {
                           title: 'Administration',
-                          items: adminNavigation.map(item => ({
+                          items: fullAdminNav.map(item => ({
                             label: item.label,
                             href: item.href,
                             icon: item.icon,
