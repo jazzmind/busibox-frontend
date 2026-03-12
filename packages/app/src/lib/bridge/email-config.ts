@@ -1,26 +1,25 @@
 /**
  * Email Configuration Store
  *
- * Persists email provider settings (SMTP / Resend) in deploy-api's config
- * store (postgres `config` table) so admins can manage them from the UI.
+ * Persists email provider settings (SMTP / Resend) in config-api's
+ * config_entries table so admins can manage them from the UI.
  *
- * These settings are NOT applied to Busibox Portal's process.env. Instead,
- * deploy-api writes them to the Ansible vault and restarts bridge-api,
- * which picks them up from its own environment.
+ * Bridge reads these settings on demand from config-api using a
+ * scope-restricted token (config.email.read), so no restart is needed.
  *
  * Admin flow:
  *   Admin saves settings via UI  ->  PATCH /api/admin/email-settings
- *   -> bulk-set in deploy-api config store  ->  trigger bridge restart
+ *   -> bulk-set in config-api config store
  */
 
 import {
-  getDeployApiToken,
+  getConfigApiToken,
   bulkSetConfigs,
   listConfigs,
   getConfigRaw,
   type ConfigSetRequest,
   type ConfigValue,
-} from '../deploy/client';
+} from '../config/client';
 import { maskValue } from './masking';
 
 export { isMaskedValue } from './masking';
@@ -29,12 +28,12 @@ export { isMaskedValue } from './masking';
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Deploy-api config category for all email/SMTP settings. */
+/** Config-api config category for all email/SMTP settings. */
 const CONFIG_CATEGORY = 'smtp';
 
 /**
  * Mapping between our friendly EmailConfig field names and the
- * deploy-api config keys (which match the env var names bridge reads).
+ * config-api config keys (which match the env var names bridge reads).
  */
 const FIELD_TO_KEY: Record<keyof EmailConfig, string> = {
   smtpHost:     'SMTP_HOST',
@@ -50,7 +49,7 @@ const KEY_TO_FIELD: Record<string, keyof EmailConfig> = Object.fromEntries(
   Object.entries(FIELD_TO_KEY).map(([f, k]) => [k, f as keyof EmailConfig]),
 );
 
-/** Fields whose values should be flagged as `encrypted` in deploy-api. */
+/** Fields whose values should be flagged as `encrypted` in config-api. */
 const ENCRYPTED_KEYS = new Set<string>(['SMTP_PASSWORD', 'RESEND_API_KEY']);
 
 // ---------------------------------------------------------------------------
@@ -95,17 +94,17 @@ export function maskEmailConfig(config: EmailConfig): EmailConfig {
 }
 
 // ---------------------------------------------------------------------------
-// Deploy-API token helpers
+// Config-API token helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Get a deploy-api scoped token for an authenticated admin user.
+ * Get a config-api scoped token for an authenticated admin user.
  */
 export async function getEmailConfigToken(
   userId: string,
   sessionJwt: string,
 ): Promise<string> {
-  return getDeployApiToken(userId, sessionJwt);
+  return getConfigApiToken(userId, sessionJwt);
 }
 
 // ---------------------------------------------------------------------------
@@ -113,9 +112,9 @@ export async function getEmailConfigToken(
 // ---------------------------------------------------------------------------
 
 /**
- * Read email config from deploy-api config store.
+ * Read email config from config-api config store.
  *
- * @param token - deploy-api scoped JWT (from admin user)
+ * @param token - config-api scoped JWT (from admin user)
  * @param raw   - if true, fetches raw (unmasked) values
  */
 export async function getEmailConfigFromDeployApi(
@@ -148,7 +147,7 @@ export async function getEmailConfigFromDeployApi(
 
     return configValuesToEmailConfig(values);
   } catch (error) {
-    console.warn('[EMAIL-CONFIG] Failed to read from deploy-api:', error);
+    console.warn('[EMAIL-CONFIG] Failed to read from config-api:', error);
     return { ...DEFAULT_CONFIG };
   }
 }
@@ -189,9 +188,9 @@ function configValuesToEmailConfig(values: Record<string, string>): EmailConfig 
 // ---------------------------------------------------------------------------
 
 /**
- * Save email config to deploy-api config store (bulk upsert).
+ * Save email config to config-api config store (bulk upsert).
  *
- * @param token   - deploy-api scoped JWT (from admin user)
+ * @param token   - config-api scoped JWT (from admin user)
  * @param updates - partial EmailConfig to save
  */
 export async function saveEmailConfigToDeployApi(

@@ -1,10 +1,10 @@
 /**
  * GET  /api/email-settings  — Read persisted email config (sensitive fields masked)
- * PATCH /api/email-settings — Update email config, persist to deploy-api, trigger bridge restart
+ * PATCH /api/email-settings — Update email config in config-api
  *
- * Email settings are stored in deploy-api's config store (postgres `config`
- * table) under the `smtp` category.  When updated, deploy-api is instructed
- * to redeploy the bridge service so it picks up the new env vars.
+ * Email settings are stored in config-api's config_entries table under the
+ * `smtp` category. Bridge reads them on demand via a scope-restricted token,
+ * so no restart is needed after updates.
  */
 
 import { NextRequest } from 'next/server';
@@ -17,7 +17,6 @@ import {
   isMaskedValue,
   type EmailConfig,
 } from '@jazzmind/busibox-app/lib/bridge/email-config';
-import { triggerBridgeRestart } from '@jazzmind/busibox-app/lib/deploy/client';
 import { getBridgeApiUrl } from '@jazzmind/busibox-app/lib/next/api-url';
 
 // -------------------------------------------------------------------------
@@ -57,7 +56,7 @@ export async function GET(request: NextRequest) {
 }
 
 // -------------------------------------------------------------------------
-// PATCH — update config, trigger bridge restart
+// PATCH — update config
 // -------------------------------------------------------------------------
 
 export async function PATCH(request: NextRequest) {
@@ -101,26 +100,14 @@ export async function PATCH(request: NextRequest) {
       return apiError('No valid fields to update', 400);
     }
 
-    // Persist to deploy-api config store
     const token = await getEmailConfigToken(user.id, sessionJwt);
     const saved = await saveEmailConfigToDeployApi(token, updates);
 
     console.log('[API] Email settings updated by', user.email, '— keys:', Object.keys(updates));
 
-    // Trigger bridge service restart so it picks up the new env vars
-    let restartMessage = '';
-    try {
-      await triggerBridgeRestart(token);
-      restartMessage = 'Bridge service restart triggered.';
-      console.log('[API] Bridge restart triggered successfully');
-    } catch (restartError) {
-      console.warn('[API] Failed to trigger bridge restart:', restartError);
-      restartMessage = 'Settings saved but bridge restart failed — you may need to restart manually.';
-    }
-
     return apiSuccess({
       config: maskEmailConfig(saved),
-      message: `Email settings updated successfully. ${restartMessage}`,
+      message: 'Email settings updated successfully. Bridge will use the new settings on next email send.',
     });
   } catch (error) {
     console.error('[API] Update email settings error:', error);
