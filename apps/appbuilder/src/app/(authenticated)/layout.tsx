@@ -7,13 +7,8 @@ import { Header, Footer } from '@jazzmind/busibox-app';
 import type { NavigationItem } from '@jazzmind/busibox-app';
 import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvider';
 
-const portalBaseUrl = (process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL || process.env.NEXT_PUBLIC_AI_PORTAL_URL || '').replace(/\/+$/, '');
-const portalUrl = portalBaseUrl
-  ? (portalBaseUrl.endsWith('/portal') ? portalBaseUrl : `${portalBaseUrl}/portal`)
-  : '/portal';
-
 const adminNavigation: NavigationItem[] = [
-  { href: `${portalUrl}/admin`, label: 'Admin Dashboard' },
+  { href: '/admin', label: 'Admin Dashboard' },
 ];
 
 const navItems = [
@@ -36,8 +31,8 @@ export default function AuthenticatedLayout({ children }: { children: ReactNode 
         session={{ user, isAuthenticated }}
         onLogout={async () => redirectToPortal()}
         adminNavigation={adminNavigation}
-        appsLink={`${portalUrl}/home`}
-        accountLink={`${portalUrl}/account`}
+        appsLink="/portal/home"
+        accountLink="/portal/account"
       />
       <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-12 flex items-center gap-6">
