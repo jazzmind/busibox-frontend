@@ -55,7 +55,7 @@ export function Header({
   const isAdmin = user?.roles?.includes('Admin');
 
   const fullAdminNav = React.useMemo(() => {
-    const hasAdminDashboard = adminNavigation.some(item => item.href === '/admin');
+    const hasAdminDashboard = adminNavigation.some(item => item.label === 'Admin Dashboard');
     return hasAdminDashboard ? adminNavigation : [DEFAULT_ADMIN_NAV, ...adminNavigation];
   }, [adminNavigation]);
 
