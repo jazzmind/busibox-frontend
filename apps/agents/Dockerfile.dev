@@ -23,16 +23,7 @@ RUN apk add --no-cache python3 make g++ curl bash
 # Copy package files
 COPY package.json package-lock.json ./
 
-# Set up npm authentication for private GitHub packages
-# GITHUB_AUTH_TOKEN must be passed as a build arg (from .env.local or environment)
-ARG GITHUB_AUTH_TOKEN
-RUN if [ -n "$GITHUB_AUTH_TOKEN" ]; then \
-        echo "Setting up npm authentication for @jazzmind packages..." && \
-        echo "//npm.pkg.github.com/:_authToken=${GITHUB_AUTH_TOKEN}" > .npmrc && \
-        echo "@jazzmind:registry=https://npm.pkg.github.com" >> .npmrc; \
-    else \
-        echo "WARNING: GITHUB_AUTH_TOKEN not set - npm install may fail for @jazzmind packages"; \
-    fi
+# @jazzmind/busibox-app is public on npmjs.org - no auth needed
 
 # Install dependencies
 # Note: busibox-app will be npm-linked at runtime from the volume mount

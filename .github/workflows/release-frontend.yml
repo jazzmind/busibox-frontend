@@ -14,7 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,7 +30,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://npm.pkg.github.com
+          registry-url: https://registry.npmjs.org
 
       - name: Configure git
         run: |
@@ -93,10 +92,10 @@ jobs:
         run: |
           cp package.json.prod package.json
           pnpm run build
-          pnpm publish --no-git-checks || echo "::warning::busibox-app publish failed or version already exists"
+          pnpm publish --no-git-checks --access public || echo "::warning::busibox-app publish failed or version already exists"
           git checkout package.json
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Bump version
         run: |
