@@ -1147,7 +1147,7 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
                                   )}
                                 </div>
                                 
-                                <div className="flex-1">
+                                <div className="flex-1 min-w-0">
                                   <div className="flex items-baseline gap-2">
                                     <h4 className="font-medium text-gray-900">{service.name}</h4>
                                     {service.status === 'checking' && (
@@ -1166,12 +1166,12 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
                                   )}
                                 </div>
 
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 flex-shrink-0">
                                   {(service.status === 'error' || service.status === 'healthy' || service.status === 'skipped') && (
                                     <button
                                       onClick={() => startService(service, true)}
                                       disabled={isInstalling}
-                                      className={`text-xs text-white font-medium px-3 py-1 rounded transition-colors ${
+                                      className={`text-xs text-white font-medium px-3 py-1 rounded transition-colors whitespace-nowrap ${
                                         service.status === 'error' 
                                           ? 'bg-red-600 hover:bg-red-700 disabled:bg-gray-400'
                                           : 'bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400'
@@ -1183,7 +1183,7 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
                                   {hasLogs && (
                                     <button
                                       onClick={() => toggleLogs(service.id)}
-                                      className="text-xs text-gray-500 hover:text-gray-700 font-medium px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                      className="text-xs text-gray-500 hover:text-gray-700 font-medium px-2 py-1 rounded hover:bg-gray-100 transition-colors whitespace-nowrap"
                                     >
                                       {isExpanded ? 'Hide' : 'Show'} Logs
                                     </button>
