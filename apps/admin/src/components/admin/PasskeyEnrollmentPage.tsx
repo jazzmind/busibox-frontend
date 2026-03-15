@@ -150,6 +150,52 @@ export function PasskeyEnrollmentPage({
     );
   }
 
+  // Device doesn't support passkeys
+  if (!isSupported && onSkip) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-purple-50 p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              Passkeys Not Supported
+            </h1>
+            <p className="text-gray-600">
+              This browser or device does not support passkeys (WebAuthn). 
+              You can set up a passkey later from a supported device.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="bg-yellow-50 rounded-lg p-4">
+              <h3 className="font-semibold text-yellow-900 mb-2">Supported devices</h3>
+              <ul className="text-sm text-yellow-800 space-y-1">
+                <li>- Chrome, Safari, Edge, or Firefox on macOS, Windows, or Android</li>
+                <li>- iOS 16+ Safari</li>
+                <li>- Hardware security keys (YubiKey, etc.)</li>
+              </ul>
+            </div>
+
+            <button
+              onClick={onSkip}
+              className="w-full py-3 px-4 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 focus:ring-4 focus:ring-orange-200 transition-colors"
+            >
+              Continue Without Passkey
+            </button>
+
+            <p className="text-xs text-gray-500 text-center">
+              You can add a passkey anytime from Account Settings on a supported device.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const error = localError || passkeyError;
 
   // Authentication mode (has existing passkeys)
@@ -339,8 +385,11 @@ export function PasskeyEnrollmentPage({
                 disabled={isProcessing}
                 className="text-sm text-gray-500 hover:text-gray-700 underline disabled:opacity-50"
               >
-                Skip for now (not recommended)
+                Skip for now
               </button>
+              <p className="text-xs text-gray-400 mt-1">
+                You can add a passkey later from Account Settings
+              </p>
             </div>
           )}
         </div>

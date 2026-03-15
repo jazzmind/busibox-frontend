@@ -357,13 +357,12 @@ function AdminSetupContent() {
   }
 
   if (setupState === 'passkey') {
-    const allowSkipInDev = process.env.NODE_ENV === 'development';
     return (
       <PasskeyEnrollmentPage
         userEmail={user?.email || ''}
         onComplete={handlePasskeyComplete}
-        onSkip={allowSkipInDev ? handlePasskeyComplete : undefined}
-        allowSkip={allowSkipInDev}
+        onSkip={handlePasskeyComplete}
+        allowSkip={true}
       />
     );
   }
