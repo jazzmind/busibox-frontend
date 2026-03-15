@@ -39,9 +39,7 @@ pnpm dev:documents
 - `apps/portal` is the shell app (auth, home, docs, account, setup) and no longer hosts domain-heavy admin/chat/media/documents experiences.
 - Domain apps run independently with separate base paths and ports:
   - `/portal` (3000), `/agents` (3001), `/admin` (3002), `/chat` (3003), `/builder` (3004), `/media` (3005), `/documents` (3006)
-- Shared cross-app logic belongs in:
-  - `packages/shared` for auth/middleware/api client utilities
-  - `packages/ui` for reusable React components
+- All shared cross-app logic (auth, API clients, embeddings, UI components) belongs in `packages/app` (`@jazzmind/busibox-app`)
 
 ## Package Publishing
 
