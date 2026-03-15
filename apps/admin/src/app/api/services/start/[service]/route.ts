@@ -146,15 +146,24 @@ export async function GET(
     
     // Choose endpoint: /install for Proxmox (runs Ansible), /start for Docker (docker compose up)
     const endpoint = isProxmox ? 'install' : 'start';
-    const deployUrl = `${DEPLOY_API_BASE}/api/v1/services/${endpoint}/${service}?token=${adminToken}`;
+    
+    // Forward rebuild param from the client request
+    const requestUrl = new URL(request.url);
+    const rebuild = requestUrl.searchParams.get('rebuild');
+    const extraParams = rebuild === 'true' ? '&rebuild=true' : '';
+    const deployUrl = `${DEPLOY_API_BASE}/api/v1/services/${endpoint}/${service}?token=${adminToken}${extraParams}`;
     
     console.log(`[SSE Proxy] Platform: ${backend}, using /${endpoint} endpoint`);
     console.log(`[SSE Proxy] Proxying to: ${deployUrl.replace(/token=[^&]+/, 'token=***')}`);
     
+    // SSE streams can be silent for 30s+ during image pulls, health waits, and init
+    // containers. Node.js fetch (undici) has a 30s default bodyTimeout between chunks,
+    // so we use AbortSignal with a generous 10-minute overall timeout instead.
     const response = await fetch(deployUrl, {
       headers: {
         'Accept': 'text/event-stream',
       },
+      signal: AbortSignal.timeout(600_000),
     });
 
     if (!response.ok) {
