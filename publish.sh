@@ -120,7 +120,7 @@ fi
 # Resolve version
 # ---------------------------------------------------------------------------
 
-CURRENT_VERSION=$(node -p "require('./package.json').version")
+CURRENT_VERSION=$(jq -r '.version' package.json)
 BUMP_ARG="${1:-patch}"
 NEW_VERSION=$(bump_version "$CURRENT_VERSION" "$BUMP_ARG")
 
@@ -238,7 +238,7 @@ fi
 # ---------------------------------------------------------------------------
 
 echo ""
-echo -e "${YELLOW}Publishing @jazzmind/busibox-app to GitHub Packages...${NC}"
+echo -e "${YELLOW}Publishing @jazzmind/busibox-app to npmjs.org...${NC}"
 
 if [ -f "packages/app/publish.sh" ]; then
     (cd packages/app && bash publish.sh)
@@ -263,13 +263,8 @@ echo ""
 echo ""
 echo -e "${YELLOW}Bumping version in package.json...${NC}"
 
-# Use node to update version cleanly (preserves formatting better than sed)
-node -e "
-const fs = require('fs');
-const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-pkg.version = '${NEW_VERSION}';
-fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-"
+# Use jq to update version cleanly (preserves formatting)
+jq --arg v "$NEW_VERSION" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
 echo -e "${GREEN}OK${NC}"
 
 # ---------------------------------------------------------------------------

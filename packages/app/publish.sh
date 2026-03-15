@@ -97,8 +97,8 @@ echo ""
 
 # Step 3: Check package status and get latest version
 echo -e "${YELLOW}Step 3/7: Checking package status and latest version...${NC}"
-PACKAGE_NAME=$(node -p "require('./package.json').name")
-CURRENT_VERSION=$(node -p "require('./package.json').version")
+PACKAGE_NAME=$(jq -r '.name' package.json)
+CURRENT_VERSION=$(jq -r '.version' package.json)
 
 PACKAGE_EXISTS=false
 LATEST_PUBLISHED_VERSION=""
@@ -142,11 +142,11 @@ if [ "$PACKAGE_EXISTS" = true ]; then
         echo -e "${RED}Version bump failed!${NC}"
         exit 1
     fi
-    NEW_VERSION=$(node -p "require('./package.json').version")
+    NEW_VERSION=$(jq -r '.version' package.json)
     echo -e "${GREEN}✓ Version bumped to $NEW_VERSION${NC}"
 else
     echo -e "${YELLOW}Step 4/7: Skipping version bump (first publish)${NC}"
-    NEW_VERSION=$(node -p "require('./package.json').version")
+    NEW_VERSION=$(jq -r '.version' package.json)
     echo -e "${GREEN}✓ Using version $NEW_VERSION${NC}"
 fi
 echo ""
