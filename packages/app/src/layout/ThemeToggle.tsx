@@ -1,10 +1,10 @@
+'use client';
 /**
  * Theme Toggle Component
  * 
  * Provides a button to toggle between light, dark, and system mode.
  */
 
-'use client';
 
 import { useTheme } from '../contexts/ThemeContext';
 import { Sun, Moon, Monitor } from 'lucide-react';

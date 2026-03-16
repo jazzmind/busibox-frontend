@@ -1,10 +1,10 @@
+'use client';
 /**
  * Footer Component
  * 
  * Footer with customizable address and contact information.
  */
 
-'use client';
 
 import { useCustomization } from '../contexts/CustomizationContext';
 

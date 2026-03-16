@@ -1,10 +1,10 @@
+'use client';
 /**
  * Attachment Preview Component
  * 
  * Displays attached files with icons, metadata, and remove option
  */
 
-'use client';
 
 import { AttachmentFile } from './AttachmentUploader';
 

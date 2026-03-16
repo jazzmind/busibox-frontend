@@ -1,3 +1,4 @@
+'use client';
 /**
  * Full Chat Interface Component
  * 
@@ -22,7 +23,6 @@
  * ```
  */
 
-'use client';
 
 import { useState, useEffect } from 'react';
 import { Plus, MessageSquare, Trash2, Search, Brain, X } from 'lucide-react';

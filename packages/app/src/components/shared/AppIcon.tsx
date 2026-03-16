@@ -1,10 +1,10 @@
+'use client';
 /**
  * AppIcon Component
  * 
  * Displays an app icon from the icon library or fallback.
  */
 
-'use client';
 
 import { getIcon, type IconName } from '../../lib/icons';
 

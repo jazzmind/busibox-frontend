@@ -1,10 +1,10 @@
+'use client';
 /**
  * Message Input Component
  * 
  * Text input with send button, character counter, and Enter key handling
  */
 
-'use client';
 
 import { useState, useRef, KeyboardEvent, useEffect } from 'react';
 import toast from 'react-hot-toast';

@@ -1,10 +1,10 @@
+'use client';
 /**
  * WorkflowList Component
  * 
  * Displays a list of workflows with filtering, search, and actions.
  */
 
-'use client';
 
 import React, { useState, useMemo } from 'react';
 import type { Workflow, WorkflowExecution, TriggerType, ExecutionStatus } from '../../types/workflow';

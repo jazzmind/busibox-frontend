@@ -1,3 +1,4 @@
+'use client';
 /**
  * Tool Selector Component
  * 
@@ -5,7 +6,6 @@
  * with a dropdown checkbox interface.
  */
 
-'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { Wrench, Check } from 'lucide-react';

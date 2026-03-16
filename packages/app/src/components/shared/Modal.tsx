@@ -1,9 +1,9 @@
+'use client';
 /**
  * Reusable Modal Component
  * Tailwind v4 - no @apply directives
  */
 
-'use client';
 
 import React, { useEffect } from 'react';
 import { Button } from './Button';

@@ -1,3 +1,4 @@
+'use client';
 /**
  * Agent Selection Panel Component
  * 
@@ -5,7 +6,6 @@
  * Similar to the insights panel design.
  */
 
-'use client';
 
 import { useState, useMemo } from 'react';
 import { Bot, Check, X, Search } from 'lucide-react';

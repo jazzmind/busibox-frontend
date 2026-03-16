@@ -1,10 +1,10 @@
+'use client';
 /**
  * Message List Component
  * 
  * Displays messages in chronological order with streaming support
  */
 
-'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';

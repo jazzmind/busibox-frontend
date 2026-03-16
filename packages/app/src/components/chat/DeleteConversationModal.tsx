@@ -1,8 +1,8 @@
+'use client';
 /**
  * Delete Conversation Confirmation Modal
  */
 
-'use client';
 
 import { useState } from 'react';
 

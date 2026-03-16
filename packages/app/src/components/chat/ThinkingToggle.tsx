@@ -1,3 +1,4 @@
+'use client';
 /**
  * ThinkingToggle Component
  * 
@@ -5,7 +6,6 @@
  * Designed to be used as a debug toggle in MessageList alongside Raw, Request, etc.
  */
 
-'use client';
 
 import { Brain, Bot, Search, FileText } from 'lucide-react';
 

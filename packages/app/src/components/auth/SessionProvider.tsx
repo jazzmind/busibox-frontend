@@ -1,3 +1,4 @@
+'use client';
 /**
  * Session Provider Component
  * 
@@ -39,7 +40,6 @@
  * ```
  */
 
-'use client';
 
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import type { AuthContext as AuthContextType } from '@jazzmind/busibox-app/types/next-auth';

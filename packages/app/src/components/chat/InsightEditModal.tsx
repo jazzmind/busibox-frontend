@@ -1,10 +1,10 @@
+'use client';
 /**
  * Insight Edit Modal
  * 
  * Modal for viewing, editing, and deleting insights.
  */
 
-'use client';
 
 import { useState } from 'react';
 import { X, Trash2, Save } from 'lucide-react';

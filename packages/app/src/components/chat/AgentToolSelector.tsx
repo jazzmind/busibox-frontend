@@ -1,3 +1,4 @@
+'use client';
 /**
  * Agent & Tool Selector Component
  * 
@@ -6,7 +7,6 @@
  * The agents themselves decide which models to use.
  */
 
-'use client';
 
 import { useState } from 'react';
 import { Bot, Wrench, ChevronDown, Check, X } from 'lucide-react';

@@ -1,3 +1,4 @@
+'use client';
 /**
  * UserDropdown Component
  * 
@@ -15,7 +16,6 @@
  * - Logout button (goes to Busibox Portal)
  */
 
-'use client';
 
 import { useState, useRef, useEffect } from 'react';
 import type { User } from '../types';

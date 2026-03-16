@@ -1,3 +1,4 @@
+'use client';
 /**
  * Authentication Context
  * 
@@ -41,7 +42,6 @@
  * ```
  */
 
-'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from 'react';
 import {

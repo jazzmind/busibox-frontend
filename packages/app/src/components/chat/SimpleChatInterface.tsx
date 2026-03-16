@@ -1,3 +1,4 @@
+'use client';
 /**
  * Simple Chat Interface Component
  * 
@@ -24,7 +25,6 @@
  * ```
  */
 
-'use client';
 
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, Loader2, Paperclip, Brain, CheckCircle, AlertCircle, Plus, Trash2, Volume2, X } from 'lucide-react';

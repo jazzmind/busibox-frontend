@@ -1,3 +1,4 @@
+'use client';
 /**
  * Protected Route Component
  * 
@@ -8,7 +9,6 @@
  * For other apps, uses window.location.href to redirect to the portal login.
  */
 
-'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';

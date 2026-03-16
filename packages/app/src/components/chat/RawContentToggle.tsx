@@ -1,3 +1,4 @@
+'use client';
 /**
  * RawContentToggle Component
  * 
@@ -5,7 +6,6 @@
  * Designed to be used as a debug toggle in MessageList.
  */
 
-'use client';
 
 export interface RawContentToggleProps {
   /** The raw content to display */

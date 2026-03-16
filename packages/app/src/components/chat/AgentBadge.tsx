@@ -1,10 +1,10 @@
+'use client';
 /**
  * Agent Badge Component
  * 
  * Displays a small badge for a selected agent in the chat header.
  */
 
-'use client';
 
 import { X } from 'lucide-react';
 

@@ -1,10 +1,10 @@
+'use client';
 /**
  * Theme Context
  * 
  * Provides dark/light/system mode theme management across the app.
  */
 
-'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 

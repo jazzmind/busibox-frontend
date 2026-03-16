@@ -1,3 +1,4 @@
+'use client';
 /**
  * Library Selector Component
  * 
@@ -5,7 +6,6 @@
  * Only shown when document search tool is enabled.
  */
 
-'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { FolderOpen, Check } from 'lucide-react';

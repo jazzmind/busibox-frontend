@@ -1,10 +1,10 @@
+'use client';
 /**
  * Conversation Sidebar Component
  * 
  * Displays list of user's conversations with previews and navigation
  */
 
-'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';

@@ -1,3 +1,4 @@
+'use client';
 /**
  * Passkey Required Wrapper Component
  * 
@@ -7,7 +8,6 @@
  * This enforces the "passkey-only admin" security model from the install flow.
  */
 
-'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';

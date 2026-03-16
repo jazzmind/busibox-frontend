@@ -1,3 +1,4 @@
+'use client';
 /**
  * Chat Container - Client Component
  * 
@@ -5,7 +6,6 @@
  * all client-side state and interactions.
  */
 
-'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Plus, MessageSquare, Trash2, Search, Brain, X, Sparkles, Bot, ListTodo } from 'lucide-react';

@@ -1,10 +1,10 @@
+'use client';
 /**
  * Admin Header Component
  * 
  * Header bar for admin pages with portal customization support.
  */
 
-'use client';
 
 import { Button } from '../components/shared/Button';
 import { useCustomization } from '../contexts/CustomizationContext';

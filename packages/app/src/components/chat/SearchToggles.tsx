@@ -1,10 +1,10 @@
+'use client';
 /**
  * Search Toggles Component
  * 
  * Toggle buttons for enabling/disabling web search and document search
  */
 
-'use client';
 
 import { useState, useEffect } from 'react';
 import { useCrossAppApiPath } from '../../contexts/ApiContext';

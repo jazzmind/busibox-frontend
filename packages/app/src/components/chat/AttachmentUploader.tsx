@@ -1,10 +1,10 @@
+'use client';
 /**
  * Attachment Uploader Component
  * 
  * File input with drag-and-drop and validation.
  */
 
-'use client';
 
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 import toast from 'react-hot-toast';

@@ -1,3 +1,4 @@
+'use client';
 /**
  * Portal Customization Context
  * 
@@ -5,7 +6,6 @@
  * Can be configured with a custom API endpoint or default values.
  */
 
-'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 

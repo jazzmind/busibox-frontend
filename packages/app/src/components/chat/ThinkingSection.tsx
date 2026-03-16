@@ -1,3 +1,4 @@
+'use client';
 /**
  * ThinkingSection Component
  * 
@@ -6,7 +7,6 @@
  * of the AI's chain-of-thought process.
  */
 
-'use client';
 
 import { useState, useRef, useEffect } from 'react';
 import { Brain, Bot, ChevronRight, Loader2, Search, FileText } from 'lucide-react';

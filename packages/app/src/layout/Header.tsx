@@ -1,3 +1,4 @@
+'use client';
 /**
  * Header Component
  * 
@@ -5,7 +6,6 @@
  * Accepts session data and navigation configuration as props.
  */
 
-'use client';
 
 import React from 'react';
 import { useCustomization } from '../contexts/CustomizationContext';
