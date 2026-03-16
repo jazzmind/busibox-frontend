@@ -102,16 +102,17 @@ CURRENT_VERSION=$(jq -r '.version' package.json)
 
 PACKAGE_EXISTS=false
 LATEST_PUBLISHED_VERSION=""
-set +e
 
-NPM_VIEW_OUTPUT=$(npm view "$PACKAGE_NAME" version --registry=https://registry.npmjs.org 2>&1)
+# Temporarily disable ERR trap — npm view fails if package doesn't exist yet (first publish)
+trap - ERR
+NPM_VIEW_OUTPUT=$(npm view "$PACKAGE_NAME" version --registry=https://registry.npmjs.org 2>&1) || true
 NPM_EXIT_CODE=$?
+trap 'handle_error $LINENO "$BASH_COMMAND"' ERR
 
 if [ $NPM_EXIT_CODE -eq 0 ] && [[ "$NPM_VIEW_OUTPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     PACKAGE_EXISTS=true
     LATEST_PUBLISHED_VERSION="$NPM_VIEW_OUTPUT"
 fi
-set -e
 
 if [ "$PACKAGE_EXISTS" = true ]; then
     echo -e "${GREEN}✓ Package exists on npmjs.org${NC}"
