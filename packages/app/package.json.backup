@@ -1,6 +1,6 @@
 {
   "name": "@jazzmind/busibox-app",
-  "version": "3.0.18",
+  "version": "3.0.16",
   "description": "Reusable components for Busibox applications",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -69,6 +69,14 @@
       "types": "./dist/lib/search/*.d.ts",
       "default": "./dist/lib/search/*.js"
     },
+    "./lib/config": {
+      "types": "./dist/lib/config/index.d.ts",
+      "default": "./dist/lib/config/index.js"
+    },
+    "./lib/config/*": {
+      "types": "./dist/lib/config/*.d.ts",
+      "default": "./dist/lib/config/*.js"
+    },  
     "./lib/deploy/*": {
       "types": "./dist/lib/deploy/*.d.ts",
       "default": "./dist/lib/deploy/*.js"
