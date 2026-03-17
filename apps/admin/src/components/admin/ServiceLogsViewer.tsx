@@ -88,20 +88,19 @@ export function ServiceLogsViewer() {
       });
 
       const response = await fetch(`/api/logs?${params}`);
+      const json = await response.json();
       
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to fetch logs');
+      if (!response.ok || !json.success) {
+        throw new Error(json.error || json.data?.error || 'Failed to fetch logs');
       }
 
-      const data = await response.json();
-      setLogs(data.logs || []);
+      const payload = json.data;
+      setLogs(payload.logs || []);
       
-      // Update available services from API response
-      if (data.availableServices && Array.isArray(data.availableServices)) {
+      if (payload.availableServices && Array.isArray(payload.availableServices)) {
         const services: ServiceOption[] = [
           { value: 'all', label: 'All Services', color: 'text-gray-400' },
-          ...data.availableServices.map((svc: string) => ({
+          ...payload.availableServices.map((svc: string) => ({
             value: svc,
             label: formatServiceLabel(svc),
             color: getServiceColorClass(svc),

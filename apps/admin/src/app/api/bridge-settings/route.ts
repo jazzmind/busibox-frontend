@@ -1,6 +1,6 @@
 /**
  * GET  /api/bridge-settings  — Read persisted bridge integration config (masked)
- * PATCH /api/bridge-settings — Update bridge config and trigger bridge restart
+ * PATCH /api/bridge-settings — Update bridge config (applied at runtime via config-api)
  */
 
 import { NextRequest } from 'next/server';
@@ -13,7 +13,6 @@ import {
   isMaskedValue,
   type BridgeConfig,
 } from '@jazzmind/busibox-app/lib/bridge/config';
-import { triggerBridgeRestart } from '@jazzmind/busibox-app/lib/deploy/client';
 import { getBridgeApiUrl } from '@jazzmind/busibox-app/lib/next/api-url';
 
 function asNullableString(value: unknown): string | null {
@@ -135,14 +134,7 @@ export async function PATCH(request: NextRequest) {
     const token = await getBridgeConfigToken(user.id, sessionJwt);
     const saved = await saveBridgeConfigToDeployApi(token, updates);
 
-    let restartMessage = '';
-    try {
-      await triggerBridgeRestart(token);
-      restartMessage = 'Bridge service restart triggered.';
-    } catch (restartError) {
-      console.warn('[API] Failed to trigger bridge restart:', restartError);
-      restartMessage = 'Settings saved but bridge restart failed. Restart bridge service manually.';
-    }
+    const restartMessage = 'Settings saved. Bridge picks up new config automatically (no restart needed).';
 
     let bridgeHealth: Record<string, unknown> | null = null;
     try {

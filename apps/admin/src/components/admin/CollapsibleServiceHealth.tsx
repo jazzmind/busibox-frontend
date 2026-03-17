@@ -221,7 +221,7 @@ export function CollapsibleServiceHealth({
           {/* Quick Link to Full System Page */}
           <div className="px-4 pb-4">
             <a
-              href="/system"
+              href="/admin/system"
               className="block w-full text-center py-2 px-4 text-white text-sm font-medium rounded-lg transition-colors hover:opacity-90"
               style={{ backgroundColor: customization.primaryColor }}
             >

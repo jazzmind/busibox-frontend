@@ -3,22 +3,49 @@
  * 
  * GET /api/audit-logs - Get audit logs with filtering and pagination
  * 
- * Audit logs are now stored in the authz service.
+ * Audit logs are stored in the authz service. Requires Zero Trust token
+ * exchange with authz.audit.read scope.
  */
 
 import { NextRequest } from 'next/server';
-import { requireAdminAuth, apiSuccess, apiError } from '@jazzmind/busibox-app/lib/next/middleware';
-import { getAuthzOptions, getAuthzBaseUrl } from '@jazzmind/busibox-app/lib/authz/next-client';
+import { apiSuccess, apiError, apiErrorRequireLogout, getCurrentUserWithSessionFromCookies, requireAdmin, isInvalidSessionError } from '@jazzmind/busibox-app/lib/next/middleware';
+import { exchangeTokenZeroTrust } from '@jazzmind/busibox-app';
+import { getAuthzBaseUrl } from '@jazzmind/busibox-app/lib/authz/next-client';
+
+const AUTHZ_BASE_URL = process.env.AUTHZ_BASE_URL || getAuthzBaseUrl();
 
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireAdminAuth(request);
-    if (authResult instanceof Response) return authResult;
+    const userWithSession = await getCurrentUserWithSessionFromCookies();
+    if (!userWithSession) {
+      return apiError('Authentication required', 401);
+    }
+
+    const { sessionJwt, ...user } = userWithSession;
+    if (!requireAdmin(user)) {
+      return apiError('Admin access required', 403);
+    }
+
+    // Exchange session token for authz-scoped token with audit read permission
+    let token = sessionJwt;
+    try {
+      const result = await exchangeTokenZeroTrust(
+        { sessionJwt, audience: 'authz', scopes: ['authz.audit.read'], purpose: 'Read audit logs' },
+        { authzBaseUrl: AUTHZ_BASE_URL, verbose: false },
+      );
+      token = result.accessToken;
+    } catch (exchangeError) {
+      if (isInvalidSessionError(exchangeError)) {
+        return apiErrorRequireLogout(
+          'Your session is no longer valid. Please log in again.',
+          (exchangeError as { code?: string }).code,
+        );
+      }
+      console.warn('[API/audit-logs] Token exchange error, using session token:', exchangeError);
+    }
 
     const { searchParams } = new URL(request.url);
-    const authzUrl = getAuthzBaseUrl();
-    
-    // Parse query parameters
+
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const userId = searchParams.get('userId') || '';
@@ -27,7 +54,6 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    // Build query params for authz
     const params = new URLSearchParams();
     params.set('page', String(page));
     params.set('limit', String(limit));
@@ -36,23 +62,25 @@ export async function GET(request: NextRequest) {
     if (startDate) params.set('from_date', startDate);
     if (endDate) params.set('to_date', endDate);
 
-    // Fetch from authz (Zero Trust - audit logs are public with proper scopes)
-    const response = await fetch(`${authzUrl}/audit/logs?${params.toString()}`);
+    const response = await fetch(`${AUTHZ_BASE_URL}/audit/logs?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
     if (!response.ok) {
       const text = await response.text();
-      console.error('[API] Authz audit logs error:', text);
+      console.error('[API] Authz audit logs error:', response.status, text);
       return apiError('Failed to fetch audit logs', response.status);
     }
 
     const data = await response.json();
 
-    // Transform logs to expected format
     const logs = (data.logs || []).map((log: any) => ({
       id: log.id,
       eventType: log.event_type,
       userId: log.actor_id,
-      userEmail: null, // Would need to fetch from users if needed
+      userEmail: null,
       targetUserId: log.target_user_id,
       targetRoleId: log.target_role_id,
       targetAppId: log.target_app_id,
@@ -65,7 +93,6 @@ export async function GET(request: NextRequest) {
       createdAt: log.created_at,
     }));
 
-    // Apply success filter client-side (if authz doesn't support it)
     const filteredLogs = success !== null && success !== undefined && success !== ''
       ? logs.filter((log: any) => log.success === (success === 'true'))
       : logs;

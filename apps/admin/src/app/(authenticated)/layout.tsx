@@ -20,12 +20,12 @@ import { Toaster } from 'react-hot-toast';
 import { Menu, X } from 'lucide-react';
 
 const adminNavigation: NavigationItem[] = [
-  { href: '/', label: 'Admin Dashboard' },
-  { href: '/users', label: 'Users' },
-  { href: '/roles', label: 'Roles' },
-  { href: '/apps', label: 'Apps' },
-  { href: '/data', label: 'Data' },
-  { href: '/system', label: 'System' },
+  { href: '/admin', label: 'Admin Dashboard' },
+  { href: '/admin/users', label: 'Users' },
+  { href: '/admin/roles', label: 'Roles' },
+  { href: '/admin/apps', label: 'Apps' },
+  { href: '/admin/data', label: 'Data' },
+  { href: '/admin/system', label: 'System' },
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
