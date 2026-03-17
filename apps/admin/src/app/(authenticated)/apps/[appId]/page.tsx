@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { getAuthzOptionsWithToken } from '@jazzmind/busibox-app/lib/authz/next-client';
 import { ArrowLeft } from 'lucide-react';
 import { getAppConfigById } from '@jazzmind/busibox-app/lib/deploy/app-config';
+import { AppRoleManager } from '@/components/admin/AppRoleManager';
 
 export const metadata = {
   title: 'App Details - Admin Portal',
@@ -126,22 +127,18 @@ export default async function AppDetailPage({ params }: PageProps) {
               {app.description && (
                 <p className="text-gray-600">{app.description}</p>
               )}
-              <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                <span>{rolePermissionsWithNames.length} role permissions</span>
-                {app.url && (
-                  <>
-                    <span>•</span>
-                    <a 
-                      href={app.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
-                      {app.url}
-                    </a>
-                  </>
-                )}
-              </div>
+              {app.url && (
+                <div className="mt-2 text-sm">
+                  <a 
+                    href={app.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    {app.url}
+                  </a>
+                </div>
+              )}
             </div>
             
             <Link href="/apps">
@@ -189,31 +186,10 @@ export default async function AppDetailPage({ params }: PageProps) {
           <div className="lg:col-span-1 space-y-6">
             {/* Roles with Access */}
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                Roles with Access ({rolePermissionsWithNames.length})
-              </h2>
-              {rolePermissionsWithNames.length > 0 ? (
-                <ul className="space-y-2">
-                  {rolePermissionsWithNames.map(rp => (
-                    <li key={rp.id} className="py-2 border-b border-gray-100 last:border-0">
-                      <Link
-                        href={`/roles/${rp.role.id}`}
-                        className="block hover:bg-gray-50 rounded p-2 -m-2 transition-colors"
-                      >
-                        <p className="text-sm font-medium text-gray-900">{rp.role.name}</p>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-gray-500">No roles have access yet</p>
-              )}
-
-              <Link href="/roles" className="block mt-4">
-                <Button variant="secondary" fullWidth>
-                  Manage Roles →
-                </Button>
-              </Link>
+              <AppRoleManager
+                appId={appId}
+                initialRoleIds={rolePermissionsWithNames.map(rp => rp.roleId)}
+              />
             </div>
 
             {/* Metadata */}

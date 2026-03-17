@@ -20,7 +20,7 @@ import { validateExternalAppUrl } from '@jazzmind/busibox-app/lib/deploy/url-val
 import { isGitHubUrl, fetchAndValidateManifest } from '@jazzmind/busibox-app/lib/deploy/github-manifest';
 import { validateManifest } from '@jazzmind/busibox-app/lib/deploy/manifest-schema';
 import { deployApp } from '@jazzmind/busibox-app/lib/deploy/deployment-client';
-import { listRoleBindings, exchangeTokenZeroTrust, getRoleByName, grantRoleResourceAccess } from '@jazzmind/busibox-app';
+import { listRoleBindings, listRoles, exchangeTokenZeroTrust, getRoleByName, grantRoleResourceAccess } from '@jazzmind/busibox-app';
 import { getAuthzOptionsWithToken, getAuthzBaseUrl } from '@jazzmind/busibox-app/lib/authz/next-client';
 import {
   type AppConfigRecord,
@@ -85,6 +85,42 @@ async function grantAdminRoleAccess(appId: string, sessionJwt: string): Promise<
     console.log(`[API] Granted Admin role access to new app: ${appId}`);
   } catch (error) {
     console.error('[API] Failed to auto-grant Admin access to new app:', error);
+  }
+}
+
+/**
+ * Grant additional roles access to a newly created app.
+ * Validates that the role IDs exist before granting. Skips the Admin role
+ * (already handled by grantAdminRoleAccess). Fails gracefully per-role.
+ */
+async function grantSelectedRoleAccess(
+  appId: string,
+  roleIds: string[],
+  sessionJwt: string
+): Promise<void> {
+  if (!roleIds || roleIds.length === 0) return;
+
+  try {
+    const options = await getAuthzOptionsWithToken(sessionJwt);
+    const allRoles = await listRoles(options);
+    const validRoleMap = new Map(allRoles.map((r: { id: string; name: string }) => [r.id, r.name]));
+
+    for (const roleId of roleIds) {
+      const roleName = validRoleMap.get(roleId);
+      if (!roleName) {
+        console.warn(`[API] Skipping unknown role ID: ${roleId}`);
+        continue;
+      }
+      if (roleName === 'Admin') continue;
+      try {
+        await grantRoleResourceAccess(roleId, 'app', appId, undefined, options);
+        console.log(`[API] Granted ${roleName} role access to new app: ${appId}`);
+      } catch (err) {
+        console.error(`[API] Failed to grant ${roleName} access to app ${appId}:`, err);
+      }
+    }
+  } catch (error) {
+    console.error('[API] Failed to grant selected role access:', error);
   }
 }
 
@@ -160,7 +196,8 @@ export async function POST(request: NextRequest) {
     const validationError = validateRequiredFields(body, ['name', 'type']);
     if (validationError) return apiError(validationError, 400);
 
-    const { name, description, type, url, iconUrl, selectedIcon, displayOrder, githubToken, isActive: bodyIsActive, primaryColor, secondaryColor } = body;
+    const { name, description, type, url, iconUrl, selectedIcon, displayOrder, githubToken, isActive: bodyIsActive, primaryColor, secondaryColor, selectedRoleIds } = body;
+    const roleIdsToGrant: string[] = Array.isArray(selectedRoleIds) ? selectedRoleIds : [];
     if (!isValidAppType(type)) {
       return apiError('Type must be BUILT_IN, LIBRARY, or EXTERNAL', 400);
     }
@@ -230,6 +267,7 @@ export async function POST(request: NextRequest) {
         const auditOptions = await getAuthzOptionsWithToken(sessionJwt);
         await logAppRegistered(newApp.id, newApp.name, adminUser.id, auditOptions);
         await grantAdminRoleAccess(newApp.id, sessionJwt);
+        await grantSelectedRoleAccess(newApp.id, roleIdsToGrant, sessionJwt);
 
         try {
           const exchangeResult = await exchangeTokenZeroTrust(
@@ -339,6 +377,7 @@ export async function POST(request: NextRequest) {
         const auditOptions = await getAuthzOptionsWithToken(sessionJwt);
         await logAppRegistered(newApp.id, newApp.name, adminUser.id, auditOptions);
         await grantAdminRoleAccess(newApp.id, sessionJwt);
+        await grantSelectedRoleAccess(newApp.id, roleIdsToGrant, sessionJwt);
 
         try {
           const exchangeResult = await exchangeTokenZeroTrust(
@@ -433,6 +472,7 @@ export async function POST(request: NextRequest) {
       const auditOptions = await getAuthzOptionsWithToken(sessionJwt);
       await logAppRegistered(newApp.id, newApp.name, adminUser.id, auditOptions);
       await grantAdminRoleAccess(newApp.id, sessionJwt);
+      await grantSelectedRoleAccess(newApp.id, roleIdsToGrant, sessionJwt);
 
       return apiSuccess(
         {
@@ -498,6 +538,7 @@ export async function POST(request: NextRequest) {
 
       await logAppRegistered(newApp.id, newApp.name, adminUser.id);
       await grantAdminRoleAccess(newApp.id, sessionJwt);
+      await grantSelectedRoleAccess(newApp.id, roleIdsToGrant, sessionJwt);
     return apiSuccess(
       {
         app: {

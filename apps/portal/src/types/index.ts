@@ -223,6 +223,8 @@ export type DashboardApp = {
   selectedIcon: string | null;
   displayOrder: number;
   isActive: boolean;
+  lastDeploymentStatus: string | null;
+  deployedPath: string | null;
 };
 
 export type UserProfile = {

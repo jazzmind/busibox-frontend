@@ -170,15 +170,17 @@ export async function generateSSOToken(userInfo: SSOUserInfo, appIdentifier: str
       console.error('[SSO] Audit logging failed (non-fatal):', auditError);
     }
 
-    // For deployed apps, use deployedPath (e.g., /myapp)
-    // For external web apps, use the URL directly
-    // local-dev:// URLs should use deployedPath once deployed
+    // Determine the app URL to redirect to after SSO token exchange.
+    // For deployed apps, use deployedPath (e.g., /myapp).
+    // For GitHub-sourced apps not yet deployed, return null so the portal
+    // can show a status message instead of redirecting to GitHub.
     let appUrl = app.url;
     if (app.deployedPath && app.lastDeploymentStatus === 'completed') {
       appUrl = app.deployedPath;
     } else if (app.url?.startsWith('local-dev://')) {
-      // local-dev app not yet deployed - use deployedPath if available
       appUrl = app.deployedPath || null;
+    } else if (app.url && /^https?:\/\/(www\.)?github\.com\//i.test(app.url)) {
+      appUrl = null;
     }
 
     return {

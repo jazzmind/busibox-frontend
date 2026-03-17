@@ -2,12 +2,22 @@
  * SSO Token Generation API
  * 
  * POST /api/auth/sso/token - Generate SSO token for external app access
+ *
+ * Error codes returned in the response body (errorCode field):
+ * - "not_deployed": App exists but has no deployed URL yet
+ * - "no_permission": User's roles do not grant access to this app
+ * - "not_found": App does not exist
+ * - "not_active": App is disabled
  */
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, apiSuccess, apiError, parseJsonBody } from '@jazzmind/busibox-app/lib/next/middleware';
 import { generateSSOToken } from '@jazzmind/busibox-app/lib/authz/sso-generator';
 import { getAppByNameFromStore, getAppConfigStoreContextForUser } from '@jazzmind/busibox-app/lib/deploy/app-config';
+
+function apiErrorWithCode(error: string, errorCode: string, status: number) {
+  return NextResponse.json({ success: false, error, errorCode }, { status });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,7 +37,7 @@ export async function POST(request: NextRequest) {
       const app = await getAppByNameFromStore(context.accessToken, appName);
       
       if (!app) {
-        return apiError(`App not found: ${appName}`, 404);
+        return apiErrorWithCode(`App not found: ${appName}`, 'not_found', 404);
       }
       
       appId = app.id;
@@ -55,19 +65,19 @@ export async function POST(request: NextRequest) {
       token: result.token,
       expiresAt: result.expiresAt,
       redirectUrl,
+      notDeployed: !result.appUrl,
     });
   } catch (error: any) {
     console.error('[API] SSO token generation error:', error);
     
-    // Return specific error messages
     if (error.message?.includes('not found')) {
-      return apiError(error.message, 404);
+      return apiErrorWithCode(error.message, 'not_found', 404);
     }
     if (error.message?.includes('not active')) {
-      return apiError(error.message, 403);
+      return apiErrorWithCode(error.message, 'not_active', 403);
     }
     if (error.message?.includes('permission')) {
-      return apiError(error.message, 403);
+      return apiErrorWithCode('You do not have access to this app. Contact your administrator to request access.', 'no_permission', 403);
     }
     
     return apiError('An unexpected error occurred', 500);

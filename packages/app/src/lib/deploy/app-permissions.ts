@@ -99,6 +99,8 @@ export async function getUserApps(userId: string, accessToken?: string) {
         selectedIcon: app.selectedIcon,
         displayOrder: app.displayOrder,
         isActive: app.isActive,
+        lastDeploymentStatus: app.lastDeploymentStatus ?? null,
+        deployedPath: app.deployedPath ?? null,
       }));
   } catch (error) {
     console.error('[APP-PERMISSIONS] Error getting user apps:', error);
