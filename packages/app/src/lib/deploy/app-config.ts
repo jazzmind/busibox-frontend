@@ -201,7 +201,11 @@ async function _loadDeployMeta(token: string, appId: string, record: AppConfigRe
     DEPLOY_META_FIELDS.map((f) => _getDeployMeta(token, appId, f)),
   );
   record.lastDeploymentId = id;
-  record.lastDeploymentStatus = status;
+  // Preserve the registry-level status when the admin config entry is
+  // inaccessible (non-admin users can't read admin-tier config entries).
+  if (status != null) {
+    record.lastDeploymentStatus = status;
+  }
   record.lastDeploymentLogs = logs;
   record.lastDeploymentError = error;
   record.lastDeploymentStartedAt = startedAt ? new Date(startedAt) : null;
