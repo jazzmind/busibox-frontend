@@ -148,6 +148,26 @@ import type {
 } from '@jazzmind/busibox-app';
 ```
 
+### Document Sharing
+
+```typescript
+import {
+  ensureTeamRole,
+  addRoleToDocuments,
+  addRoleToLibrary,
+  listTeamMembers,
+  addTeamMember,
+  removeTeamMember,
+  searchUsers,
+  setDocumentVisibility,
+  resolveVisibilityMode,
+  getSSOTokenFromRequest,
+  type VisibilityMode,
+  type TeamMember,
+  type TeamRole,
+} from '@jazzmind/busibox-app/lib/data/sharing';
+```
+
 ## Service Clients
 
 ### DataClient

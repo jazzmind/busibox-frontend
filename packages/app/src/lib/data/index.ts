@@ -68,7 +68,26 @@ export type {
   DocumentRolesResponse,
 } from './documents';
 
+// Document sharing (team roles, visibility, member management)
+export {
+  ensureTeamRole,
+  verifyRoleExists,
+  addRoleToDocuments,
+  removeRoleFromDocuments,
+  addRoleToLibrary,
+  listTeamMembers,
+  addTeamMember,
+  removeTeamMember,
+  searchUsers,
+  resolveVisibilityMode,
+  setDocumentVisibility,
+  getSSOTokenFromRequest,
+} from './sharing';
 
-
-
+export type {
+  VisibilityMode,
+  TeamMember,
+  TeamRole,
+  SearchUser,
+} from './sharing';
 
