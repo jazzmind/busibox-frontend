@@ -102,16 +102,25 @@ export interface SearchUser {
  * it is returned instead of creating a duplicate.
  *
  * The caller is automatically assigned to the role on creation.
+ *
+ * When `appResourceId` is provided, the role is also bound to the app
+ * in authz so that it appears in app-scoped token exchanges. This is
+ * required for team roles to be included in the JWT when users launch
+ * the app from the portal.
  */
 export async function ensureTeamRole(
   ssoToken: string,
   appName: string,
   entityName: string,
-  options?: { description?: string; scopes?: string[] },
+  options?: { description?: string; scopes?: string[]; appResourceId?: string },
 ): Promise<TeamRole> {
   const roleName = `app:${appName}:${entityName}-team`;
   const authzUrl = getAuthzBaseUrl();
   const headers = { Authorization: `Bearer ${ssoToken}` };
+
+  let roleId: string;
+  let roleNameResult: string;
+  let created: boolean;
 
   // Try to create first — fast path when role doesn't exist
   const createRes = await fetch(`${authzUrl}/roles`, {
@@ -126,27 +135,49 @@ export async function ensureTeamRole(
 
   if (createRes.ok) {
     const role = await createRes.json();
-    return { roleId: role.id, roleName: role.name, created: true };
+    roleId = role.id;
+    roleNameResult = role.name;
+    created = true;
+  } else {
+    // Creation failed (likely duplicate) — search for existing
+    const listRes = await fetch(
+      `${authzUrl}/roles?app=${encodeURIComponent(appName)}`,
+      { headers },
+    );
+    if (!listRes.ok) {
+      const text = await listRes.text().catch(() => '');
+      throw new Error(`Failed to list roles for ${appName}: ${listRes.status} ${text}`);
+    }
+
+    const roles = (await listRes.json()) as Array<{ id: string; name: string }>;
+    const existing = roles.find((r) => r.name === roleName);
+    if (!existing) {
+      const createText = await createRes.text().catch(() => '');
+      throw new Error(`Failed to create or find role ${roleName}: ${createRes.status} ${createText}`);
+    }
+
+    roleId = existing.id;
+    roleNameResult = existing.name;
+    created = false;
   }
 
-  // Creation failed (likely duplicate) — search for existing
-  const listRes = await fetch(
-    `${authzUrl}/roles?app=${encodeURIComponent(appName)}`,
-    { headers },
-  );
-  if (!listRes.ok) {
-    const text = await listRes.text().catch(() => '');
-    throw new Error(`Failed to list roles for ${appName}: ${listRes.status} ${text}`);
+  // Ensure the role is bound to the app so it appears in app-scoped tokens
+  if (options?.appResourceId) {
+    try {
+      await fetch(`${authzUrl}/roles/${roleId}/bindings`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resource_type: 'app',
+          resource_id: options.appResourceId,
+        }),
+      });
+    } catch (err) {
+      console.warn(`[sharing] Failed to bind role ${roleId} to app ${options.appResourceId}:`, err);
+    }
   }
 
-  const roles = (await listRes.json()) as Array<{ id: string; name: string }>;
-  const existing = roles.find((r) => r.name === roleName);
-  if (existing) {
-    return { roleId: existing.id, roleName: existing.name, created: false };
-  }
-
-  const createText = await createRes.text().catch(() => '');
-  throw new Error(`Failed to create or find role ${roleName}: ${createRes.status} ${createText}`);
+  return { roleId, roleName: roleNameResult, created };
 }
 
 /**

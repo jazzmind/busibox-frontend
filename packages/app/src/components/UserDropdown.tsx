@@ -67,17 +67,28 @@ function getDisplayName(user: User): string {
   );
 }
 
+function isTeamRole(role: string): boolean {
+  return role.startsWith('app:');
+}
+
+function getStandardRoles(roles?: string[]): string[] {
+  return (roles || []).filter((r) => !isTeamRole(r));
+}
+
+function getTeamRoles(roles?: string[]): string[] {
+  return (roles || []).filter(isTeamRole);
+}
+
 /**
- * Get display role from user roles array
+ * Get display role from user roles array (excludes team roles like app:*:*)
  */
 function getRoleDisplay(roles?: string[]): string {
-  if (!roles || roles.length === 0) return 'User';
-  
-  // Prioritize admin role
-  if (roles.includes('admin')) return 'Admin';
-  
-  // Return first role, capitalized
-  return roles[0].charAt(0).toUpperCase() + roles[0].slice(1);
+  const standard = getStandardRoles(roles);
+  if (standard.length === 0) return 'User';
+
+  if (standard.some((r) => r.toLowerCase() === 'admin')) return 'Admin';
+
+  return standard[0].charAt(0).toUpperCase() + standard[0].slice(1);
 }
 
 export function UserDropdown({
@@ -191,14 +202,26 @@ export function UserDropdown({
                   {user.status}
                 </span>
               </div>
-              {user.roles && user.roles.length > 0 && (
-                <div>
-                  Roles:{' '}
-                  <span className="font-medium text-gray-700">
-                    {user.roles.join(', ')}
-                  </span>
-                </div>
-              )}
+              {user.roles && user.roles.length > 0 && (() => {
+                const standard = getStandardRoles(user.roles);
+                const team = getTeamRoles(user.roles);
+                return (
+                  <div title={`All roles: ${user.roles.join(', ')}`}>
+                    Roles:{' '}
+                    <span className="font-medium text-gray-700">
+                      {standard.length > 0 ? standard.join(', ') : 'User'}
+                    </span>
+                    {team.length > 0 && (
+                      <span
+                        className="text-gray-400 ml-1 cursor-help"
+                        title={`Team roles: ${team.join(', ')}`}
+                      >
+                        (+{team.length} team)
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
