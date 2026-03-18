@@ -436,7 +436,7 @@ export async function ensureDocuments<T extends Record<string, DataDocumentConfi
   sourceApp: string,
   options?: DataDocumentsOptions
 ): Promise<{ [K in keyof T]: string }> {
-  const documents = await listDataDocuments(token, options);
+  const documents = await listDataDocuments(token, { ...options, limit: 100 });
   const result: Record<string, string> = {} as { [K in keyof T]: string };
 
   for (const [key, docConfig] of Object.entries(config)) {
