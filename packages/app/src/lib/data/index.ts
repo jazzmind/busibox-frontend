@@ -55,6 +55,9 @@ export {
   updateRecords,
   deleteRecords,
   ensureDocuments,
+  getRecordRoles,
+  setRecordVisibility,
+  bulkSetRecordVisibility,
 } from './documents';
 
 export type {
@@ -66,6 +69,10 @@ export type {
   DataDocumentsOptions,
   DocumentRoleAssignment,
   DocumentRolesResponse,
+  InsertRecordsOptions,
+  RecordRolesResponse,
+  RecordVisibilityResponse,
+  BulkRecordVisibilityResponse,
 } from './documents';
 
 // Document sharing (team roles, visibility, member management)

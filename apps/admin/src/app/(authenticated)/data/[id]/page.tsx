@@ -130,7 +130,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
   const fallbackDocument: AppDataDocument = {
     id: resolvedParams.id,
     documentId: resolvedParams.id,
-    name: searchParams.get('name') || 'Loading data store...',
+    name: searchParams.get('name') || 'Loading collection...',
     displayName: searchParams.get('displayName') || undefined,
     sourceApp: searchParams.get('sourceApp') || 'unknown',
     itemLabel: searchParams.get('itemLabel') || undefined,
@@ -206,7 +206,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
         const docResponse = await fetch(`/api/data/${resolvedParams.id}`);
         if (!docResponse.ok) {
           const errorData = await docResponse.json().catch(() => ({}));
-          throw new Error(errorData.error || `Failed to fetch document: ${docResponse.status}`);
+          throw new Error(errorData.error || `Failed to fetch collection: ${docResponse.status}`);
         }
         
         const docData = await docResponse.json();
@@ -344,14 +344,14 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to delete document');
+        throw new Error(errorData.error || 'Failed to delete collection');
       }
       
       // Navigate back to data management page
       router.push('/data');
     } catch (err) {
       console.error('Error deleting document:', err);
-      setError(err instanceof Error ? err.message : 'Failed to delete document');
+      setError(err instanceof Error ? err.message : 'Failed to delete collection');
       setDeleteLoading(false);
       setShowDeleteModal(false);
     }
@@ -458,7 +458,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
   const requestRolesUpdate = async (nextRoleIds: string[], nextVisibility: 'personal' | 'shared') => {
     if (wouldRemoveOwnAccess(nextRoleIds, nextVisibility)) {
       setPendingDangerousChange({ roleIds: nextRoleIds, visibility: nextVisibility });
-      setRolesMessage('Warning: this change will remove your own access to this document.');
+      setRolesMessage('Warning: this change will remove your own access to this collection.');
       return;
     }
     await persistRoles(nextRoleIds, nextVisibility);
@@ -584,10 +584,10 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
           <div className="text-center py-12">
             <Database className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <h2 className="text-lg font-medium text-gray-900 mb-2">
-              {error || 'Document not found'}
+              {error || 'Collection not found'}
             </h2>
             <p className="text-gray-500">
-              The requested app data document could not be loaded.
+              The requested data collection could not be loaded.
             </p>
           </div>
         </div>
@@ -664,7 +664,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
-                Delete Document
+                Delete Collection
               </button>
             </div>
           </div>
@@ -819,14 +819,14 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
             </>
           ) : (
             <p className="text-sm text-gray-600">
-              This document is personal. Switch to shared visibility to assign access roles.
+              This collection is personal. Switch to shared visibility to assign access roles.
             </p>
           )}
 
           {pendingDangerousChange && (
             <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-3">
               <p className="text-sm text-red-700 mb-2">
-                This change will remove your own access to this document.
+                This change will remove your own access to this collection.
               </p>
               <div className="flex items-center gap-2">
                 <button
@@ -1084,7 +1084,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
       {showDeleteModal && (
         <DeleteConfirmModal
           itemName={activeDocument.displayName || activeDocument.name}
-          itemType="document"
+          itemType="collection"
           isDocument={true}
           relatedCounts={relatedDocCounts}
           onConfirm={handleDeleteDocument}

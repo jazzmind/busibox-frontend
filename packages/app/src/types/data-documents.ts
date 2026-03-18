@@ -77,5 +77,5 @@ export type DataDocument = {
 export type DataDocumentConfig = {
   name: string;
   schema: Record<string, unknown>;
-  visibility?: 'personal' | 'shared';
+  visibility?: 'personal' | 'shared' | 'authenticated';
 };

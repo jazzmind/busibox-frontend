@@ -144,14 +144,21 @@ export async function createDataDocument(
   token: string,
   name: string,
   schema: Record<string, unknown>,
-  visibility: 'personal' | 'shared' = 'shared',
+  visibility: 'personal' | 'shared' | 'authenticated' = 'shared',
   options?: DataDocumentsOptions
 ): Promise<DataDocument> {
   const sourceApp = schema.sourceApp as string | undefined;
-  const roleIds =
-    visibility === 'shared' ? extractRoleIdsFromToken(token) : undefined;
-  const effectiveVisibility =
-    visibility === 'shared' && roleIds && roleIds.length > 0 ? 'shared' : 'personal';
+
+  let effectiveVisibility: string = visibility;
+  let roleIds: string[] | undefined;
+
+  if (visibility === 'authenticated') {
+    effectiveVisibility = 'authenticated';
+  } else if (visibility === 'shared') {
+    roleIds = extractRoleIdsFromToken(token);
+    effectiveVisibility =
+      roleIds && roleIds.length > 0 ? 'shared' : 'personal';
+  }
 
   return dataDocumentsRequest<DataDocument>(
     token,
@@ -363,19 +370,37 @@ export async function queryRecords<T>(
   );
 }
 
+export interface InsertRecordsOptions {
+  validate?: boolean;
+  recordVisibility?: 'inherit' | 'personal' | 'shared';
+  recordRoleIds?: string[];
+}
+
 export async function insertRecords<T>(
   token: string,
   documentId: string,
   records: T[],
-  validate = true,
+  validateOrOptions?: boolean | InsertRecordsOptions,
   options?: DataDocumentsOptions
 ): Promise<{ count: number; recordIds: string[] }> {
+  let validate = true;
+  let recordVisibility: string | undefined;
+  let recordRoleIds: string[] | undefined;
+
+  if (typeof validateOrOptions === 'boolean') {
+    validate = validateOrOptions;
+  } else if (validateOrOptions && typeof validateOrOptions === 'object') {
+    validate = validateOrOptions.validate ?? true;
+    recordVisibility = validateOrOptions.recordVisibility;
+    recordRoleIds = validateOrOptions.recordRoleIds;
+  }
+
   return dataDocumentsRequest<{ count: number; recordIds: string[] }>(
     token,
     `/data/${documentId}/records`,
     {
       method: 'POST',
-      body: JSON.stringify({ records, validate }),
+      body: JSON.stringify({ records, validate, recordVisibility, recordRoleIds }),
     },
     options
   );
@@ -413,6 +438,82 @@ export async function deleteRecords(
     {
       method: 'DELETE',
       body: JSON.stringify({ where, recordIds }),
+    },
+    options
+  );
+}
+
+// ==========================================================================
+// Record-Level Visibility
+// ==========================================================================
+
+export interface RecordRolesResponse {
+  documentId: string;
+  recordId: string;
+  roles: DocumentRoleAssignment[];
+  roleIds: string[];
+}
+
+export interface RecordVisibilityResponse {
+  recordId: string;
+  visibility: string;
+  roleIds: string[];
+}
+
+export interface BulkRecordVisibilityResponse {
+  documentId: string;
+  updated: number;
+  visibility: string;
+  message: string;
+}
+
+export async function getRecordRoles(
+  token: string,
+  documentId: string,
+  recordId: string,
+  options?: DataDocumentsOptions
+): Promise<RecordRolesResponse> {
+  return dataDocumentsRequest<RecordRolesResponse>(
+    token,
+    `/data/${documentId}/records/${recordId}/roles`,
+    {},
+    options
+  );
+}
+
+export async function setRecordVisibility(
+  token: string,
+  documentId: string,
+  recordId: string,
+  visibility: 'inherit' | 'personal' | 'shared',
+  roleIds?: string[],
+  options?: DataDocumentsOptions
+): Promise<RecordVisibilityResponse> {
+  return dataDocumentsRequest<RecordVisibilityResponse>(
+    token,
+    `/data/${documentId}/records/${recordId}/visibility`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ visibility, roleIds }),
+    },
+    options
+  );
+}
+
+export async function bulkSetRecordVisibility(
+  token: string,
+  documentId: string,
+  recordIds: string[],
+  visibility: 'inherit' | 'personal' | 'shared',
+  roleIds?: string[],
+  options?: DataDocumentsOptions
+): Promise<BulkRecordVisibilityResponse> {
+  return dataDocumentsRequest<BulkRecordVisibilityResponse>(
+    token,
+    `/data/${documentId}/records/visibility`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ recordIds, visibility, roleIds }),
     },
     options
   );

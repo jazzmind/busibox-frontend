@@ -297,7 +297,7 @@ export default function DataManagementPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-semibold text-gray-900">Data Management</h1>
-              <p className="text-gray-600 mt-1">Manage document libraries, tags, and storage</p>
+              <p className="text-gray-600 mt-1">Manage document libraries, data collections, tags, and storage</p>
             </div>
             
             <button
@@ -334,7 +334,7 @@ export default function DataManagementPage() {
                 <div className="p-2 bg-green-100 rounded-lg">
                   <Database className="w-5 h-5 text-green-600" />
                 </div>
-                <span className="text-sm font-medium text-green-600">App Data</span>
+                <span className="text-sm font-medium text-green-600">Data Collections</span>
               </div>
               <p className="text-3xl font-bold text-gray-900">{safeAppDataLibraries.length}</p>
               <p className="text-sm text-gray-500 mt-1">{formatNumber(totalAppDataRecords)} records</p>
@@ -394,7 +394,7 @@ export default function DataManagementPage() {
             {[
               { id: 'overview', label: 'Overview', icon: <Layers className="w-4 h-4" /> },
               { id: 'shared', label: 'Shared Libraries', icon: <FolderOpen className="w-4 h-4" /> },
-              { id: 'app-data', label: 'App Data', icon: <Database className="w-4 h-4" /> },
+              { id: 'app-data', label: 'Data Collections', icon: <Database className="w-4 h-4" /> },
               { id: 'tags', label: 'Tags', icon: <Tag className="w-4 h-4" /> },
             ].map(tab => (
               <button
@@ -490,10 +490,10 @@ export default function DataManagementPage() {
                     </div>
                   </div>
 
-                  {/* App Data */}
+                  {/* Data Collections */}
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-semibold text-gray-900">App Data</h2>
+                      <h2 className="text-lg font-semibold text-gray-900">Data Collections</h2>
                       <button
                         onClick={() => setActiveTab('app-data')}
                         className="text-sm text-green-600 hover:text-green-700 hover:underline"

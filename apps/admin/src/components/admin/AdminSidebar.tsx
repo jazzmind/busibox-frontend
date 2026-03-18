@@ -78,7 +78,7 @@ const navItems: NavItem[] = [
     label: 'Data',
     href: '/data',
     icon: <Database className="w-5 h-5" />,
-    description: 'Libraries, tags, storage',
+    description: 'Libraries, collections, tags, storage',
   },
 
   {
