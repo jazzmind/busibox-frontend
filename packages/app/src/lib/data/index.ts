@@ -80,6 +80,7 @@ export {
   removeTeamMember,
   searchUsers,
   resolveVisibilityMode,
+  normalizeVisibilityMode,
   setDocumentVisibility,
   getSSOTokenFromRequest,
 } from './sharing';

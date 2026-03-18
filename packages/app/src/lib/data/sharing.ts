@@ -12,7 +12,7 @@
  *    document/library role management.
  *
  * Visibility modes:
- *  - `private`  → `visibility: 'personal'` — only the document owner
+ *  - `private` (or `personal`)  → `visibility: 'personal'` — only the document owner
  *  - `shared`   → `visibility: 'authenticated'` — any app user
  *  - `team`     → `visibility: 'shared'` with role(s) — only users with the role
  *
@@ -54,7 +54,15 @@ const getDataApiUrl = () =>
 // Types
 // ---------------------------------------------------------------------------
 
-export type VisibilityMode = 'private' | 'shared' | 'team';
+export type VisibilityMode = 'private' | 'personal' | 'shared' | 'team';
+
+/**
+ * Normalize a VisibilityMode so that `'personal'` is treated as `'private'`.
+ * Data-api uses `'personal'` internally, but the user-facing mode is `'private'`.
+ */
+export function normalizeVisibilityMode(mode: VisibilityMode): 'private' | 'shared' | 'team' {
+  return mode === 'personal' ? 'private' : mode;
+}
 
 export interface TeamMember {
   user_id: string;
@@ -384,7 +392,8 @@ export async function setDocumentVisibility(
   roleId?: string,
   callerRoleIds?: string[],
 ): Promise<void> {
-  switch (mode) {
+  const normalized = normalizeVisibilityMode(mode);
+  switch (normalized) {
     case 'private':
       await Promise.all(
         documentIds.map((docId) =>
