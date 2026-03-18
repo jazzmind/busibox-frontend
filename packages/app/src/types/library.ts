@@ -71,7 +71,7 @@ export type AppDataSchema = {
   displayName?: string;
   itemLabel?: string;
   sourceApp?: string;
-  visibility?: 'personal' | 'shared';
+  visibility?: 'personal' | 'shared' | 'authenticated';
   allowSharing?: boolean;
   /** Relationships to other data documents */
   relations?: Record<string, AppDataRelation>;

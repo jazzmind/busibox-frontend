@@ -64,7 +64,7 @@ export type DataDocument = {
   name: string;
   schema?: Record<string, unknown>;
   recordCount: number;
-  visibility: 'personal' | 'shared';
+  visibility: 'personal' | 'shared' | 'authenticated';
   metadata?: Record<string, unknown>;
   sourceApp?: string;
   createdAt?: string;
