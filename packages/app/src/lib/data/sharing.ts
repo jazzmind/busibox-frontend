@@ -193,6 +193,37 @@ export async function verifyRoleExists(
   return res.ok;
 }
 
+/**
+ * Ensure a role has an app binding in authz (idempotent, fire-and-forget).
+ *
+ * Call this whenever you have a cached role ID and an app resource ID to
+ * self-heal existing team roles that were created before app bindings were
+ * implemented. Safe to call frequently — the authz endpoint is idempotent
+ * and returns 200 if the binding already exists.
+ *
+ * Errors are swallowed so this never blocks the calling code path.
+ */
+export function ensureRoleAppBinding(
+  ssoToken: string,
+  roleId: string,
+  appResourceId: string,
+): void {
+  const authzUrl = getAuthzBaseUrl();
+  fetch(`${authzUrl}/roles/${roleId}/bindings`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${ssoToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      resource_type: 'app',
+      resource_id: appResourceId,
+    }),
+  }).catch(() => {
+    // Fire-and-forget: swallow errors
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Document Role Management (data-api endpoints, requires dataToken)
 // ---------------------------------------------------------------------------
