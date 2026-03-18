@@ -71,6 +71,7 @@ export type {
 // Document sharing (team roles, visibility, member management)
 export {
   ensureTeamRole,
+  ensureRoleAppBinding,
   verifyRoleExists,
   addRoleToDocuments,
   removeRoleFromDocuments,
