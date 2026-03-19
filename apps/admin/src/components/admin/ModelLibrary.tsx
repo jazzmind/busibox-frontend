@@ -18,13 +18,25 @@ interface ActiveModel {
   model: string | null;
 }
 
-export function ModelLibrary() {
+interface ModelLibraryProps {
+  backend?: string | null;
+}
+
+const VLLM_PORTS = [8000, 8001, 8002, 8003, 8004, 8005];
+const MLX_PORTS = [8080, 18081];
+
+export function ModelLibrary({ backend }: ModelLibraryProps) {
   const [models, setModels] = useState<BrowseModel[]>([]);
   const [active, setActive] = useState<ActiveModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [portByModel, setPortByModel] = useState<Record<string, number>>({});
+
+  const isMLX = backend === 'mlx';
+  const providerFilter = isMLX ? 'mlx' : 'vllm';
+  const ports = isMLX ? MLX_PORTS : VLLM_PORTS;
+  const defaultPort = ports[0];
 
   const fetchData = async () => {
     setLoading(true);
@@ -52,9 +64,9 @@ export function ModelLibrary() {
     fetchData();
   }, []);
 
-  const vllmModels = useMemo(
-    () => models.filter((m) => m.provider === 'vllm'),
-    [models]
+  const filteredModels = useMemo(
+    () => models.filter((m) => m.provider === providerFilter),
+    [models, providerFilter]
   );
 
   const streamPost = async (url: string, body: unknown, tag: string) => {
@@ -80,7 +92,9 @@ export function ModelLibrary() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">Model Library</h3>
-          <p className="text-sm text-gray-500">Browse cached and available models</p>
+          <p className="text-sm text-gray-500">
+            Browse cached and available {isMLX ? 'MLX' : 'vLLM'} models
+          </p>
         </div>
         <button
           onClick={fetchData}
@@ -95,7 +109,7 @@ export function ModelLibrary() {
       {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
 
       <div className="space-y-2">
-        {vllmModels.map((m) => (
+        {filteredModels.map((m) => (
           <div key={m.model_key} className="border border-gray-200 rounded-lg p-3">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -115,27 +129,31 @@ export function ModelLibrary() {
                   <Download className="w-3.5 h-3.5" />
                   Download
                 </button>
-                <select
-                  className="text-xs border border-gray-300 rounded px-2 py-1"
-                  value={portByModel[m.model_key] ?? 8000}
-                  onChange={(e) =>
-                    setPortByModel((prev) => ({ ...prev, [m.model_key]: Number(e.target.value) }))
-                  }
-                >
-                  {[8000, 8001, 8002, 8003, 8004, 8005].map((p) => (
-                    <option key={p} value={p}>
-                      :{p}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => streamPost('/api/models/load', { port: portByModel[m.model_key] ?? 8000 }, `load:${m.model_key}`)}
-                  disabled={busy !== null}
-                  className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 flex items-center gap-1"
-                >
-                  <Play className="w-3.5 h-3.5" />
-                  Load
-                </button>
+                {!isMLX && (
+                  <>
+                    <select
+                      className="text-xs border border-gray-300 rounded px-2 py-1"
+                      value={portByModel[m.model_key] ?? defaultPort}
+                      onChange={(e) =>
+                        setPortByModel((prev) => ({ ...prev, [m.model_key]: Number(e.target.value) }))
+                      }
+                    >
+                      {ports.map((p) => (
+                        <option key={p} value={p}>
+                          :{p}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => streamPost('/api/models/load', { port: portByModel[m.model_key] ?? defaultPort }, `load:${m.model_key}`)}
+                      disabled={busy !== null}
+                      className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 flex items-center gap-1"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      Load
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>

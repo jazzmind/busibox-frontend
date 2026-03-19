@@ -139,6 +139,8 @@ export default function DocumentDetailsPage({
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [reprocessOpen, setReprocessOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [provenanceData, setProvenanceData] = useState<{ chain_length: number; nodes: Array<{ id: string; step_type: string; entity_type: string; created_at: string; metadata?: Record<string, any> }> } | null>(null);
+  const [provenanceLoading, setProvenanceLoading] = useState(false);
   const downloadDropdownRef = useRef<HTMLDivElement>(null);
   const reprocessDropdownRef = useRef<HTMLDivElement>(null);
   
@@ -223,6 +225,22 @@ export default function DocumentDetailsPage({
   useEffect(() => {
     fetchDocument(false); // Initial fetch with full logging
   }, [fetchDocument]);
+
+  // Fetch provenance data for the document
+  useEffect(() => {
+    if (!document || !resolvedParams.fileId) return;
+    const stage = document.status?.stage;
+    if (!stage || stage === 'queued' || stage === 'parsing') return;
+
+    setProvenanceLoading(true);
+    fetch(`/documents/api/documents/${resolvedParams.fileId}/provenance`, { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) setProvenanceData(data);
+      })
+      .catch(() => {})
+      .finally(() => setProvenanceLoading(false));
+  }, [document?.status?.stage, resolvedParams.fileId]);
 
   // Refresh graph entities when processing completes
   useEffect(() => {
@@ -1130,6 +1148,70 @@ export default function DocumentDetailsPage({
               />
             </div>
           )}
+
+          {/* Provenance Chain */}
+          {provenanceLoading ? (
+            <div className="mt-3 border-t border-gray-200 pt-3">
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Loading provenance...
+              </div>
+            </div>
+          ) : provenanceData && provenanceData.nodes.length > 0 ? (
+            <div className="mt-3 border-t border-gray-200 pt-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span className="text-xs font-medium text-gray-500">Provenance Chain ({provenanceData.chain_length} steps)</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {[...new Set(provenanceData.nodes.map(n => n.step_type))].map((step) => {
+                  const count = provenanceData.nodes.filter(n => n.step_type === step).length;
+                  const colorMap: Record<string, string> = {
+                    upload: 'bg-gray-100 text-gray-700',
+                    ocr: 'bg-blue-100 text-blue-700',
+                    chunk: 'bg-green-100 text-green-700',
+                    embedding: 'bg-purple-100 text-purple-700',
+                    extraction: 'bg-amber-100 text-amber-700',
+                    image_extract: 'bg-pink-100 text-pink-700',
+                    vlm_describe: 'bg-indigo-100 text-indigo-700',
+                    markdown: 'bg-teal-100 text-teal-700',
+                  };
+                  const labelMap: Record<string, string> = {
+                    upload: 'Uploaded',
+                    ocr: 'OCR',
+                    chunk: 'Chunked',
+                    embedding: 'Embedded',
+                    extraction: 'Extracted',
+                    image_extract: 'Images',
+                    vlm_describe: 'Vision',
+                    markdown: 'Markdown',
+                  };
+                  const colorClass = colorMap[step] || 'bg-gray-100 text-gray-600';
+                  return (
+                    <span
+                      key={step}
+                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colorClass}`}
+                      title={`${count} ${step} step${count > 1 ? 's' : ''}`}
+                    >
+                      {labelMap[step] || step}
+                      {count > 1 && <span className="ml-1 opacity-70">&times;{count}</span>}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          ) : !provenanceLoading && document?.status?.stage && !['queued', 'parsing'].includes(document.status.stage) ? (
+            <div className="mt-3 border-t border-gray-200 pt-3">
+              <div className="flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span className="text-xs text-gray-400 italic">No provenance data recorded</span>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {/* Schema Extraction Modal */}

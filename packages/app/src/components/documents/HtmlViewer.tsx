@@ -4,10 +4,18 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { TocItem } from '../../types/documents';
 import { useBusiboxApi, useCrossAppApiPath, useCrossAppBasePath } from '../../contexts/ApiContext';
 import { fetchServiceFirstFallbackNext } from '../../lib/http/fetch-with-fallback';
-import { Loader2, AlertCircle, FileText, RefreshCw } from 'lucide-react';
+import { Loader2, AlertCircle, FileText, RefreshCw, Check, X } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { ScrollArea } from '../ui/scroll-area';
 import { Button } from '../ui/button';
+
+interface EnhancePreview {
+  pageNumber: number;
+  mode: string;
+  originalText: string;
+  enhancedText: string;
+  contextText?: string;
+}
 
 interface HtmlViewerProps {
   fileId: string;
@@ -48,6 +56,8 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
 
   const [filteredImageCount, setFilteredImageCount] = useState(0);
   const [enhancingPage, setEnhancingPage] = useState<number | null>(null);
+  const [enhancePreview, setEnhancePreview] = useState<EnhancePreview | null>(null);
+  const [applyingEnhance, setApplyingEnhance] = useState(false);
   const [visionDropdownPage, setVisionDropdownPage] = useState<number | null>(null);
   const fetchHtmlRef = useRef<() => void>(() => {});
 
@@ -57,12 +67,18 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
       const response = await fetch(`${documentsBase}/api/documents/${fileId}/pages/${pageNum}/enhance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, context_text: contextText }),
+        body: JSON.stringify({ mode, context_text: contextText, preview: true }),
       });
       if (!response.ok) throw new Error('Enhancement failed');
       const data = await response.json();
       if (data.changed) {
-        fetchHtmlRef.current();
+        setEnhancePreview({
+          pageNumber: pageNum,
+          mode,
+          originalText: data.original_text,
+          enhancedText: data.enhanced_text,
+          contextText,
+        });
       }
     } catch (err) {
       console.error('Page enhancement failed:', err);
@@ -70,6 +86,35 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
       setEnhancingPage(null);
     }
   }, [fileId, documentsBase]);
+
+  const acceptEnhancement = useCallback(async () => {
+    if (!enhancePreview) return;
+    setApplyingEnhance(true);
+    try {
+      const response = await fetch(
+        `${documentsBase}/api/documents/${fileId}/pages/${enhancePreview.pageNumber}/enhance`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: enhancePreview.mode,
+            context_text: enhancePreview.contextText,
+          }),
+        },
+      );
+      if (!response.ok) throw new Error('Failed to apply enhancement');
+      fetchHtmlRef.current();
+      setEnhancePreview(null);
+    } catch (err) {
+      console.error('Failed to apply enhancement:', err);
+    } finally {
+      setApplyingEnhance(false);
+    }
+  }, [enhancePreview, fileId, documentsBase]);
+
+  const rejectEnhancement = useCallback(() => {
+    setEnhancePreview(null);
+  }, []);
 
   const fetchImageUrls = useCallback(async (fid: string): Promise<{ urls: Record<string, string>; metadata: Record<string, ImageMeta> }> => {
     try {
@@ -203,6 +248,12 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
       if (processedHtml.includes('doc-image-gallery')) {
         processedHtml += '</div>';
       }
+
+      // Transform blockquotes containing vision descriptions into styled blocks
+      processedHtml = processedHtml.replace(
+        /<blockquote>\s*<p>\[Image Description\]:\s*([\s\S]*?)<\/p>\s*<\/blockquote>/gi,
+        '<div class="vision-description-block"><p>$1</p></div>'
+      );
 
       setHtml(processedHtml);
       if (processedHtml) hasContentRef.current = true;
@@ -584,6 +635,68 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
 
   return (
     <div>
+      {enhancePreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl w-[90vw] max-w-5xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  Page {enhancePreview.pageNumber} — Enhancement Preview
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                  Review the changes before applying. Mode: <span className="font-medium">{enhancePreview.mode.replace('_', ' ')}</span>
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={rejectEnhancement}
+                  disabled={applyingEnhance}
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Reject
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={acceptEnhancement}
+                  disabled={applyingEnhance}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {applyingEnhance ? (
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4 mr-1" />
+                  )}
+                  Accept
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-700">
+              <div className="flex flex-col overflow-hidden">
+                <div className="px-4 py-2 bg-red-50 dark:bg-red-950 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-sm font-medium text-red-700 dark:text-red-300">Original</span>
+                </div>
+                <ScrollArea className="flex-1 p-4">
+                  <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono leading-relaxed">
+                    {enhancePreview.originalText}
+                  </pre>
+                </ScrollArea>
+              </div>
+              <div className="flex flex-col overflow-hidden">
+                <div className="px-4 py-2 bg-green-50 dark:bg-green-950 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-sm font-medium text-green-700 dark:text-green-300">Enhanced</span>
+                </div>
+                <ScrollArea className="flex-1 p-4">
+                  <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono leading-relaxed">
+                    {enhancePreview.enhancedText}
+                  </pre>
+                </ScrollArea>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {enhancingBanner}
       <div className="flex gap-6 p-4">
       {toc.length > 0 && (
@@ -776,6 +889,49 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
             transition: background 0.15s, color 0.15s;
           }
           .text-selection-menu button:hover { background: #eff6ff; color: #1d4ed8; }
+
+          #document-content blockquote:has(> p:first-child) {
+            position: relative;
+          }
+          #document-content .vision-description,
+          #document-content blockquote p:first-child {
+            /* Vision descriptions from image analysis */
+          }
+          #document-content .vision-description-block {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border-left: 4px solid #0ea5e9;
+            border-radius: 0 0.5rem 0.5rem 0;
+            padding: 0.75rem 1rem;
+            margin: 1rem 0;
+            font-style: normal;
+            position: relative;
+          }
+          #document-content .vision-description-block::before {
+            content: '\\1F441  Image Description';
+            display: block;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #0284c7;
+            margin-bottom: 0.375rem;
+          }
+          #document-content .vision-description-block p {
+            color: #1e3a5f;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            margin: 0;
+          }
+          .dark #document-content .vision-description-block {
+            background: linear-gradient(135deg, #0c4a6e 0%, #164e63 100%);
+            border-left-color: #38bdf8;
+          }
+          .dark #document-content .vision-description-block::before {
+            color: #7dd3fc;
+          }
+          .dark #document-content .vision-description-block p {
+            color: #bae6fd;
+          }
         ` }} />
         <div
           id="document-content"

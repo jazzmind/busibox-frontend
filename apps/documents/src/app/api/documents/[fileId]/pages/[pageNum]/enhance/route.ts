@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@jazzmind/busibox-app/lib/next/middleware';
 import { dataFetch, setSessionJwtForUser } from '@jazzmind/busibox-app/lib/data/app-client';
 
+export const maxDuration = 120;
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ fileId: string; pageNum: string }> }
@@ -26,6 +28,7 @@ export async function POST(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
         userId: user.id,
+        timeout: 120000,
       }
     );
 

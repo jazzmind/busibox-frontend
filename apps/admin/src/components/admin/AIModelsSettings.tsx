@@ -150,6 +150,7 @@ const PURPOSE_LABELS: Record<string, { label: string; description: string }> = {
   cleanup: { label: 'Cleanup', description: 'Text cleanup and formatting' },
   parsing: { label: 'Parsing', description: 'Document text extraction' },
   classify: { label: 'Classify', description: 'Document classification and routing' },
+  vision: { label: 'Vision', description: 'Visual analysis and image understanding' },
   video: { label: 'Video', description: 'Video generation (e.g. OpenAI Sora)' },
   image: { label: 'Image', description: 'Image generation (e.g. FLUX, DALL-E)' },
   transcribe: { label: 'Transcribe', description: 'Speech-to-text (e.g. Whisper)' },
@@ -215,6 +216,9 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
   const [llmServers, setLlmServers] = useState<LLMServerInfo[]>([]);
   const [totalLlmMemoryMb, setTotalLlmMemoryMb] = useState(0);
 
+  // Platform backend type (mlx, vllm, cloud)
+  const [platformBackend, setPlatformBackend] = useState<string | null>(null);
+
   // Media playground tab
   const [mediaTab, setMediaTab] = useState<'stt' | 'tts' | 'image'>('stt');
 
@@ -255,6 +259,7 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
       fetchPurposes(),
       fetchStreamingConfig(),
       fetchMediaStatus(),
+      fetchPlatformBackend(),
     ]);
     setLoading(false);
   };
@@ -302,6 +307,19 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
       }
     } catch {
       // non-MLX backends will 503 -- silently ignore
+    }
+  };
+
+  const fetchPlatformBackend = async () => {
+    try {
+      const res = await fetch('/api/services/platform', { headers: { 'X-Quiet-Logs': '1' } });
+      if (res.ok) {
+        const data = await res.json();
+        const backend = data.data?.backend ?? data.backend ?? 'cloud';
+        setPlatformBackend(backend);
+      }
+    } catch {
+      // Default to showing all sections if platform detection fails
     }
   };
 
@@ -707,8 +725,8 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
         </div>
       </div>
 
-      {/* LLM Core Servers */}
-      {llmServers.length > 0 && (
+      {/* LLM Core Servers (MLX only) */}
+      {platformBackend === 'mlx' && llmServers.length > 0 && (
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 rounded-lg bg-blue-50">
@@ -778,7 +796,8 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
       </div>
       )}
 
-      {/* Media Servers Status */}
+      {/* Media Servers Status (MLX only) */}
+      {platformBackend === 'mlx' && (
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 rounded-lg bg-purple-50">
@@ -786,7 +805,7 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Media Servers</h2>
-            <p className="text-sm text-gray-500">Voice/TTS, transcription, and image generation server status and memory usage (MLX only)</p>
+            <p className="text-sm text-gray-500">Voice/TTS, transcription, and image generation server status and memory usage</p>
           </div>
         </div>
         <MediaServerStatus
@@ -794,8 +813,10 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
           onStatusChange={fetchMediaStatus}
         />
       </div>
+      )}
 
-      {/* vLLM GPU Servers Status (Proxmox) */}
+      {/* vLLM GPU Servers Status (Proxmox only) */}
+      {platformBackend === 'vllm' && (
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 rounded-lg bg-emerald-50">
@@ -803,11 +824,12 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900">vLLM Servers</h2>
-            <p className="text-sm text-gray-500">GPU model servers, VRAM usage, and on-demand media models (Proxmox only)</p>
+            <p className="text-sm text-gray-500">GPU model servers, VRAM usage, and on-demand media models</p>
           </div>
         </div>
         <VLLMServerStatus primaryColor={customization.primaryColor} />
       </div>
+      )}
 
       </>}
 
@@ -896,9 +918,9 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
       {/* ── Models & Providers ── */}
       {activeSection === 'models' && <>
 
-      <ModelLibrary />
+      <ModelLibrary backend={platformBackend} />
 
-      <GpuAllocation />
+      {platformBackend === 'vllm' && <GpuAllocation />}
 
       {/* Section 2: Registered Models */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
