@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAgentApiUrl } from '@jazzmind/busibox-app/lib/agent/server-client';
 import { getApiToken } from '@jazzmind/busibox-app/lib/authz/next-client';
 
+export const maxDuration = 120;
+
 const AGENT_API_URL = getAgentApiUrl();
 
 async function proxyToAgentAPI(request: NextRequest, method: string, path: string[]) {

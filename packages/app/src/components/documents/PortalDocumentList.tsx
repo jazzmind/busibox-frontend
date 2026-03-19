@@ -94,6 +94,15 @@ interface ProvenanceData {
 type ViewState = 'documents' | 'search';
 type ChatScope = { type: 'all'; fileIds: string[] } | { type: 'single'; fileId: string; filename: string } | null;
 
+const HIGHLIGHT_STOPWORDS = new Set([
+  'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had',
+  'her', 'was', 'one', 'our', 'out', 'has', 'have', 'been', 'from',
+  'this', 'that', 'with', 'they', 'will', 'each', 'make', 'into',
+  'than', 'them', 'then', 'some', 'what', 'when', 'who', 'how', 'may',
+  'its', 'also', 'which', 'their', 'other', 'about', 'these', 'those',
+  'would', 'could', 'should', 'there', 'where', 'does', 'were', 'being',
+]);
+
 function highlightText(text: string, query: string, highlights?: HighlightFragment[]): React.ReactElement {
   if (highlights && highlights.length > 0) {
     const fragment = highlights[0].fragment;
@@ -106,7 +115,7 @@ function highlightText(text: string, query: string, highlights?: HighlightFragme
     .trim()
     .split(/\s+/)
     .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .filter((term) => term.length > 2);
+    .filter((term) => term.length > 2 && !HIGHLIGHT_STOPWORDS.has(term.toLowerCase()));
 
   if (terms.length === 0) return <>{text}</>;
 
@@ -225,6 +234,8 @@ function ChatPanel({ scope, onClose, token }: { scope: ChatScope; onClose: () =>
 
   if (!scope) return null;
 
+  const agentUrl = resolve('documents', '/api/agent');
+
   const fileContext = scope.type === 'single'
     ? `You are helping the user understand the document "${scope.filename}". When searching, only search within file_id: ${scope.fileId}. Focus your answers on this document's content.`
     : `You are helping the user analyze ${scope.fileIds.length} documents from their search results. When searching, restrict to these file IDs: ${scope.fileIds.join(', ')}. Focus your answers on content from these documents.`;
@@ -265,6 +276,7 @@ function ChatPanel({ scope, onClose, token }: { scope: ChatScope; onClose: () =>
         ) : chatToken ? (
           <ChatWidget
             token={chatToken}
+            agentUrl={agentUrl}
             context={fileContext}
             fileIds={scope.type === 'single' ? [scope.fileId] : scope.fileIds}
           />
@@ -278,7 +290,7 @@ function ChatPanel({ scope, onClose, token }: { scope: ChatScope; onClose: () =>
   );
 }
 
-function ChatWidget({ token, context, fileIds }: { token: string; context: string; fileIds: string[] }) {
+function ChatWidget({ token, agentUrl, context, fileIds }: { token: string; agentUrl: string; context: string; fileIds: string[] }) {
   const [SimpleChatInterface, setSimpleChatInterface] = useState<any>(null);
 
   useEffect(() => {
@@ -298,6 +310,7 @@ function ChatWidget({ token, context, fileIds }: { token: string; context: strin
   return (
     <SimpleChatInterface
       token={token}
+      agentUrl={agentUrl}
       enableDocSearch={true}
       placeholder="Ask about these documents..."
       welcomeMessage="I can help you understand the content of your documents. Ask me anything about them."
