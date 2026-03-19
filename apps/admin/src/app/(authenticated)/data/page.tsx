@@ -29,6 +29,8 @@ import {
   Pencil,
   Trash2,
   Loader2,
+  Shield,
+  AlertTriangle,
 } from 'lucide-react';
 import { CreateLibraryModal } from '@/components/admin/CreateLibraryModal';
 import { LibraryDeleteModal } from '@jazzmind/busibox-app/components/documents/LibraryDeleteModal';
@@ -77,6 +79,19 @@ type DatabaseStats = {
   indexSize: number;
 };
 
+type AdminDocument = {
+  id: string;
+  name: string;
+  ownerId: string;
+  visibility: string;
+  sourceApp: string | null;
+  displayName: string | null;
+  recordCount: number;
+  version: number;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -97,7 +112,7 @@ export default function DataManagementPage() {
 
   const paramTab = searchParams.get('tab');
   const initialTab =
-    paramTab === 'overview' || paramTab === 'shared' || paramTab === 'app-data' || paramTab === 'tags'
+    paramTab === 'overview' || paramTab === 'shared' || paramTab === 'app-data' || paramTab === 'tags' || paramTab === 'all-docs'
       ? paramTab
       : 'overview';
   const paramSortField = searchParams.get('sort');
@@ -114,7 +129,7 @@ export default function DataManagementPage() {
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
   const [databaseStats, setDatabaseStats] = useState<DatabaseStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'shared' | 'app-data' | 'tags'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'overview' | 'shared' | 'app-data' | 'tags' | 'all-docs'>(initialTab);
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [appFilter, setAppFilter] = useState(searchParams.get('app') || 'all');
   const [sortField, setSortField] = useState<'sourceApp' | 'displayName' | 'recordCount'>(initialSortField);
@@ -122,6 +137,14 @@ export default function DataManagementPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deletingLibrary, setDeletingLibrary] = useState<Library | null>(null);
   const [deletingLibraryLoading, setDeletingLibraryLoading] = useState(false);
+
+  const [allDocuments, setAllDocuments] = useState<AdminDocument[]>([]);
+  const [allDocsTotal, setAllDocsTotal] = useState(0);
+  const [allDocsLoading, setAllDocsLoading] = useState(false);
+  const [allDocsAppFilter, setAllDocsAppFilter] = useState('all');
+  const [allDocsVisFilter, setAllDocsVisFilter] = useState('all');
+  const [deletingDoc, setDeletingDoc] = useState<AdminDocument | null>(null);
+  const [deletingDocLoading, setDeletingDocLoading] = useState(false);
 
   const handleDeleteLibrary = async (action: 'delete' | 'move', targetLibraryId?: string) => {
     if (!deletingLibrary) return;
@@ -222,6 +245,61 @@ export default function DataManagementPage() {
       setIsLoading(false);
     }
   };
+
+  const fetchAdminDocuments = async () => {
+    setAllDocsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (allDocsAppFilter !== 'all') params.set('sourceApp', allDocsAppFilter);
+      if (allDocsVisFilter !== 'all') params.set('visibility', allDocsVisFilter);
+      params.set('limit', '500');
+      const response = await fetch(`/api/data/admin/documents?${params}`);
+      if (response.ok) {
+        const result = await response.json();
+        const data = result.success ? result.data : result;
+        setAllDocuments(data.documents || []);
+        setAllDocsTotal(data.total || 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch admin documents:', error);
+    } finally {
+      setAllDocsLoading(false);
+    }
+  };
+
+  const handleDeleteAdminDoc = async () => {
+    if (!deletingDoc) return;
+    setDeletingDocLoading(true);
+    try {
+      const response = await fetch(`/api/data/admin/documents/${deletingDoc.id}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        fetchAdminDocuments();
+      } else {
+        console.error('Failed to delete document');
+      }
+    } catch (error) {
+      console.error('Delete document error:', error);
+    } finally {
+      setDeletingDocLoading(false);
+      setDeletingDoc(null);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'all-docs' && allDocuments.length === 0 && !allDocsLoading) {
+      fetchAdminDocuments();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'all-docs') {
+      fetchAdminDocuments();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDocsAppFilter, allDocsVisFilter]);
 
   // Ensure arrays are valid
   const safeLibraries = Array.isArray(libraries) ? libraries : [];
@@ -396,6 +474,7 @@ export default function DataManagementPage() {
               { id: 'shared', label: 'Shared Libraries', icon: <FolderOpen className="w-4 h-4" /> },
               { id: 'app-data', label: 'Data Collections', icon: <Database className="w-4 h-4" /> },
               { id: 'tags', label: 'Tags', icon: <Tag className="w-4 h-4" /> },
+              { id: 'all-docs', label: 'All Documents', icon: <Shield className="w-4 h-4" /> },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -419,7 +498,7 @@ export default function DataManagementPage() {
       <section className="py-8">
         <div className="max-w-6xl mx-auto px-6">
           {/* Search */}
-          {(activeTab === 'shared' || activeTab === 'tags' || activeTab === 'app-data') && (
+          {(activeTab === 'shared' || activeTab === 'tags' || activeTab === 'app-data' || activeTab === 'all-docs') && (
             <div className="mb-6">
               <div className="relative max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -820,6 +899,154 @@ export default function DataManagementPage() {
                   )}
                 </div>
               )}
+
+              {/* All Documents Tab (Admin) */}
+              {activeTab === 'all-docs' && (
+                <div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-800">Admin View</p>
+                        <p className="text-sm text-amber-700 mt-1">
+                          This view shows all data documents across all users, bypassing normal access controls.
+                          Only document metadata is visible — record contents are never exposed.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between mb-6">
+                    <p className="text-sm text-gray-500">
+                      {allDocsTotal} total {allDocsTotal === 1 ? 'document' : 'documents'}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const apps = Array.from(new Set(allDocuments.map(d => d.sourceApp).filter(Boolean))) as string[];
+                        return (
+                          <select
+                            value={allDocsAppFilter}
+                            onChange={(e) => setAllDocsAppFilter(e.target.value)}
+                            className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white"
+                          >
+                            <option value="all">All apps</option>
+                            {apps.sort().map(app => (
+                              <option key={app} value={app}>{app}</option>
+                            ))}
+                          </select>
+                        );
+                      })()}
+                      <select
+                        value={allDocsVisFilter}
+                        onChange={(e) => setAllDocsVisFilter(e.target.value)}
+                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white"
+                      >
+                        <option value="all">All visibility</option>
+                        <option value="personal">Personal</option>
+                        <option value="shared">Shared</option>
+                        <option value="authenticated">Authenticated</option>
+                      </select>
+                      <button
+                        onClick={fetchAdminDocuments}
+                        disabled={allDocsLoading}
+                        className="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${allDocsLoading ? 'animate-spin' : ''}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {allDocsLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source App</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visibility</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Records</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {allDocuments
+                            .filter(doc => {
+                              if (!searchQuery) return true;
+                              const q = searchQuery.toLowerCase();
+                              return (
+                                doc.name?.toLowerCase().includes(q) ||
+                                doc.displayName?.toLowerCase().includes(q) ||
+                                doc.sourceApp?.toLowerCase().includes(q) ||
+                                doc.ownerId?.toLowerCase().includes(q)
+                              );
+                            })
+                            .map(doc => (
+                            <tr key={doc.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
+                                    {doc.displayName || doc.name}
+                                  </p>
+                                  {doc.displayName && doc.name !== doc.displayName && (
+                                    <p className="text-xs text-gray-400 truncate max-w-[200px]">{doc.name}</p>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="text-sm text-gray-600">{doc.sourceApp || '—'}</span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  doc.visibility === 'personal'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : doc.visibility === 'shared'
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {doc.visibility}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="text-xs text-gray-500 font-mono">{doc.ownerId.slice(0, 8)}...</span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span className="text-sm text-gray-900">{formatNumber(doc.recordCount)}</span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="text-sm text-gray-500">
+                                  {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : '—'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <button
+                                  onClick={() => setDeletingDoc(doc)}
+                                  className="p-1.5 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Delete document"
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-400 hover:text-red-600" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+
+                      {allDocuments.length === 0 && (
+                        <div className="text-center py-12">
+                          <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                          <p className="text-gray-500">No documents found</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -845,6 +1072,44 @@ export default function DataManagementPage() {
           isDeleting={deletingLibraryLoading}
           librariesApiPath="/api/libraries"
         />
+      )}
+
+      {/* Admin Delete Document Modal */}
+      {deletingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Delete Document</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-2">
+              Permanently delete <strong>{deletingDoc.displayName || deletingDoc.name}</strong>?
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              This will remove the document and its {formatNumber(deletingDoc.recordCount)} records.
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeletingDoc(null)}
+                disabled={deletingDocLoading}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAdminDoc}
+                disabled={deletingDocLoading}
+                className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {deletingDocLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
