@@ -53,8 +53,9 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   model?: string;
-  agentName?: string; // Name of the responding agent
-  thoughts?: ThoughtEvent[]; // Stored thoughts/reasoning for this message
+  agentName?: string;
+  thoughts?: ThoughtEvent[];
+  parts?: MessagePart[];
   routingDecision?: RoutingDecision;
   toolCalls?: ToolCall[];
   runId?: string;
@@ -141,6 +142,25 @@ export interface InsightSearchResult {
   score: number;
   distance: number;
 }
+
+// --- Message Parts Architecture ---
+
+export type MessagePart =
+  | { type: 'text'; content: string }
+  | { type: 'thinking'; events: ThoughtEvent[]; summary?: string }
+  | {
+      type: 'tool_call';
+      id: string;
+      name: string;
+      displayName?: string;
+      status: 'pending' | 'running' | 'completed' | 'error';
+      input?: Record<string, unknown>;
+      output?: string;
+      error?: string;
+      startedAt?: Date;
+      completedAt?: Date;
+    }
+  | { type: 'prompt'; options: string[]; promptType: 'confirm' | 'choice' | 'open' };
 
 
 

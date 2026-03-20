@@ -21,7 +21,7 @@ export * from './layout';
 
 // Types - export from index and individual type files
 export * from './types';
-export type { ChatMessage, ChatModelOption } from './types/chat';
+export type { ChatMessage, ChatModelOption, MessagePart } from './types/chat';
 export type { DocumentWithUser, TagGroup, TocItem, DocumentChunk, ProcessingHistoryGroup, ProcessingHistoryStep } from './types/documents';
 export type { LibrarySidebarItem, RoleSummary, AppDataLibraryItem, AppDataGroup, AppDataSchema, AppDataFieldDef, AppDataRelationType, AppDataRelation } from './types/library';
 export type { DataProcessingHistoryEntry, DataProcessingHistoryResponse } from './types/processing-history';

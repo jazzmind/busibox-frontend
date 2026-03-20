@@ -16,6 +16,7 @@ import 'katex/dist/katex.min.css';
 import toast from 'react-hot-toast';
 import { ThinkingToggle, ThoughtEvent } from './ThinkingToggle';
 import { RawContentToggle } from './RawContentToggle';
+import type { MessagePart } from '../../types/chat';
 
 const DOC_LINK_RE = /^doc:(.+)$/;
 
@@ -52,8 +53,9 @@ interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt: Date;
-  agentName?: string; // Name of the responding agent
-  thoughts?: ThoughtEvent[]; // Stored thoughts/reasoning for this message
+  agentName?: string;
+  thoughts?: ThoughtEvent[];
+  parts?: MessagePart[];
   attachments?: Array<{
     id: string;
     filename: string;
@@ -81,8 +83,8 @@ interface Message {
 interface MessageListProps {
   messages: (Message & { modelName?: string; agentName?: string })[];
   streamingContent?: string;
-  streamingAgentName?: string; // Agent name for the currently streaming message
-  streamingThoughts?: ThoughtEvent[]; // Real-time thoughts during streaming
+  streamingAgentName?: string;
+  streamingThoughts?: ThoughtEvent[];
   isLoading?: boolean;
   conversationOwner?: {
     id: string;
@@ -91,6 +93,36 @@ interface MessageListProps {
   currentUserId?: string;
   onDeleteMessage?: (messageId: string) => void;
   onRetryMessage?: (messageContent: string, attachmentIds?: string[]) => void;
+  onSuggestedAction?: (action: string) => void;
+}
+
+/**
+ * Extracts [bracketed suggestions] from assistant text.
+ * Ignores markdown link syntax [text](url) and image syntax ![alt](url).
+ */
+const BRACKET_ACTION_RE = /(?<!!)\[([^\]]{2,40})\](?!\()/g;
+
+function extractBracketActions(content: string): string[] {
+  const matches = [...content.matchAll(BRACKET_ACTION_RE)];
+  // De-duplicate while preserving order
+  const seen = new Set<string>();
+  const actions: string[] = [];
+  for (const m of matches) {
+    const text = m[1].trim();
+    if (!seen.has(text) && text.length > 1) {
+      seen.add(text);
+      actions.push(text);
+    }
+  }
+  return actions;
+}
+
+/**
+ * Strips [bracketed suggestions] from content for clean rendering,
+ * preserving markdown links [text](url) and images ![alt](url).
+ */
+function stripBracketActions(content: string): string {
+  return content.replace(BRACKET_ACTION_RE, (_match, inner) => inner);
 }
 
 // Helper to get user initials from email
@@ -149,6 +181,91 @@ function preprocessLatex(content: string): string {
   return processed;
 }
 
+/**
+ * Renders an inline tool-call card showing name, status, and expandable details.
+ */
+function ToolCallCard({ part }: { part: Extract<MessagePart, { type: 'tool_call' }> }) {
+  const statusIcon = {
+    pending: <span className="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 animate-pulse inline-block" />,
+    running: (
+      <svg className="w-3.5 h-3.5 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+    ),
+    completed: (
+      <svg className="w-3.5 h-3.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+      </svg>
+    ),
+    error: (
+      <svg className="w-3.5 h-3.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  }[part.status];
+
+  const duration = part.startedAt && part.completedAt
+    ? Math.round((part.completedAt.getTime() - part.startedAt.getTime()) / 1000 * 10) / 10
+    : null;
+
+  const borderColor = {
+    pending: 'border-gray-200 dark:border-gray-700',
+    running: 'border-blue-200 dark:border-blue-800',
+    completed: 'border-green-200 dark:border-green-800',
+    error: 'border-red-200 dark:border-red-800',
+  }[part.status];
+
+  return (
+    <details className={`my-2 rounded-lg border ${borderColor} bg-white dark:bg-gray-900/50 overflow-hidden text-xs`}>
+      <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+        {statusIcon}
+        <span className="font-medium text-gray-700 dark:text-gray-300">
+          {part.displayName || part.name}
+        </span>
+        {duration !== null && (
+          <span className="ml-auto text-gray-400 dark:text-gray-500 tabular-nums">{duration}s</span>
+        )}
+      </summary>
+      <div className="px-3 py-2 border-t border-gray-100 dark:border-gray-800 space-y-1.5">
+        {part.output && (
+          <div>
+            <span className="font-medium text-gray-500 dark:text-gray-400">Result: </span>
+            <span className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">{part.output.slice(0, 500)}{part.output.length > 500 ? '...' : ''}</span>
+          </div>
+        )}
+        {part.error && (
+          <div className="text-red-600 dark:text-red-400">
+            <span className="font-medium">Error: </span>{part.error}
+          </div>
+        )}
+        {!part.output && !part.error && part.status === 'running' && (
+          <div className="text-gray-400 dark:text-gray-500 italic">Executing...</div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/**
+ * Renders the parts array of a message. Falls back to plain content if no parts.
+ */
+function MessagePartsRenderer({ parts, content }: { parts?: MessagePart[]; content: string }) {
+  if (!parts || parts.length === 0) return null;
+
+  const toolParts = parts.filter((p): p is Extract<MessagePart, { type: 'tool_call' }> => p.type === 'tool_call');
+
+  if (toolParts.length === 0) return null;
+
+  return (
+    <div className="mb-2">
+      {toolParts.map((part) => (
+        <ToolCallCard key={part.id} part={part} />
+      ))}
+    </div>
+  );
+}
+
 export function MessageList({ 
   messages, 
   streamingContent, 
@@ -159,6 +276,7 @@ export function MessageList({
   currentUserId,
   onDeleteMessage,
   onRetryMessage,
+  onSuggestedAction,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -372,16 +490,41 @@ export function MessageList({
                         {/* Raw Content toggle */}
                         <RawContentToggle content={cleanContent} />
                       </div>
+
+                      {/* Tool-call cards from message parts */}
+                      <MessagePartsRenderer parts={message.parts} content={cleanContent} />
                       
-                      <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-h1:text-xl prose-h1:mt-4 prose-h1:mb-3 prose-h2:text-lg prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:mt-3 prose-h3:mb-2 prose-p:my-2 prose-p:leading-relaxed prose-ul:my-3 prose-ol:my-3 prose-li:my-0.5 prose-hr:my-6 prose-strong:font-semibold prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-pre:border prose-blockquote:border-l-4 prose-blockquote:pl-4 prose-blockquote:italic prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline">
-                        <ReactMarkdown 
-                          remarkPlugins={[remarkGfm, remarkMath]}
-                          rehypePlugins={[rehypeKatex]}
-                          components={markdownComponents}
-                        >
-                          {preprocessLatex(cleanContent)}
-                        </ReactMarkdown>
-                      </div>
+                      {(() => {
+                        const actions = extractBracketActions(cleanContent);
+                        const displayContent = actions.length > 0 ? stripBracketActions(cleanContent) : cleanContent;
+                        return (
+                          <>
+                            <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-h1:text-xl prose-h1:mt-4 prose-h1:mb-3 prose-h2:text-lg prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:mt-3 prose-h3:mb-2 prose-p:my-2 prose-p:leading-relaxed prose-ul:my-3 prose-ol:my-3 prose-li:my-0.5 prose-hr:my-6 prose-strong:font-semibold prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-pre:border prose-blockquote:border-l-4 prose-blockquote:pl-4 prose-blockquote:italic prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline">
+                              <ReactMarkdown 
+                                remarkPlugins={[remarkGfm, remarkMath]}
+                                rehypePlugins={[rehypeKatex]}
+                                components={markdownComponents}
+                              >
+                                {preprocessLatex(displayContent)}
+                              </ReactMarkdown>
+                            </div>
+                            {actions.length > 0 && onSuggestedAction && (
+                              <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-1.5">
+                                {actions.map((action) => (
+                                  <button
+                                    key={action}
+                                    type="button"
+                                    onClick={() => onSuggestedAction(action)}
+                                    className="px-3 py-1 text-xs font-medium rounded-full border border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                                  >
+                                    {action}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </>
                   );
                 })()

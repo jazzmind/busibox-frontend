@@ -1,5 +1,9 @@
 'use client';
 /**
+ * @deprecated Use ChatInterface from './ChatInterface' instead.
+ * This legacy component uses raw streaming without message parts or
+ * tool cards. It will be removed in a future release.
+ * 
  * Full Chat Interface Component
  * 
  * A comprehensive chat interface with:

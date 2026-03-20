@@ -57,10 +57,17 @@ export { ChatSkeleton } from './chat/ChatSkeleton';
 export { AgentToolSelector } from './chat/AgentToolSelector';
 export type { AgentToolSelectorProps } from './chat/AgentToolSelector';
 
-// Components - Chat (Legacy Client Components)
+// Components - Chat (Core Client Components)
 export { ChatInterface } from './chat/ChatInterface';
+export type { ChatInterfaceProps } from './chat/ChatInterface';
 export { SimpleChatInterface } from './chat/SimpleChatInterface';
 export type { SimpleChatInterfaceProps } from './chat/SimpleChatInterface';
+export { StreamingToolCard } from './chat/StreamingToolCard';
+
+// Components - Chat (Legacy - deprecated, will be removed)
+/** @deprecated Use ChatInterface instead */
+export { ChatInterface as LegacyChatInterface } from './chat/LegacyChatInterface';
+/** @deprecated Use ChatInterface instead */
 export { FullChatInterface } from './chat/FullChatInterface';
 export { ConversationSidebar } from './chat/ConversationSidebar';
 export { MessageInput } from './chat/MessageInput';

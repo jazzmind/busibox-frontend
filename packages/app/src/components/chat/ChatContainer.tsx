@@ -16,21 +16,19 @@ import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { AgentSelectionPanel } from './AgentSelectionPanel';
 import { ThinkingToggle, ThoughtEvent } from './ThinkingToggle';
+import { StreamingToolCard } from './StreamingToolCard';
 import { InsightEditModal, type InsightData } from './InsightEditModal';
+import { stripThinkTags } from './chat-utils';
 import type {
   Conversation,
   Message,
   MessageAttachment,
+  MessagePart,
   InsightSearchResult,
 } from '../../types/chat';
 import type { AgentDefinition, ToolDefinition } from '../../lib/agent/agent-service-client';
 import { useIsMobile } from '../../lib/hooks/useIsMobile';
 import { useCrossAppApiPath } from '../../contexts/ApiContext';
-
-const THINK_TAG_RE = /<think>[\s\S]*?<\/think>/g;
-function stripThinkTags(text: string): string {
-  return text.replace(THINK_TAG_RE, '').trim();
-}
 
 /**
  * Map snake_case API response to camelCase Conversation type
@@ -83,6 +81,7 @@ interface StreamState {
   content: string;
   agentName?: string;
   thoughts: ThoughtEvent[];
+  parts: MessagePart[];
   tempUserMessage: Message;
   hasAddedMessage: boolean;
   messages: Message[];
@@ -155,6 +154,8 @@ export function ChatContainer({
   const [thoughts, setThoughts] = useState<ThoughtEvent[]>([]);
   const [streamingConvIds, setStreamingConvIds] = useState<Set<string>>(new Set());
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
+  const [promptActive, setPromptActive] = useState(false);
+  const [streamingParts, setStreamingParts] = useState<MessagePart[]>([]);
   const streamMapRef = useRef<Map<string, StreamState>>(new Map());
   const currentConversationRef = useRef<string | null>(initialConversation?.id ?? null);
 
@@ -194,12 +195,14 @@ export function ChatContainer({
       setStreamingContent('');
       setStreamingAgentName(undefined);
       setThoughts([]);
+      setStreamingParts([]);
       return;
     }
     setIsStreaming(true);
     setStreamingContent(streamState.content);
     setStreamingAgentName(streamState.agentName);
     setThoughts(streamState.thoughts);
+    setStreamingParts(streamState.parts);
   }, []);
 
   // Memoize default agent selection to prevent infinite loop
@@ -361,6 +364,7 @@ export function ChatContainer({
   ) => {
     if (!content.trim()) return;
     setQuickReplies([]);
+    setPromptActive(false);
 
     // Create conversation if none exists
     const convId = await ensureConversation();
@@ -386,6 +390,7 @@ export function ChatContainer({
       controller,
       content: '',
       thoughts: [],
+      parts: [],
       tempUserMessage,
       hasAddedMessage: false,
       messages: [tempUserMessage],
@@ -397,12 +402,15 @@ export function ChatContainer({
       setStreamingContent('');
       setStreamingAgentName(undefined);
       setThoughts([]);
+      setStreamingParts([]);
     }
 
     // Track agent name in outer scope to persist across stream events
     let capturedAgentName: string | undefined;
     let fullContent = '';
     let collectedThoughts: ThoughtEvent[] = [];
+    let collectedParts: MessagePart[] = [];
+    const pendingTools = new Map<string, number>();
     let hasAddedMessage = false;
 
     try {
@@ -557,9 +565,6 @@ export function ChatContainer({
                     break;
 
                   case 'thought':
-                  case 'tool_start':
-                  case 'tool_result':
-                    // Add to thoughts section for ThinkingToggle
                     collectedThoughts = [...collectedThoughts, newThought];
                     {
                       const streamState = streamMapRef.current.get(streamConversationId);
@@ -569,6 +574,74 @@ export function ChatContainer({
                     }
                     if (isConversationActive(streamConversationId)) {
                       setThoughts(collectedThoughts);
+                    }
+                    break;
+
+                  case 'tool_start':
+                    collectedThoughts = [...collectedThoughts, newThought];
+                    {
+                      const toolSource = parsed.source || 'tool';
+                      const toolName = String(parsed.data?.tool_name || parsed.data?.display_name || toolSource);
+                      const toolPart: MessagePart = {
+                        type: 'tool_call',
+                        id: `tool-${Date.now()}-${toolName}`,
+                        name: toolName,
+                        displayName: String(parsed.data?.display_name || parsed.message || toolName),
+                        status: 'running',
+                        input: (parsed.data || undefined) as Record<string, unknown> | undefined,
+                        startedAt: new Date(),
+                      };
+                      pendingTools.set(toolSource, collectedParts.length);
+                      collectedParts = [...collectedParts, toolPart];
+                      const streamState = streamMapRef.current.get(streamConversationId);
+                      if (streamState) {
+                        streamState.thoughts = collectedThoughts;
+                        streamState.parts = collectedParts;
+                      }
+                      if (isConversationActive(streamConversationId)) {
+                        setThoughts(collectedThoughts);
+                        setStreamingParts(collectedParts);
+                      }
+                    }
+                    break;
+
+                  case 'tool_result':
+                    collectedThoughts = [...collectedThoughts, newThought];
+                    {
+                      const resultSource = parsed.source || 'tool';
+                      const idx = pendingTools.get(resultSource);
+                      if (idx !== undefined && collectedParts[idx]?.type === 'tool_call') {
+                        const existing = collectedParts[idx] as Extract<MessagePart, { type: 'tool_call' }>;
+                        collectedParts = [...collectedParts];
+                        collectedParts[idx] = {
+                          ...existing,
+                          status: parsed.data?.success === false ? 'error' : 'completed',
+                          output: parsed.message || undefined,
+                          error: parsed.data?.success === false ? String(parsed.message || 'Failed') : undefined,
+                          completedAt: new Date(),
+                        };
+                        pendingTools.delete(resultSource);
+                      } else {
+                        const toolName = String(parsed.data?.tool_name || parsed.data?.display_name || resultSource);
+                        collectedParts = [...collectedParts, {
+                          type: 'tool_call',
+                          id: `tool-${Date.now()}-${toolName}`,
+                          name: toolName,
+                          displayName: String(parsed.data?.display_name || toolName),
+                          status: parsed.data?.success === false ? 'error' : 'completed',
+                          output: parsed.message || undefined,
+                          completedAt: new Date(),
+                        }];
+                      }
+                      const streamState = streamMapRef.current.get(streamConversationId);
+                      if (streamState) {
+                        streamState.thoughts = collectedThoughts;
+                        streamState.parts = collectedParts;
+                      }
+                      if (isConversationActive(streamConversationId)) {
+                        setThoughts(collectedThoughts);
+                        setStreamingParts(collectedParts);
+                      }
                     }
                     break;
 
@@ -621,10 +694,50 @@ export function ChatContainer({
                     break;
 
                   case 'prompt':
-                    if (parsed.options && Array.isArray(parsed.options)) {
-                      setQuickReplies(parsed.options);
-                    } else if (parsed.data?.options && Array.isArray(parsed.data.options)) {
-                      setQuickReplies(parsed.data.options);
+                    {
+                      const promptOptions = parsed.options || parsed.data?.options;
+                      if (promptOptions && Array.isArray(promptOptions)) {
+                        setQuickReplies(promptOptions);
+                        setPromptActive(true);
+
+                        const promptType = (parsed.data?.prompt_type || 'choice') as 'confirm' | 'choice' | 'open';
+                        collectedParts = [...collectedParts, { type: 'prompt', options: promptOptions, promptType }];
+
+                        // Finalize accumulated content as a completed message so the user can respond
+                        const cleanedSoFar = stripThinkTags(fullContent);
+                        if (cleanedSoFar && !hasAddedMessage) {
+                          const finalParts: MessagePart[] = [...collectedParts];
+                          const assistantMessage: Message = {
+                            id: `assistant-prompt-${Date.now()}`,
+                            conversationId: streamConversationId,
+                            role: 'assistant',
+                            content: cleanedSoFar,
+                            agentName: capturedAgentName,
+                            thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
+                            parts: finalParts,
+                            createdAt: new Date(),
+                          };
+
+                          if (isConversationActive(streamConversationId)) {
+                            setMessages(prev => {
+                              const withoutTemp = prev.filter(m => m.id !== tempUserMessage.id);
+                              return [
+                                ...withoutTemp,
+                                { ...tempUserMessage, id: `user-${Date.now()}` },
+                                assistantMessage,
+                              ];
+                            });
+                            setStreamingContent('');
+                            setThoughts([]);
+                            setStreamingParts([]);
+                          }
+                          hasAddedMessage = true;
+                          const streamState = streamMapRef.current.get(streamConversationId);
+                          if (streamState) {
+                            streamState.hasAddedMessage = true;
+                          }
+                        }
+                      }
                     }
                     break;
 
@@ -635,6 +748,10 @@ export function ChatContainer({
                       
                       const cleanedFinalContent = stripThinkTags(fullContent);
                       if (cleanedFinalContent) {
+                        const finalParts: MessagePart[] = [
+                          ...collectedParts,
+                          { type: 'text', content: cleanedFinalContent },
+                        ];
                         const assistantMessage: Message = {
                           id: parsed.message_id || `assistant-${Date.now()}`,
                           conversationId: completedConversationId,
@@ -643,6 +760,7 @@ export function ChatContainer({
                           model: parsed.model,
                           agentName: parsed.agent_name || capturedAgentName,
                           thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
+                          parts: finalParts,
                           createdAt: new Date(),
                         };
 
@@ -679,6 +797,7 @@ export function ChatContainer({
                       if (isConversationActive(completedConversationId)) {
                         setStreamingContent('');
                         setThoughts([]);
+                        setStreamingParts([]);
                         setStreamingAgentName(undefined);
                         setIsStreaming(false);
                       }
@@ -691,15 +810,23 @@ export function ChatContainer({
                     const isToolError = errorSource && !errorSource.includes('agent') && !errorSource.includes('dispatcher');
 
                     if (isToolError) {
-                      // Tool-level error: log as thought, don't wipe content or end streaming.
                       collectedThoughts = [...collectedThoughts, {
                         type: 'error',
                         source: errorSource,
                         message: `Tool error (${errorSource}): ${errorMessage}`,
                         timestamp: new Date(),
                       }];
+                      // Update matching pending tool part to error status
+                      const errIdx = pendingTools.get(errorSource);
+                      if (errIdx !== undefined && collectedParts[errIdx]?.type === 'tool_call') {
+                        const existing = collectedParts[errIdx] as Extract<MessagePart, { type: 'tool_call' }>;
+                        collectedParts = [...collectedParts];
+                        collectedParts[errIdx] = { ...existing, status: 'error', error: errorMessage, completedAt: new Date() };
+                        pendingTools.delete(errorSource);
+                      }
                       if (isConversationActive(streamConversationId)) {
                         setThoughts(collectedThoughts);
+                        setStreamingParts(collectedParts);
                       }
                     } else {
                       // Fatal error
@@ -716,6 +843,7 @@ export function ChatContainer({
                             ? `${fullContent}\n\n⚠️ **Error:** ${errorMessage}`
                             : `⚠️ **Error:** ${errorMessage}`,
                           thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
+                          parts: collectedParts,
                           createdAt: new Date(),
                         };
 
@@ -752,8 +880,10 @@ export function ChatContainer({
                       if (isConversationActive(streamConversationId)) {
                         setStreamingContent('');
                         setThoughts([]);
+                        setStreamingParts([]);
                         setStreamingAgentName(undefined);
                         setIsStreaming(false);
+                        setPromptActive(false);
                       }
                     }
                     break;
@@ -1310,18 +1440,45 @@ export function ChatContainer({
               isLoading={isStreaming}
               onDeleteMessage={handleDeleteMessage}
               onRetryMessage={handleRetryMessage}
+              onSuggestedAction={(action) => handleSendMessage(action)}
             />
           )}
         </div>
 
-        {/* Quick-reply buttons */}
-        {quickReplies.length > 0 && !isStreaming && (
+        {/* Streaming tool cards */}
+        {isStreaming && streamingParts.filter(p => p.type === 'tool_call').length > 0 && (
+          <div className="flex-shrink-0 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            {streamingParts
+              .filter((p): p is Extract<MessagePart, { type: 'tool_call' }> => p.type === 'tool_call')
+              .map((part) => (
+                <StreamingToolCard key={part.id} part={part} />
+              ))}
+          </div>
+        )}
+
+        {/* Quick-reply buttons -- visible whenever options exist (including mid-stream prompt) */}
+        {quickReplies.length > 0 && (
           <div className="flex-shrink-0 px-3 pt-2 pb-1 flex flex-wrap gap-2 justify-center border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
             {quickReplies.map((reply) => (
               <button
                 key={reply}
                 type="button"
-                onClick={() => { setQuickReplies([]); handleSendMessage(reply); }}
+                onClick={() => {
+                  setQuickReplies([]);
+                  setPromptActive(false);
+                  // Abort lingering stream before sending the reply
+                  const convId = currentConversationRef.current;
+                  if (convId) {
+                    const streamState = streamMapRef.current.get(convId);
+                    if (streamState) {
+                      streamState.controller.abort();
+                      streamMapRef.current.delete(convId);
+                      setConversationStreamingStatus(convId, false);
+                    }
+                  }
+                  setIsStreaming(false);
+                  setTimeout(() => handleSendMessage(reply), 50);
+                }}
                 className="px-4 py-1.5 text-sm font-medium rounded-full border border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
               >
                 {reply}
@@ -1334,8 +1491,8 @@ export function ChatContainer({
         <MessageInput
           onSend={handleSendMessage}
           onStop={handleStopStreaming}
-          disabled={isStreaming}
-          isStreaming={isStreaming}
+          disabled={isStreaming && !promptActive}
+          isStreaming={isStreaming && !promptActive}
           conversationId={currentConversation?.id}
           onEnsureConversation={ensureConversation}
         />
