@@ -56,7 +56,12 @@ export interface ChatClientOptions {
 function resolveEndpoint(endpoint: string, agentUrl?: string): string {
   if (endpoint.startsWith('http')) return endpoint;
   if (agentUrl) {
-    return `${agentUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    const path = `${agentUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    if (path.startsWith('http')) return path;
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}${path.startsWith('/') ? path : `/${path}`}`;
+    }
+    return path;
   }
   return endpoint;
 }
