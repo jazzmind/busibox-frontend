@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       if (libResponse.ok) {
         const data = await libResponse.json();
         const libs = data.data || [];
-        const sharedLibs = libs.filter((l: { isPersonal?: boolean }) => !l.isPersonal);
+        const sharedLibs = libs.filter((l: { isPersonal?: boolean; sourceApp?: string }) => !l.isPersonal && !l.sourceApp);
 
         const options = await getAuthzOptionsWithToken(sessionJwt);
 
