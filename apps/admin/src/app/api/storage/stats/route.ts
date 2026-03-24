@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
         purpose: 'admin-storage-stats',
       });
 
-      const response = await fetch(`${dataApiUrl}/api/v1/storage/stats`, {
+      const response = await fetch(`${dataApiUrl}/files/storage/stats`, {
         headers: {
           'Authorization': `Bearer ${tokenResult.accessToken}`,
         },

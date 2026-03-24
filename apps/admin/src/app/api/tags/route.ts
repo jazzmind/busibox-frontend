@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         purpose: 'admin-tags',
       });
 
-      const response = await fetch(`${searchApiUrl}/api/v1/tags`, {
+      const response = await fetch(`${searchApiUrl}/search/tags`, {
         headers: {
           'Authorization': `Bearer ${tokenResult.accessToken}`,
         },

@@ -188,6 +188,7 @@ export default async function AppDetailPage({ params }: PageProps) {
             <div className="bg-white rounded-lg shadow-md p-6">
               <AppRoleManager
                 appId={appId}
+                appAudience={app.ssoAudience || app.name.toLowerCase().replace(/\s+/g, '-')}
                 initialRoleIds={rolePermissionsWithNames.map(rp => rp.roleId)}
               />
             </div>

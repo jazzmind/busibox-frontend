@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
         purpose: 'admin-database-stats',
       });
 
-      const response = await fetch(`${searchApiUrl}/api/v1/stats/database`, {
+      const response = await fetch(`${searchApiUrl}/search/stats`, {
         headers: {
           'Authorization': `Bearer ${tokenResult.accessToken}`,
         },

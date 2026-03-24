@@ -38,8 +38,8 @@ export async function GET(
 
     const dataApiUrl = getDataApiUrl();
 
-    // Fetch the document with its data
-    const response = await fetch(`${dataApiUrl}/data/${documentId}`, {
+    // Fetch the document with its data using admin endpoint (bypasses RLS for records)
+    const response = await fetch(`${dataApiUrl}/data/admin/documents/${documentId}`, {
       headers: {
         'Authorization': `Bearer ${tokenResult.accessToken}`,
       },

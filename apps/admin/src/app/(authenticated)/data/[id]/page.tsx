@@ -110,7 +110,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
   const [deletingRecordLoading, setDeletingRecordLoading] = useState(false);
   const [rolesLoading, setRolesLoading] = useState(true);
   const [rolesSaving, setRolesSaving] = useState(false);
-  const [documentVisibility, setDocumentVisibility] = useState<'personal' | 'shared'>('personal');
+  const [documentVisibility, setDocumentVisibility] = useState<'personal' | 'shared' | 'app'>('personal');
   const [documentRoles, setDocumentRoles] = useState<DocumentRole[]>([]);
   const [documentRoleIds, setDocumentRoleIds] = useState<string[]>([]);
   const [availableRoles, setAvailableRoles] = useState<AdminRole[]>([]);
@@ -119,7 +119,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
   const [rolesMessage, setRolesMessage] = useState<string | null>(null);
   const [pendingDangerousChange, setPendingDangerousChange] = useState<{
     roleIds: string[];
-    visibility: 'personal' | 'shared';
+    visibility: 'personal' | 'shared' | 'app';
   } | null>(null);
 
   const backParams = new URLSearchParams();
@@ -390,7 +390,12 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
         const roles = Array.isArray(docRolesData.data?.roles) ? docRolesData.data.roles : [];
         setDocumentRoleIds(roleIds);
         setDocumentRoles(roles);
-        setDocumentVisibility((docRolesData.data?.visibility || 'personal') as 'personal' | 'shared');
+        const dbVis = (docRolesData.data?.visibility || 'personal') as 'personal' | 'shared';
+        if (dbVis === 'shared' && roles.length > 0 && roles.every((r: DocumentRole) => r.role_name.startsWith('app:'))) {
+          setDocumentVisibility('app');
+        } else {
+          setDocumentVisibility(dbVis);
+        }
       }
 
       if (allRolesResponse.ok && allRolesData.success) {
@@ -420,9 +425,10 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
     fetchRolesData();
   }, [fetchRolesData]);
 
-  const persistRoles = async (nextRoleIds: string[], nextVisibility: 'personal' | 'shared') => {
+  const persistRoles = async (nextRoleIds: string[], nextVisibility: 'personal' | 'shared' | 'app') => {
     setRolesSaving(true);
     setRolesMessage(null);
+    const apiVisibility = nextVisibility === 'app' ? 'shared' : nextVisibility;
     try {
       const response = await fetch(`/api/data/${resolvedParams.id}/roles`, {
         method: 'PUT',
@@ -431,7 +437,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
         },
         body: JSON.stringify({
           roleIds: nextRoleIds,
-          visibility: nextVisibility,
+          visibility: apiVisibility,
         }),
       });
 
@@ -442,10 +448,9 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
 
       const roleIds = Array.isArray(result.data?.roleIds) ? result.data.roleIds : nextRoleIds;
       const roles = Array.isArray(result.data?.roles) ? result.data.roles : [];
-      const visibility = (result.data?.visibility || nextVisibility) as 'personal' | 'shared';
       setDocumentRoleIds(roleIds);
       setDocumentRoles(roles);
-      setDocumentVisibility(visibility);
+      setDocumentVisibility(nextVisibility);
       setRolesMessage('Roles and access updated.');
       setPendingDangerousChange(null);
     } catch (error) {
@@ -456,14 +461,14 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  const wouldRemoveOwnAccess = (nextRoleIds: string[], nextVisibility: 'personal' | 'shared') => {
-    if (nextVisibility !== 'shared') return false;
+  const wouldRemoveOwnAccess = (nextRoleIds: string[], nextVisibility: 'personal' | 'shared' | 'app') => {
+    if (nextVisibility === 'personal') return false;
     if (currentUserRoleIds.length === 0) return false;
     const roleSet = new Set(nextRoleIds);
     return currentUserRoleIds.every((roleId) => !roleSet.has(roleId));
   };
 
-  const requestRolesUpdate = async (nextRoleIds: string[], nextVisibility: 'personal' | 'shared') => {
+  const requestRolesUpdate = async (nextRoleIds: string[], nextVisibility: 'personal' | 'shared' | 'app') => {
     if (wouldRemoveOwnAccess(nextRoleIds, nextVisibility)) {
       setPendingDangerousChange({ roleIds: nextRoleIds, visibility: nextVisibility });
       setRolesMessage('Warning: this change will remove your own access to this collection.');
@@ -476,7 +481,8 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
     if (!selectedRoleId) return;
     if (documentRoleIds.includes(selectedRoleId)) return;
     const nextRoleIds = [...documentRoleIds, selectedRoleId];
-    await requestRolesUpdate(nextRoleIds, 'shared');
+    const vis = documentVisibility === 'personal' ? 'shared' : documentVisibility;
+    await requestRolesUpdate(nextRoleIds, vis);
     setSelectedRoleId('');
   };
 
@@ -485,11 +491,23 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
     await requestRolesUpdate(nextRoleIds, documentVisibility);
   };
 
-  const handleVisibilityChange = async (nextVisibility: 'personal' | 'shared') => {
+  const handleVisibilityChange = async (nextVisibility: 'personal' | 'shared' | 'app') => {
     if (nextVisibility === documentVisibility) return;
-    const nextRoleIds =
-      nextVisibility === 'shared' ? documentRoleIds : [];
-    await requestRolesUpdate(nextRoleIds, nextVisibility);
+    if (nextVisibility === 'personal') {
+      await requestRolesUpdate([], nextVisibility);
+    } else if (nextVisibility === 'shared') {
+      const orgOnlyRoles = documentRoleIds.filter((id) => {
+        const role = availableRoles.find((r) => r.id === id);
+        return role && !role.name.startsWith('app:');
+      });
+      await requestRolesUpdate(orgOnlyRoles, nextVisibility);
+    } else {
+      const appOnlyRoles = documentRoleIds.filter((id) => {
+        const role = availableRoles.find((r) => r.id === id);
+        return role && role.name.startsWith('app:');
+      });
+      await requestRolesUpdate(appOnlyRoles, nextVisibility);
+    }
   };
 
   const handleExport = async () => {
@@ -779,49 +797,44 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
 
           <div className="flex items-center gap-2 mb-4">
             <span className="text-sm text-gray-600">Visibility:</span>
-            <button
-              type="button"
-              disabled={rolesSaving || rolesLoading}
-              onClick={() => handleVisibilityChange('personal')}
-              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                documentVisibility === 'personal'
-                  ? 'bg-gray-900 text-white border-gray-900'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              Personal
-            </button>
-            <button
-              type="button"
-              disabled={rolesSaving || rolesLoading}
-              onClick={() => handleVisibilityChange('shared')}
-              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                documentVisibility === 'shared'
-                  ? 'bg-gray-900 text-white border-gray-900'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              Shared
-            </button>
+            {(['personal', 'shared', 'app'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                disabled={rolesSaving || rolesLoading}
+                onClick={() => handleVisibilityChange(mode)}
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                  documentVisibility === mode
+                    ? 'bg-gray-900 text-white border-gray-900'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {mode === 'personal' ? 'Personal' : mode === 'shared' ? 'Shared' : 'App'}
+              </button>
+            ))}
           </div>
 
           {rolesLoading ? (
             <p className="text-sm text-gray-500">Loading roles...</p>
-          ) : documentVisibility === 'shared' ? (
+          ) : documentVisibility === 'shared' || documentVisibility === 'app' ? (
             <>
               <div className="flex flex-wrap gap-2 mb-4">
                 {documentRoles.length > 0 ? (
                   documentRoles.map((role) => (
                     <span
                       key={role.role_id}
-                      className="inline-flex items-center gap-2 rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-sm"
+                      className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm ${
+                        documentVisibility === 'app'
+                          ? 'bg-indigo-50 text-indigo-700'
+                          : 'bg-blue-50 text-blue-700'
+                      }`}
                     >
                       {role.role_name}
                       <button
                         type="button"
                         disabled={rolesSaving}
                         onClick={() => handleRemoveRole(role.role_id)}
-                        className="text-blue-700 hover:text-blue-900"
+                        className={documentVisibility === 'app' ? 'text-indigo-700 hover:text-indigo-900' : 'text-blue-700 hover:text-blue-900'}
                         title={`Remove ${role.role_name}`}
                       >
                         ×
@@ -842,7 +855,11 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
                 >
                   <option value="">Select role to add</option>
                   {availableRoles
-                    .filter((role) => !documentRoleIds.includes(role.id))
+                    .filter((role) => {
+                      if (documentRoleIds.includes(role.id)) return false;
+                      if (documentVisibility === 'app') return role.name.startsWith('app:');
+                      return !role.name.startsWith('app:');
+                    })
                     .map((role) => (
                       <option key={role.id} value={role.id}>
                         {role.name}
@@ -858,10 +875,16 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
                   Add Role
                 </button>
               </div>
+
+              <p className="mt-2 text-xs text-gray-500">
+                {documentVisibility === 'app'
+                  ? 'App visibility: only app-specific roles can access this collection. Records inherit these roles.'
+                  : 'Shared visibility: organization and team roles can access this collection.'}
+              </p>
             </>
           ) : (
             <p className="text-sm text-gray-600">
-              This collection is personal. Switch to shared visibility to assign access roles.
+              This collection is personal. Switch to Shared or App visibility to assign access roles.
             </p>
           )}
 
