@@ -100,6 +100,14 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
   const [importLoading, setImportLoading] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Admin record metadata
+  const [adminRecords, setAdminRecords] = useState<{ recordId: string; documentId: string; ownerId: string | null; visibility: string; createdAt: string | null; updatedAt: string | null }[]>([]);
+  const [adminRecordsTotal, setAdminRecordsTotal] = useState(0);
+  const [adminRecordsLoading, setAdminRecordsLoading] = useState(false);
+  const [adminRecordsExpanded, setAdminRecordsExpanded] = useState(false);
+  const [deletingRecordId, setDeletingRecordId] = useState<string | null>(null);
+  const [deletingRecordLoading, setDeletingRecordLoading] = useState(false);
   const [rolesLoading, setRolesLoading] = useState(true);
   const [rolesSaving, setRolesSaving] = useState(false);
   const [documentVisibility, setDocumentVisibility] = useState<'personal' | 'shared'>('personal');
@@ -566,6 +574,40 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
       if (importInputRef.current) {
         importInputRef.current.value = '';
       }
+    }
+  };
+
+  const fetchAdminRecords = useCallback(async () => {
+    setAdminRecordsLoading(true);
+    try {
+      const response = await fetch(`/api/data/admin/documents/${resolvedParams.id}/records?limit=200`);
+      if (response.ok) {
+        const data = await response.json();
+        setAdminRecords(data.records || []);
+        setAdminRecordsTotal(data.total || 0);
+      }
+    } catch (err) {
+      console.error('Failed to fetch admin records:', err);
+    } finally {
+      setAdminRecordsLoading(false);
+    }
+  }, [resolvedParams.id]);
+
+  const handleAdminDeleteRecord = async (recordId: string) => {
+    setDeletingRecordLoading(true);
+    try {
+      const response = await fetch(`/api/data/admin/documents/${resolvedParams.id}/records/${recordId}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        setAdminRecords(prev => prev.filter(r => r.recordId !== recordId));
+        setAdminRecordsTotal(prev => prev - 1);
+        setDeletingRecordId(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete record:', err);
+    } finally {
+      setDeletingRecordLoading(false);
     }
   };
 
@@ -1065,6 +1107,132 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
             </div>
           )}
         </div>
+
+        {/* Admin Record Metadata */}
+        <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50/50 overflow-hidden">
+          <button
+            onClick={() => {
+              if (!adminRecordsExpanded) {
+                setAdminRecordsExpanded(true);
+                if (adminRecords.length === 0 && !adminRecordsLoading) {
+                  fetchAdminRecords();
+                }
+              } else {
+                setAdminRecordsExpanded(false);
+              }
+            }}
+            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-amber-100/50 transition-colors"
+          >
+            <Shield className="w-5 h-5 text-amber-600" />
+            <span className="text-sm font-semibold text-amber-800">Admin: Record Metadata</span>
+            <span className="text-xs text-amber-600 ml-auto">
+              {adminRecordsTotal > 0 ? `${adminRecordsTotal} records` : ''}
+            </span>
+            {adminRecordsExpanded ? (
+              <ChevronDown className="w-4 h-4 text-amber-600" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-amber-600" />
+            )}
+          </button>
+
+          {adminRecordsExpanded && (
+            <div className="px-5 pb-4">
+              <p className="text-xs text-amber-700 mb-3">
+                Shows record-level metadata (owner, visibility, timestamps). Record contents are not exposed.
+              </p>
+
+              {adminRecordsLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
+                </div>
+              ) : adminRecords.length > 0 ? (
+                <div className="border border-amber-200 rounded-lg overflow-hidden bg-white">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Record ID</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Visibility</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {adminRecords.map(rec => (
+                        <tr key={rec.recordId} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 font-mono text-xs text-gray-600">{rec.recordId.slice(0, 12)}...</td>
+                          <td className="px-3 py-2 font-mono text-xs text-gray-500">{rec.ownerId ? `${rec.ownerId.slice(0, 8)}...` : '—'}</td>
+                          <td className="px-3 py-2">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              rec.visibility === 'personal'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : rec.visibility === 'shared'
+                                ? 'bg-green-100 text-green-800'
+                                : rec.visibility === 'inherit'
+                                ? 'bg-gray-100 text-gray-800'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {rec.visibility}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-xs text-gray-500">
+                            {rec.createdAt ? new Date(rec.createdAt).toLocaleDateString() : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              onClick={() => setDeletingRecordId(rec.recordId)}
+                              className="p-1 hover:bg-red-50 rounded transition-colors"
+                              title="Delete record"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 py-3">No records found.</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Admin Delete Record Modal */}
+        {deletingRecordId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Record</h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-2">
+                Permanently delete record <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">{deletingRecordId.slice(0, 12)}...</code>?
+              </p>
+              <p className="text-sm text-gray-500 mb-6">This action cannot be undone.</p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setDeletingRecordId(null)}
+                  disabled={deletingRecordLoading}
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleAdminDeleteRecord(deletingRecordId)}
+                  disabled={deletingRecordLoading}
+                  className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {deletingRecordLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Open in App Link */}
         {activeDocument.sourceApp && activeDocument.sourceApp !== 'unknown' && (

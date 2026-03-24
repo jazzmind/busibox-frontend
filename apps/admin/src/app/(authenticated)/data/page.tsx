@@ -112,7 +112,7 @@ export default function DataManagementPage() {
 
   const paramTab = searchParams.get('tab');
   const initialTab =
-    paramTab === 'overview' || paramTab === 'shared' || paramTab === 'app-data' || paramTab === 'tags' || paramTab === 'all-docs'
+    paramTab === 'overview' || paramTab === 'user-libraries' || paramTab === 'app-libraries' || paramTab === 'tags' || paramTab === 'all-docs'
       ? paramTab
       : 'overview';
   const paramSortField = searchParams.get('sort');
@@ -129,7 +129,8 @@ export default function DataManagementPage() {
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
   const [databaseStats, setDatabaseStats] = useState<DatabaseStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'shared' | 'app-data' | 'tags' | 'all-docs'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'overview' | 'user-libraries' | 'app-libraries' | 'tags' | 'all-docs'>(initialTab);
+  const [selectedApp, setSelectedApp] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [appFilter, setAppFilter] = useState(searchParams.get('app') || 'all');
   const [sortField, setSortField] = useState<'sourceApp' | 'displayName' | 'recordCount'>(initialSortField);
@@ -351,7 +352,7 @@ export default function DataManagementPage() {
 
   const buildAppDataHref = (doc: AppDataDocument) => {
     const params = new URLSearchParams();
-    params.set('tab', 'app-data');
+    params.set('tab', 'app-libraries');
     if (searchQuery) params.set('q', searchQuery);
     if (appFilter !== 'all') params.set('app', appFilter);
     if (sortField !== 'sourceApp') params.set('sort', sortField);
@@ -367,6 +368,20 @@ export default function DataManagementPage() {
     return `/data/${doc.id}?${params.toString()}`;
   };
 
+  const appSummaries = (() => {
+    const byApp: Record<string, { collections: number; records: number; visibilities: Set<string> }> = {};
+    for (const doc of safeAppDataLibraries) {
+      const app = doc.sourceApp || 'unknown';
+      if (!byApp[app]) byApp[app] = { collections: 0, records: 0, visibilities: new Set() };
+      byApp[app].collections++;
+      byApp[app].records += doc.recordCount || 0;
+      if (doc.visibility) byApp[app].visibilities.add(doc.visibility);
+    }
+    return Object.entries(byApp)
+      .map(([app, stats]) => ({ app, ...stats }))
+      .sort((a, b) => a.app.localeCompare(b.app));
+  })();
+
   return (
     <div className="min-h-full bg-white">
       {/* Page Header */}
@@ -375,7 +390,7 @@ export default function DataManagementPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-semibold text-gray-900">Data Management</h1>
-              <p className="text-gray-600 mt-1">Manage document libraries, data collections, tags, and storage</p>
+              <p className="text-gray-600 mt-1">Manage user libraries, app libraries, tags, and storage</p>
             </div>
             
             <button
@@ -400,19 +415,19 @@ export default function DataManagementPage() {
                 <div className="p-2 bg-purple-100 rounded-lg">
                   <FolderOpen className="w-5 h-5 text-purple-600" />
                 </div>
-                <span className="text-sm font-medium text-purple-600">Shared Libraries</span>
+                <span className="text-sm font-medium text-purple-600">User Libraries</span>
               </div>
               <p className="text-3xl font-bold text-gray-900">{sharedLibraries.length}</p>
               <p className="text-sm text-gray-500 mt-1">{formatNumber(totalSharedDocuments)} documents</p>
             </div>
 
-            {/* App Data Card */}
+            {/* App Libraries Card */}
             <div className="bg-gradient-to-br from-green-50 to-white border border-green-100 rounded-xl p-5">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 bg-green-100 rounded-lg">
                   <Database className="w-5 h-5 text-green-600" />
                 </div>
-                <span className="text-sm font-medium text-green-600">Data Collections</span>
+                <span className="text-sm font-medium text-green-600">App Libraries</span>
               </div>
               <p className="text-3xl font-bold text-gray-900">{safeAppDataLibraries.length}</p>
               <p className="text-sm text-gray-500 mt-1">{formatNumber(totalAppDataRecords)} records</p>
@@ -471,8 +486,8 @@ export default function DataManagementPage() {
           <nav className="flex gap-8">
             {[
               { id: 'overview', label: 'Overview', icon: <Layers className="w-4 h-4" /> },
-              { id: 'shared', label: 'Shared Libraries', icon: <FolderOpen className="w-4 h-4" /> },
-              { id: 'app-data', label: 'Data Collections', icon: <Database className="w-4 h-4" /> },
+              { id: 'user-libraries', label: 'User Libraries', icon: <FolderOpen className="w-4 h-4" /> },
+              { id: 'app-libraries', label: 'App Libraries', icon: <Database className="w-4 h-4" /> },
               { id: 'tags', label: 'Tags', icon: <Tag className="w-4 h-4" /> },
               { id: 'all-docs', label: 'All Documents', icon: <Shield className="w-4 h-4" /> },
             ].map(tab => (
@@ -498,7 +513,7 @@ export default function DataManagementPage() {
       <section className="py-8">
         <div className="max-w-6xl mx-auto px-6">
           {/* Search */}
-          {(activeTab === 'shared' || activeTab === 'tags' || activeTab === 'app-data' || activeTab === 'all-docs') && (
+          {(activeTab === 'user-libraries' || activeTab === 'tags' || activeTab === 'app-libraries' || activeTab === 'all-docs') && (
             <div className="mb-6">
               <div className="relative max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -522,12 +537,12 @@ export default function DataManagementPage() {
               {/* Overview Tab */}
               {activeTab === 'overview' && (
                 <div className="space-y-8">
-                  {/* Shared Libraries */}
+                  {/* User Libraries */}
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-semibold text-gray-900">Shared Libraries</h2>
+                      <h2 className="text-lg font-semibold text-gray-900">User Libraries</h2>
                       <button
-                        onClick={() => setActiveTab('shared')}
+                        onClick={() => setActiveTab('user-libraries')}
                         className="text-sm text-purple-600 hover:text-purple-700 hover:underline"
                       >
                         View all
@@ -563,18 +578,18 @@ export default function DataManagementPage() {
                       {sharedLibraries.length === 0 && (
                         <div className="col-span-3 text-center py-8">
                           <FolderOpen className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                          <p className="text-gray-500 text-sm">No shared libraries yet</p>
+                          <p className="text-gray-500 text-sm">No user libraries yet</p>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Data Collections */}
+                  {/* App Libraries */}
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-semibold text-gray-900">Data Collections</h2>
+                      <h2 className="text-lg font-semibold text-gray-900">App Libraries</h2>
                       <button
-                        onClick={() => setActiveTab('app-data')}
+                        onClick={() => setActiveTab('app-libraries')}
                         className="text-sm text-green-600 hover:text-green-700 hover:underline"
                       >
                         View all
@@ -613,7 +628,7 @@ export default function DataManagementPage() {
                       {safeAppDataLibraries.length === 0 && (
                         <div className="col-span-3 text-center py-8">
                           <Database className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                          <p className="text-gray-500 text-sm">No app data sources yet</p>
+                          <p className="text-gray-500 text-sm">No app libraries yet</p>
                         </div>
                       )}
                     </div>
@@ -691,12 +706,12 @@ export default function DataManagementPage() {
                 </div>
               )}
 
-              {/* Shared Libraries Tab */}
-              {activeTab === 'shared' && (
+              {/* User Libraries Tab */}
+              {activeTab === 'user-libraries' && (
                 <div>
                   <div className="flex items-center justify-between mb-6">
                     <p className="text-sm text-gray-500">
-                      {filteredSharedLibraries.length} shared {filteredSharedLibraries.length === 1 ? 'library' : 'libraries'}
+                      {filteredSharedLibraries.length} user {filteredSharedLibraries.length === 1 ? 'library' : 'libraries'}
                     </p>
                     <button
                       onClick={() => setShowCreateModal(true)}
@@ -752,7 +767,7 @@ export default function DataManagementPage() {
                     {filteredSharedLibraries.length === 0 && (
                       <div className="text-center py-12">
                         <FolderOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-500">No shared libraries found</p>
+                        <p className="text-gray-500">No user libraries found</p>
                         {searchQuery && (
                           <button
                             onClick={() => setSearchQuery('')}
@@ -767,93 +782,115 @@ export default function DataManagementPage() {
                 </div>
               )}
 
-              {/* App Data Tab */}
-              {activeTab === 'app-data' && (
+              {/* App Libraries Tab */}
+              {activeTab === 'app-libraries' && (
                 <div>
-                  <div className="flex items-center justify-between mb-6">
-                    <p className="text-sm text-gray-500">
-                      {filteredAppData.length} app {filteredAppData.length === 1 ? 'data source' : 'data sources'}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={appFilter}
-                        onChange={(e) => setAppFilter(e.target.value)}
-                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white"
-                      >
-                        <option value="all">All apps</option>
-                        {appFilterOptions.map((app) => (
-                          <option key={app} value={app}>
-                            {app}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={sortField}
-                        onChange={(e) => setSortField(e.target.value as 'sourceApp' | 'displayName' | 'recordCount')}
-                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white"
-                      >
-                        <option value="sourceApp">Sort: App Name</option>
-                        <option value="displayName">Sort: Data Name</option>
-                        <option value="recordCount">Sort: Record Count</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50"
-                      >
-                        {sortDirection === 'asc' ? 'Asc' : 'Desc'}
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {sortedAppData.map(doc => (
-                      <Link
-                        key={doc.id}
-                        href={buildAppDataHref(doc)}
-                        className="block cursor-pointer bg-white border border-gray-200 rounded-xl p-5 hover:border-green-300 hover:shadow-md transition-all group"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
-                            <Database className="w-5 h-5 text-green-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-medium text-gray-900 truncate">
-                              {doc.displayName || doc.name}
-                            </h3>
-                            <p className="text-sm text-gray-500 mt-1">
-                              <span className="font-medium text-green-600">{doc.sourceApp}</span>
-                              {doc.itemLabel && <span className="text-gray-400"> • {doc.itemLabel}s</span>}
-                            </p>
-                            <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
-                              <span className="flex items-center gap-1">
-                                <Layers className="w-3 h-3" />
-                                {doc.recordCount || 0} records
-                              </span>
-                              <span className="capitalize">{doc.visibility || 'private'}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                  
-                  {filteredAppData.length === 0 && (
-                    <div className="text-center py-12">
-                      <Database className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-500">No app data sources found</p>
-                      <p className="text-sm text-gray-400 mt-1">
-                        Connect apps that store structured data to see them here
+                  {!selectedApp ? (
+                    <>
+                      <p className="text-sm text-gray-500 mb-6">
+                        {appSummaries.length} {appSummaries.length === 1 ? 'app' : 'apps'} with {safeAppDataLibraries.length} total collections
                       </p>
-                      {searchQuery && (
-                        <button
-                          onClick={() => setSearchQuery('')}
-                          className="text-purple-600 text-sm mt-2 hover:underline"
-                        >
-                          Clear search
-                        </button>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {appSummaries
+                          .filter(s => !searchQuery || s.app.toLowerCase().includes(searchQuery.toLowerCase()))
+                          .map(summary => (
+                          <button
+                            key={summary.app}
+                            onClick={() => setSelectedApp(summary.app)}
+                            className="block text-left bg-white border border-gray-200 rounded-xl p-5 hover:border-green-300 hover:shadow-md transition-all group"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
+                                <Database className="w-5 h-5 text-green-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-medium text-gray-900">{summary.app}</h3>
+                                <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                                  <span>{summary.collections} {summary.collections === 1 ? 'collection' : 'collections'}</span>
+                                  <span>{formatNumber(summary.records)} records</span>
+                                </div>
+                                <div className="flex gap-1.5 mt-3">
+                                  {Array.from(summary.visibilities).map(vis => (
+                                    <span key={vis} className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      vis === 'personal'
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : vis === 'shared'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-blue-100 text-blue-800'
+                                    }`}>
+                                      {vis}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <ExternalLink className="w-4 h-4 text-gray-300 group-hover:text-green-500 transition-colors mt-1" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      {appSummaries.length === 0 && (
+                        <div className="text-center py-12">
+                          <Database className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                          <p className="text-gray-500">No app libraries found</p>
+                          <p className="text-sm text-gray-400 mt-1">
+                            Apps that store structured data will appear here
+                          </p>
+                        </div>
                       )}
-                    </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-3 mb-6">
+                        <button
+                          onClick={() => setSelectedApp(null)}
+                          className="text-sm text-gray-500 hover:text-gray-700"
+                        >
+                          All Apps
+                        </button>
+                        <span className="text-gray-300">/</span>
+                        <span className="text-sm font-medium text-gray-900">{selectedApp}</span>
+                        <span className="text-sm text-gray-400 ml-auto">
+                          {safeAppDataLibraries.filter(d => d.sourceApp === selectedApp).length} collections
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {safeAppDataLibraries
+                          .filter(doc => doc.sourceApp === selectedApp)
+                          .filter(doc => {
+                            if (!searchQuery) return true;
+                            const q = searchQuery.toLowerCase();
+                            return doc.name?.toLowerCase().includes(q) || doc.displayName?.toLowerCase().includes(q);
+                          })
+                          .map(doc => (
+                          <Link
+                            key={doc.id}
+                            href={buildAppDataHref(doc)}
+                            className="block cursor-pointer bg-white border border-gray-200 rounded-xl p-5 hover:border-green-300 hover:shadow-md transition-all group"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
+                                <Database className="w-5 h-5 text-green-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-medium text-gray-900 truncate">
+                                  {doc.displayName || doc.name}
+                                </h3>
+                                {doc.itemLabel && (
+                                  <p className="text-sm text-gray-500 mt-1">{doc.itemLabel}s</p>
+                                )}
+                                <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
+                                  <span className="flex items-center gap-1">
+                                    <Layers className="w-3 h-3" />
+                                    {doc.recordCount || 0} records
+                                  </span>
+                                  <span className="capitalize">{doc.visibility || 'private'}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
               )}

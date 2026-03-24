@@ -537,7 +537,7 @@ export async function ensureDocuments<T extends Record<string, DataDocumentConfi
   sourceApp: string,
   options?: DataDocumentsOptions
 ): Promise<{ [K in keyof T]: string }> {
-  const documents = await listDataDocuments(token, { ...options, limit: 100 });
+  const documents = await listDataDocuments(token, { ...options, sourceApp, limit: 100 });
   const result: Record<string, string> = {} as { [K in keyof T]: string };
 
   for (const [key, docConfig] of Object.entries(config)) {
@@ -545,14 +545,32 @@ export async function ensureDocuments<T extends Record<string, DataDocumentConfi
     const schema = { ...docConfig.schema, sourceApp };
 
     if (!existing) {
-      const created = await createDataDocument(
-        token,
-        docConfig.name,
-        schema,
-        docConfig.visibility || 'shared',
-        options
-      );
-      result[key] = created.id;
+      try {
+        const created = await createDataDocument(
+          token,
+          docConfig.name,
+          schema,
+          docConfig.visibility || 'shared',
+          options
+        );
+        result[key] = created.id;
+      } catch (err: unknown) {
+        const isDuplicate =
+          err instanceof Error &&
+          (err.message.includes('duplicate') ||
+           err.message.includes('unique') ||
+           err.message.includes('409') ||
+           err.message.includes('already exists'));
+        if (isDuplicate) {
+          const refreshed = await listDataDocuments(token, { ...options, sourceApp, limit: 100 });
+          const found = refreshed.find((d) => d.name === docConfig.name);
+          if (found) {
+            result[key] = found.id;
+            continue;
+          }
+        }
+        throw err;
+      }
     } else {
       result[key] = existing.id;
       await ensureSchemaAndMetadata(
