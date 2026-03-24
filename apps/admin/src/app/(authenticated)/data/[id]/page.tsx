@@ -390,11 +390,14 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
         const roles = Array.isArray(docRolesData.data?.roles) ? docRolesData.data.roles : [];
         setDocumentRoleIds(roleIds);
         setDocumentRoles(roles);
-        const dbVis = (docRolesData.data?.visibility || 'personal') as 'personal' | 'shared';
-        if (dbVis === 'shared' && roles.length > 0 && roles.every((r: DocumentRole) => r.role_name.startsWith('app:'))) {
+        const rawVis = docRolesData.data?.visibility || 'personal';
+        if (rawVis === 'shared' && roles.length > 0 && roles.every((r: DocumentRole) => r.role_name.startsWith('app:'))) {
           setDocumentVisibility('app');
+        } else if (rawVis === 'shared') {
+          setDocumentVisibility('shared');
         } else {
-          setDocumentVisibility(dbVis);
+          // 'personal', 'authenticated', or anything else → treat as personal in the UI
+          setDocumentVisibility('personal');
         }
       }
 
@@ -488,7 +491,11 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
 
   const handleRemoveRole = async (roleId: string) => {
     const nextRoleIds = documentRoleIds.filter((id) => id !== roleId);
-    await requestRolesUpdate(nextRoleIds, documentVisibility);
+    if (nextRoleIds.length === 0) {
+      await requestRolesUpdate([], 'personal');
+    } else {
+      await requestRolesUpdate(nextRoleIds, documentVisibility);
+    }
   };
 
   const handleVisibilityChange = async (nextVisibility: 'personal' | 'shared' | 'app') => {
@@ -500,12 +507,24 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
         const role = availableRoles.find((r) => r.id === id);
         return role && !role.name.startsWith('app:');
       });
+      if (orgOnlyRoles.length === 0) {
+        // No org roles assigned yet — just switch UI mode so user can pick a role
+        setDocumentVisibility(nextVisibility);
+        setRolesMessage(null);
+        return;
+      }
       await requestRolesUpdate(orgOnlyRoles, nextVisibility);
     } else {
       const appOnlyRoles = documentRoleIds.filter((id) => {
         const role = availableRoles.find((r) => r.id === id);
         return role && role.name.startsWith('app:');
       });
+      if (appOnlyRoles.length === 0) {
+        // No app roles assigned yet — just switch UI mode so user can pick a role
+        setDocumentVisibility(nextVisibility);
+        setRolesMessage(null);
+        return;
+      }
       await requestRolesUpdate(appOnlyRoles, nextVisibility);
     }
   };
