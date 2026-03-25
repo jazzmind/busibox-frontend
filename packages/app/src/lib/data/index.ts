@@ -42,6 +42,7 @@ export {
   getNow,
   cleanRecord,
   extractRoleIdsFromToken,
+  extractAppRoleIdFromToken,
   listDataDocuments,
   createDataDocument,
   getDocumentByName,

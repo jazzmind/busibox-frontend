@@ -95,13 +95,12 @@ export function cleanRecord<T>(record: T): T {
 }
 
 /**
- * Extract role IDs from a JWT token (without verification).
- * Used for shared visibility documents.
+ * Decode JWT payload without verification. Returns the parsed payload or null.
  */
-export function extractRoleIdsFromToken(token: string): string[] {
+function decodeTokenPayload(token: string): Record<string, unknown> | null {
   try {
     const parts = token.replace(/^Bearer\s+/i, '').split('.');
-    if (parts.length !== 3) return [];
+    if (parts.length !== 3) return null;
     const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     const json =
       typeof Buffer !== 'undefined'
@@ -109,14 +108,41 @@ export function extractRoleIdsFromToken(token: string): string[] {
         : typeof atob !== 'undefined'
           ? atob(b64)
           : '';
-    const payload = JSON.parse(json);
-    const roles = payload.roles || [];
-    return roles
-      .map((r: string | { id?: string }) => (typeof r === 'string' ? r : r?.id))
-      .filter((id: string | undefined): id is string => !!id);
+    return JSON.parse(json);
   } catch {
-    return [];
+    return null;
   }
+}
+
+/**
+ * Extract role IDs from a JWT token (without verification).
+ * Used for shared visibility documents.
+ */
+export function extractRoleIdsFromToken(token: string): string[] {
+  const payload = decodeTokenPayload(token);
+  if (!payload) return [];
+  const roles = (payload.roles || []) as Array<string | { id?: string }>;
+  return roles
+    .map((r) => (typeof r === 'string' ? r : r?.id))
+    .filter((id): id is string => !!id);
+}
+
+/**
+ * Extract only the app-level role ID from a JWT token.
+ * Matches roles whose name is exactly `app:<sourceApp>` (no further segments).
+ * Returns a single-element array with the role UUID, or empty array if not found.
+ */
+export function extractAppRoleIdFromToken(token: string, sourceApp: string): string[] {
+  const payload = decodeTokenPayload(token);
+  if (!payload) return [];
+  const roles = (payload.roles || []) as Array<string | { id?: string; name?: string }>;
+  const appRoleName = `app:${sourceApp}`;
+  for (const r of roles) {
+    if (typeof r === 'object' && r?.name === appRoleName && r?.id) {
+      return [r.id];
+    }
+  }
+  return [];
 }
 
 // ==========================================================================
@@ -154,14 +180,20 @@ export async function createDataDocument(
   let effectiveRoleIds: string[] | undefined = roleIds;
 
   if (roleIds && roleIds.length > 0) {
-    // Explicit roleIds provided — force shared visibility so RLS grants
-    // access via role membership.
     effectiveVisibility = 'shared';
     effectiveRoleIds = roleIds;
   } else if (visibility === 'authenticated') {
     effectiveVisibility = 'authenticated';
   } else if (visibility === 'shared') {
-    effectiveRoleIds = extractRoleIdsFromToken(token);
+    // When sourceApp is set, assign only the app:<sourceApp> role so the
+    // document is scoped to its owning app. Fall back to all token roles
+    // only when no app role is found (e.g. legacy tokens without app roles).
+    effectiveRoleIds = sourceApp
+      ? extractAppRoleIdFromToken(token, sourceApp)
+      : [];
+    if (!effectiveRoleIds.length) {
+      effectiveRoleIds = extractRoleIdsFromToken(token);
+    }
     effectiveVisibility =
       effectiveRoleIds && effectiveRoleIds.length > 0 ? 'shared' : 'personal';
   }
