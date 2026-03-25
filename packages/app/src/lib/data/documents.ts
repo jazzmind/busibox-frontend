@@ -607,6 +607,33 @@ export async function ensureDocuments<T extends Record<string, DataDocumentConfi
         sourceApp,
         options
       );
+
+      // For existing documents, ensure app role is set when appRoleId is
+      // provided.  Uses updateDocumentRoles (PUT = replace) so the document
+      // ends up with exactly the intended roles rather than accumulating
+      // stale ones from previous token contents.
+      if (mergedRoleIds.length > 0) {
+        try {
+          const current = await getDocumentRoles(token, existing.id, options);
+          const currentIds: string[] =
+            current.roleIds ?? (current.roles ?? []).map((r) => r.role_id);
+
+          const missing = mergedRoleIds.some((id) => !currentIds.includes(id));
+          const extra = currentIds.some((id) => !mergedRoleIds.includes(id));
+
+          if (missing || extra) {
+            await updateDocumentRoles(
+              token,
+              existing.id,
+              mergedRoleIds,
+              'shared',
+              options
+            );
+          }
+        } catch {
+          // Best-effort: non-owners may not be able to update roles.
+        }
+      }
     }
   }
 
