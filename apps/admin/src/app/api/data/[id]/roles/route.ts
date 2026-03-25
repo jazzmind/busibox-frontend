@@ -67,6 +67,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         ? body.visibility
         : undefined;
 
+    const roleNames: Record<string, string> | undefined =
+      body?.roleNames && typeof body.roleNames === 'object'
+        ? body.roleNames
+        : undefined;
+
     const tokenResult = await exchangeWithSubjectToken({
       sessionJwt,
       userId: user.id,
@@ -84,7 +89,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         Authorization: `Bearer ${tokenResult.accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ roleIds, visibility }),
+      body: JSON.stringify({ roleIds, visibility, ...(roleNames ? { roleNames } : {}) }),
     });
 
     if (!response.ok) {

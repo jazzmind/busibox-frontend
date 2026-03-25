@@ -80,6 +80,10 @@ export async function deployApp(
       requiredEnvVars: request.manifest.requiredEnvVars || [],
       optionalEnvVars: request.manifest.optionalEnvVars || [],
       busiboxAppVersion: request.manifest.busiboxAppVersion,
+      // Custom service fields (passed through when appMode == "custom")
+      ...(request.manifest.runtime ? { runtime: request.manifest.runtime } : {}),
+      ...(request.manifest.services ? { services: request.manifest.services } : {}),
+      ...(request.manifest.auth ? { auth: request.manifest.auth } : {}),
     },
     config: {
       githubRepoOwner: githubRepoOwner || '',

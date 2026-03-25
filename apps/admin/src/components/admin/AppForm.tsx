@@ -1210,7 +1210,11 @@ export function AppForm({ app, onSuccess, onCancel }: AppFormProps) {
                 <p><strong>Name:</strong> {localDevValidation.manifest.name}</p>
                 <p><strong>ID:</strong> {localDevValidation.manifest.id}</p>
                 <p><strong>Path:</strong> {localDevValidation.manifest.defaultPath}</p>
-                <p><strong>Port:</strong> {localDevValidation.manifest.defaultPort}</p>
+                {localDevValidation.manifest.appMode === 'custom' ? (
+                  <p><strong>Mode:</strong> Custom Service ({localDevValidation.manifest.services?.length || 0} endpoints)</p>
+                ) : (
+                  <p><strong>Port:</strong> {localDevValidation.manifest.defaultPort}</p>
+                )}
                 {localDevValidation.manifest.description && (
                   <p><strong>Description:</strong> {localDevValidation.manifest.description}</p>
                 )}
@@ -1417,6 +1421,56 @@ export function AppForm({ app, onSuccess, onCancel }: AppFormProps) {
             </p>
           </div>
         </>
+      )}
+
+      {/* Custom Service Details (shown when manifest indicates appMode: "custom") */}
+      {(manifestValidation?.manifest?.appMode === 'custom' || localDevValidation?.manifest?.appMode === 'custom') && (
+        <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-lg p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <span className="text-lg">🐳</span>
+            <div>
+              <h4 className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">Custom Service</h4>
+              <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">
+                This app runs as an isolated Docker Compose stack with its own containers.
+              </p>
+            </div>
+          </div>
+
+          {(() => {
+            const m = manifestValidation?.manifest || localDevValidation?.manifest;
+            if (!m) return null;
+            return (
+              <>
+                {m.services && m.services.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-indigo-800 dark:text-indigo-300 mb-1">Service Endpoints:</p>
+                    <div className="space-y-1">
+                      {m.services.map((svc: any, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2 text-xs bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-700 rounded px-2 py-1">
+                          <span className="font-mono font-medium text-indigo-700 dark:text-indigo-300">{svc.name}</span>
+                          <span className="text-gray-400">→</span>
+                          <code className="text-gray-600 dark:text-gray-400">{svc.path}:{svc.port}</code>
+                          <span className="text-gray-400 ml-auto">health: {svc.healthEndpoint || '/health'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {m.runtime && (
+                  <div className="text-xs text-indigo-700 dark:text-indigo-300">
+                    <strong>Runtime:</strong> {m.runtime.type || 'docker-compose'} &middot; <strong>Compose:</strong> {m.runtime.composeFile || 'docker-compose.yml'}
+                  </div>
+                )}
+                {m.auth && (
+                  <div className="text-xs text-indigo-700 dark:text-indigo-300">
+                    <strong>Auth audience:</strong> <code className="bg-indigo-100 dark:bg-indigo-800 px-1 rounded">{m.auth.audience}</code>
+                    {m.auth.scopes?.length > 0 && <> &middot; <strong>Scopes:</strong> {m.auth.scopes.join(', ')}</>}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
       )}
 
       {/* Version Info (for deployed EXTERNAL apps) */}

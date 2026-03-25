@@ -385,27 +385,33 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
       const allRolesData = await allRolesResponse.json().catch(() => ({}));
       const profileData = await profileResponse.json().catch(() => ({}));
 
+      let allRolesList: { id: string; name: string }[] = [];
+      if (allRolesResponse.ok && allRolesData.success) {
+        const roles = Array.isArray(allRolesData.data?.roles) ? allRolesData.data.roles : [];
+        allRolesList = roles.map((role: { id: string; name: string }) => ({ id: role.id, name: role.name }));
+        setAvailableRoles(allRolesList);
+      }
+
       if (docRolesResponse.ok && docRolesData.success) {
         const roleIds = Array.isArray(docRolesData.data?.roleIds) ? docRolesData.data.roleIds : [];
         const roles = Array.isArray(docRolesData.data?.roles) ? docRolesData.data.roles : [];
         setDocumentRoleIds(roleIds);
         setDocumentRoles(roles);
         const rawVis = docRolesData.data?.visibility || 'personal';
-        if (rawVis === 'shared' && roles.length > 0 && roles.every((r: DocumentRole) => r.role_name.startsWith('app:'))) {
-          setDocumentVisibility('app');
+        if (rawVis === 'shared' && roles.length > 0) {
+          const allRolesMap = new Map(allRolesList.map((r) => [r.id, r.name]));
+          const hasAppRole = roles.every((r: DocumentRole) => {
+            const storedName = r.role_name || '';
+            if (storedName.startsWith('app:')) return true;
+            const resolvedName = allRolesMap.get(r.role_id) || '';
+            return /^app:[^:]+$/.test(resolvedName);
+          });
+          setDocumentVisibility(hasAppRole ? 'app' : 'shared');
         } else if (rawVis === 'shared') {
           setDocumentVisibility('shared');
         } else {
-          // 'personal', 'authenticated', or anything else → treat as personal in the UI
           setDocumentVisibility('personal');
         }
-      }
-
-      if (allRolesResponse.ok && allRolesData.success) {
-        const roles = Array.isArray(allRolesData.data?.roles) ? allRolesData.data.roles : [];
-        setAvailableRoles(
-          roles.map((role: { id: string; name: string }) => ({ id: role.id, name: role.name }))
-        );
       }
 
       if (profileResponse.ok && profileData.success) {
@@ -432,6 +438,11 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
     setRolesSaving(true);
     setRolesMessage(null);
     const apiVisibility = nextVisibility === 'app' ? 'shared' : nextVisibility;
+    const roleNamesMap: Record<string, string> = {};
+    for (const id of nextRoleIds) {
+      const match = availableRoles.find((r) => r.id === id);
+      if (match) roleNamesMap[id] = match.name;
+    }
     try {
       const response = await fetch(`/api/data/${resolvedParams.id}/roles`, {
         method: 'PUT',
@@ -441,6 +452,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
         body: JSON.stringify({
           roleIds: nextRoleIds,
           visibility: apiVisibility,
+          roleNames: roleNamesMap,
         }),
       });
 
@@ -839,7 +851,12 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
             <>
               <div className="flex flex-wrap gap-2 mb-4">
                 {documentRoles.length > 0 ? (
-                  documentRoles.map((role) => (
+                  documentRoles.map((role) => {
+                    const displayName =
+                      role.role_name && !role.role_name.startsWith('Role-')
+                        ? role.role_name
+                        : availableRoles.find((r) => r.id === role.role_id)?.name || role.role_name;
+                    return (
                     <span
                       key={role.role_id}
                       className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm ${
@@ -848,18 +865,19 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
                           : 'bg-blue-50 text-blue-700'
                       }`}
                     >
-                      {role.role_name}
+                      {displayName}
                       <button
                         type="button"
                         disabled={rolesSaving}
                         onClick={() => handleRemoveRole(role.role_id)}
                         className={documentVisibility === 'app' ? 'text-indigo-700 hover:text-indigo-900' : 'text-blue-700 hover:text-blue-900'}
-                        title={`Remove ${role.role_name}`}
+                        title={`Remove ${displayName}`}
                       >
                         ×
                       </button>
                     </span>
-                  ))
+                    );
+                  }))
                 ) : (
                   <p className="text-sm text-gray-500">No roles assigned yet.</p>
                 )}
