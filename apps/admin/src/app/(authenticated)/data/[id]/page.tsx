@@ -877,7 +877,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
                       </button>
                     </span>
                     );
-                  }))
+                  })
                 ) : (
                   <p className="text-sm text-gray-500">No roles assigned yet.</p>
                 )}
