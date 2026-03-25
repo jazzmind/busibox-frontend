@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuth, apiSuccess, apiError } from '@jazzmind/busibox-app/lib/next/middleware';
 import { exchangeWithSubjectToken, getUserIdFromSessionJwt } from '@jazzmind/busibox-app/lib/authz/next-client';
 import { getDataApiUrl } from '@jazzmind/busibox-app/lib/next/api-url';
-import { getRoleResourceBindings, listRoles, grantRoleResourceAccess } from '@jazzmind/busibox-app';
+import { getResourceRoles, listRoles, grantRoleResourceAccess } from '@jazzmind/busibox-app';
 import { getAuthzOptionsWithToken } from '@jazzmind/busibox-app/lib/authz/next-client';
 
 export async function GET(request: NextRequest) {
@@ -52,10 +52,10 @@ export async function GET(request: NextRequest) {
           sharedLibs.map(async (lib: { id: string; name: string; libraryType?: string; documentCount?: number; createdAt?: string }) => {
             let roles: { id: string; name: string }[] = [];
             try {
-              const bindings = await getRoleResourceBindings(lib.id, 'library', options);
-              roles = bindings.map((b: { role_id: string; role_name?: string }) => ({
-                id: b.role_id,
-                name: b.role_name || b.role_id,
+              const rolesWithBindings = await getResourceRoles('library', lib.id, options);
+              roles = rolesWithBindings.map((r: { id: string; name: string }) => ({
+                id: r.id,
+                name: r.name,
               }));
             } catch (e) {
               console.error(`[admin/libraries] Failed to get role bindings for library ${lib.id}:`, e);
