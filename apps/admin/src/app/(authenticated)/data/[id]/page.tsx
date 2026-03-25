@@ -876,7 +876,10 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
                   {availableRoles
                     .filter((role) => {
                       if (documentRoleIds.includes(role.id)) return false;
-                      if (documentVisibility === 'app') return role.name.startsWith('app:');
+                      if (documentVisibility === 'app') {
+                        // Only show base app roles (app:<name>), not sub-roles (app:<name>:<sub>)
+                        return /^app:[^:]+$/.test(role.name);
+                      }
                       return !role.name.startsWith('app:');
                     })
                     .map((role) => (
