@@ -67,6 +67,7 @@ export type {
   QueryFilter,
   QueryCondition,
   DataDocumentsOptions,
+  EnsureDocumentsOptions,
   DocumentRoleAssignment,
   DocumentRolesResponse,
   InsertRecordsOptions,

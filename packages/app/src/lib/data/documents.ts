@@ -145,19 +145,25 @@ export async function createDataDocument(
   name: string,
   schema: Record<string, unknown>,
   visibility: 'personal' | 'shared' | 'authenticated' = 'shared',
-  options?: DataDocumentsOptions
+  options?: DataDocumentsOptions,
+  roleIds?: string[]
 ): Promise<DataDocument> {
   const sourceApp = schema.sourceApp as string | undefined;
 
   let effectiveVisibility: string = visibility;
-  let roleIds: string[] | undefined;
+  let effectiveRoleIds: string[] | undefined = roleIds;
 
-  if (visibility === 'authenticated') {
+  if (roleIds && roleIds.length > 0) {
+    // Explicit roleIds provided — force shared visibility so RLS grants
+    // access via role membership.
+    effectiveVisibility = 'shared';
+    effectiveRoleIds = roleIds;
+  } else if (visibility === 'authenticated') {
     effectiveVisibility = 'authenticated';
   } else if (visibility === 'shared') {
-    roleIds = extractRoleIdsFromToken(token);
+    effectiveRoleIds = extractRoleIdsFromToken(token);
     effectiveVisibility =
-      roleIds && roleIds.length > 0 ? 'shared' : 'personal';
+      effectiveRoleIds && effectiveRoleIds.length > 0 ? 'shared' : 'personal';
   }
 
   return dataDocumentsRequest<DataDocument>(
@@ -169,7 +175,7 @@ export async function createDataDocument(
         name,
         schema,
         visibility: effectiveVisibility,
-        roleIds: effectiveVisibility === 'shared' ? roleIds : undefined,
+        roleIds: effectiveVisibility === 'shared' ? effectiveRoleIds : undefined,
         enableCache: false,
         sourceApp,
       }),
@@ -524,18 +530,32 @@ export async function bulkSetRecordVisibility(
 // ==========================================================================
 
 /**
+ * Options for ensureDocuments beyond the base DataDocumentsOptions.
+ */
+export interface EnsureDocumentsOptions extends DataDocumentsOptions {
+  /**
+   * App role ID to assign to every document at creation time.
+   * When set, new documents are created with `shared` visibility and this
+   * role, so all users holding the role can see them via RLS.
+   * Existing documents are NOT modified (use addRoleToDocuments separately).
+   */
+  appRoleId?: string;
+}
+
+/**
  * Ensure all configured documents exist. Creates missing ones and updates schemas.
  *
  * @param token - Bearer token from requireAuthWithTokenExchange
- * @param config - Map of key -> { name, schema, visibility }
+ * @param config - Map of key -> { name, schema, visibility, roleIds? }
  * @param sourceApp - App identifier for schema metadata
+ * @param options - DataDocumentsOptions plus optional appRoleId
  * @returns Map of key -> document ID
  */
 export async function ensureDocuments<T extends Record<string, DataDocumentConfig>>(
   token: string,
   config: T,
   sourceApp: string,
-  options?: DataDocumentsOptions
+  options?: EnsureDocumentsOptions
 ): Promise<{ [K in keyof T]: string }> {
   const documents = await listDataDocuments(token, { ...options, sourceApp, limit: 100 });
   const result: Record<string, string> = {} as { [K in keyof T]: string };
@@ -544,6 +564,12 @@ export async function ensureDocuments<T extends Record<string, DataDocumentConfi
     const existing = documents.find((d) => d.name === docConfig.name);
     const schema = { ...docConfig.schema, sourceApp };
 
+    // Merge per-document roleIds with the global appRoleId option.
+    const mergedRoleIds = [
+      ...(docConfig.roleIds || []),
+      ...(options?.appRoleId ? [options.appRoleId] : []),
+    ].filter((id, i, arr) => arr.indexOf(id) === i); // dedupe
+
     if (!existing) {
       try {
         const created = await createDataDocument(
@@ -551,7 +577,8 @@ export async function ensureDocuments<T extends Record<string, DataDocumentConfi
           docConfig.name,
           schema,
           docConfig.visibility || 'shared',
-          options
+          options,
+          mergedRoleIds.length > 0 ? mergedRoleIds : undefined
         );
         result[key] = created.id;
       } catch (err: unknown) {

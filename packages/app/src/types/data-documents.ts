@@ -78,4 +78,6 @@ export type DataDocumentConfig = {
   name: string;
   schema: Record<string, unknown>;
   visibility?: 'personal' | 'shared' | 'authenticated';
+  /** Role IDs to assign at creation time (sets visibility to 'shared'). */
+  roleIds?: string[];
 };
