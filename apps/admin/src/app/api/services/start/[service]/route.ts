@@ -36,11 +36,12 @@ async function getPlatformBackend(adminToken: string): Promise<string> {
     
     if (response.ok) {
       const platformInfo = await response.json();
+      // Use deployment_backend (docker/proxmox/k8s), NOT backend (which is the LLM type: mlx/vllm/cloud)
       cachedPlatformInfo = {
-        backend: platformInfo.backend || 'docker',
+        backend: platformInfo.deployment_backend || platformInfo.backend || 'docker',
         timestamp: Date.now(),
       };
-      console.log(`[SSE Proxy] Platform backend detected: ${cachedPlatformInfo.backend}`);
+      console.log(`[SSE Proxy] Deployment backend detected: ${cachedPlatformInfo.backend} (LLM backend: ${platformInfo.backend})`);
       return cachedPlatformInfo.backend;
     }
   } catch (error) {
@@ -142,7 +143,7 @@ export async function GET(
     // On Proxmox, we use /install to run Ansible playbooks
     // On Docker, we use /start to run docker compose up
     const backend = await getPlatformBackend(adminToken);
-    const isProxmox = backend === 'proxmox' || backend === 'vllm'; // vllm usually indicates Proxmox with GPUs
+    const isProxmox = backend === 'proxmox';
     
     // Choose endpoint: /install for Proxmox (runs Ansible), /start for Docker (docker compose up)
     const endpoint = isProxmox ? 'install' : 'start';
