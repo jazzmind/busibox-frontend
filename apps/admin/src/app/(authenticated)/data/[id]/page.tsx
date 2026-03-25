@@ -86,6 +86,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
   const searchParams = useSearchParams();
   const [document, setDocument] = useState<AppDataDocument | null>(null);
   const [records, setRecords] = useState<DataRecord[]>([]);
+  const [totalRecordCount, setTotalRecordCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [documentLookup, setDocumentLookup] = useState<DocumentLookup>({});
@@ -221,8 +222,8 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
         if (docData.success && docData.data) {
           const fetchedDocument = docData.data.document;
           const fetchedRecords = docData.data.records || [];
+          const fetchedTotalCount = docData.data.totalRecordCount ?? fetchedDocument?.recordCount ?? fetchedRecords.length;
           
-          // Debug logging for schema relations
           console.log('[AppDataDetailPage] Document:', fetchedDocument?.name);
           console.log('[AppDataDetailPage] Schema:', fetchedDocument?.schema 
             ? `${Object.keys(fetchedDocument.schema.fields || {}).length} fields, ${Object.keys(fetchedDocument.schema.relations || {}).length} relations`
@@ -230,9 +231,11 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
           if (fetchedDocument?.schema?.relations) {
             console.log('[AppDataDetailPage] Relations:', Object.keys(fetchedDocument.schema.relations));
           }
+          console.log('[AppDataDetailPage] Accessible records:', fetchedRecords.length, '/', fetchedTotalCount);
           
           setDocument(fetchedDocument);
           setRecords(fetchedRecords);
+          setTotalRecordCount(fetchedTotalCount);
           
           // Also fetch document list for relation lookups
           const listResponse = await fetch('/api/libraries');
@@ -963,8 +966,22 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
         {/* Records List */}
         <div>
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            {activeDocument.itemLabel ? `${activeDocument.itemLabel}s` : 'Records'} ({records.length})
+            {activeDocument.itemLabel ? `${activeDocument.itemLabel}s` : 'Records'} ({records.length}{totalRecordCount > records.length ? ` of ${totalRecordCount}` : ''})
           </h2>
+
+          {!isLoading && totalRecordCount > records.length && (
+            <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <Shield className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">
+                  {totalRecordCount - records.length} record{totalRecordCount - records.length !== 1 ? 's' : ''} hidden
+                </p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Your current roles do not grant access to all records in this collection. Use the Admin Record Metadata section below to view metadata and manage all records.
+                </p>
+              </div>
+            </div>
+          )}
           
           {isLoading && records.length === 0 ? (
             <div className="space-y-3">

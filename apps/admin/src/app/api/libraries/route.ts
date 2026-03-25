@@ -81,7 +81,8 @@ export async function GET(request: NextRequest) {
       console.error('[admin/libraries] Failed to fetch libraries from data-api:', dbError);
     }
 
-    // 2. Fetch app-data libraries from data-api
+    // 2. Fetch app-data libraries via admin endpoint (bypasses RLS so the
+    //    admin can see documents from all apps regardless of app-role membership)
     let appDataLibraries: unknown[] = [];
     try {
       if (userId) {
@@ -93,7 +94,7 @@ export async function GET(request: NextRequest) {
           purpose: 'admin-libraries',
         });
 
-        const appDataResponse = await fetch(`${dataApiUrl}/libraries/app-data`, {
+        const appDataResponse = await fetch(`${dataApiUrl}/data/admin/documents?limit=500`, {
           headers: {
             Authorization: `Bearer ${tokenResult.accessToken}`,
           },
@@ -101,9 +102,26 @@ export async function GET(request: NextRequest) {
 
         if (appDataResponse.ok) {
           const data = await appDataResponse.json();
-          console.log('[admin/libraries] Raw app-data response:', JSON.stringify(data).slice(0, 500));
-          appDataLibraries = Array.isArray(data) ? data : (data.data || data.appDataLibraries || []);
-          console.log('[admin/libraries] Got app-data libraries:', appDataLibraries.length);
+          const allDocs = data.documents || [];
+          // Filter to only documents with sourceApp (app-created data docs)
+          const appDocs = allDocs.filter((d: { sourceApp?: string }) => !!d.sourceApp);
+          appDataLibraries = appDocs.map((doc: {
+            id: string; name?: string; displayName?: string; sourceApp?: string;
+            visibility?: string; recordCount?: number; ownerId?: string;
+            schema?: Record<string, unknown>; createdAt?: string; updatedAt?: string;
+          }) => ({
+            id: doc.id,
+            name: doc.name || doc.displayName || 'Untitled',
+            displayName: doc.displayName,
+            sourceApp: doc.sourceApp,
+            visibility: doc.visibility,
+            recordCount: doc.recordCount || 0,
+            ownerId: doc.ownerId,
+            schema: doc.schema,
+            createdAt: doc.createdAt,
+            updatedAt: doc.updatedAt,
+          }));
+          console.log('[admin/libraries] Got app-data libraries (admin):', appDataLibraries.length);
         } else {
           console.error('[admin/libraries] Failed to fetch app-data:', appDataResponse.status);
         }

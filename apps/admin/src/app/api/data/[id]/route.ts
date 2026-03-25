@@ -37,53 +37,60 @@ export async function GET(
     }
 
     const dataApiUrl = getDataApiUrl();
+    const authHeader = { Authorization: `Bearer ${tokenResult.accessToken}` };
 
-    // Fetch the document with its data using admin endpoint (bypasses RLS for records)
-    const response = await fetch(`${dataApiUrl}/data/admin/documents/${documentId}`, {
-      headers: {
-        'Authorization': `Bearer ${tokenResult.accessToken}`,
-      },
-    });
+    // Two parallel fetches:
+    // 1) Admin endpoint (no records) — document metadata, schema, total record count
+    // 2) RLS-enforced endpoint — only records the admin's roles permit
+    const [adminResponse, rlsResponse] = await Promise.all([
+      fetch(`${dataApiUrl}/data/admin/documents/${documentId}?includeRecords=false`, {
+        headers: authHeader,
+      }),
+      fetch(`${dataApiUrl}/data/${documentId}?includeRecords=true`, {
+        headers: authHeader,
+      }),
+    ]);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[admin/data/[id]] Data API error:', response.status, errorText);
-      return apiError(`Failed to fetch document: ${response.status}`, response.status);
+    if (!adminResponse.ok) {
+      const errorText = await adminResponse.text();
+      console.error('[admin/data/[id]] Admin endpoint error:', adminResponse.status, errorText);
+      return apiError(`Failed to fetch document: ${adminResponse.status}`, adminResponse.status);
     }
 
-    const data = await response.json();
-    
-    console.log('[admin/data/[id]] Raw data-api response:', JSON.stringify(data).slice(0, 1000));
-    
-    // The data-api returns the document with `records` field (not `content`)
-    const recordsArray = Array.isArray(data.records) ? data.records : [];
-    
-    // Schema can be at top level or in metadata
-    const schema = data.schema || data.metadata?.schema;
-    
-    console.log('[admin/data/[id]] Records found:', recordsArray.length, 'items');
-    console.log('[admin/data/[id]] Schema:', 
-      schema ? `has ${Object.keys(schema.fields || {}).length} fields, ${Object.keys(schema.relations || {}).length} relations` : 'no schema');
-    
-    // Extract metadata and document info
-    // Note: data-api uses camelCase (sourceApp, recordCount, createdAt)
+    const adminData = await adminResponse.json();
+
+    // RLS fetch may return 404 if the admin lacks the document's shared roles —
+    // that's fine, we still have the admin metadata.
+    let rlsRecords: unknown[] = [];
+    if (rlsResponse.ok) {
+      const rlsData = await rlsResponse.json();
+      rlsRecords = Array.isArray(rlsData.records) ? rlsData.records : [];
+    } else {
+      console.log('[admin/data/[id]] RLS fetch returned', rlsResponse.status,
+        '— admin lacks data-access roles for this document, records hidden');
+    }
+
+    const schema = adminData.schema || adminData.metadata?.schema;
+    const totalRecordCount = adminData.recordCount ?? 0;
+
     const document = {
-      id: data.id || documentId,
-      documentId: data.id || documentId,
-      name: data.name || data.metadata?.name || 'Untitled',
-      displayName: schema?.displayName || data.metadata?.displayName || data.name,
-      sourceApp: data.sourceApp || data.metadata?.sourceApp || 'unknown',
-      itemLabel: schema?.itemLabel || data.metadata?.itemLabel,
-      recordCount: data.recordCount || recordsArray.length,
-      visibility: data.visibility || 'private',
+      id: adminData.id || documentId,
+      documentId: adminData.id || documentId,
+      name: adminData.name || adminData.metadata?.name || 'Untitled',
+      displayName: schema?.displayName || adminData.metadata?.displayName || adminData.name,
+      sourceApp: adminData.sourceApp || adminData.metadata?.sourceApp || 'unknown',
+      itemLabel: schema?.itemLabel || adminData.metadata?.itemLabel,
+      recordCount: totalRecordCount,
+      visibility: adminData.visibility || 'private',
       schema: schema,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt || data.modifiedAt,
+      createdAt: adminData.createdAt,
+      updatedAt: adminData.updatedAt || adminData.modifiedAt,
     };
 
-    const records = recordsArray;
+    console.log('[admin/data/[id]] Total records:', totalRecordCount,
+      '| Accessible via RLS:', rlsRecords.length);
 
-    return apiSuccess({ document, records });
+    return apiSuccess({ document, records: rlsRecords, totalRecordCount });
   } catch (error) {
     console.error('[admin/data/[id]] Error:', error);
     return apiError(
