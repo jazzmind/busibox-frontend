@@ -1,8 +1,7 @@
 /**
  * Setup redirect — consumes the magic link token from `make install`,
- * establishes a portal session (busibox-session cookie), then hands off
- * to the admin setup wizard. The admin app shares the same cookie so no
- * SSO token is needed.
+ * establishes a portal session (busibox-session cookie), then exchanges
+ * for an admin-scoped SSO token and hands off to the admin setup wizard.
  */
 
 'use client';
@@ -20,11 +19,30 @@ function SetupRedirect() {
     if (token) {
       consumeTokenAndRedirect(token);
     } else {
-      // No token — maybe we already have a session from a previous visit.
-      // Just forward to admin setup; it will check the session itself.
-      window.location.href = '/admin/setup';
+      // No token — already have a session from a previous visit.
+      // Try to get an admin-scoped SSO token before forwarding.
+      exchangeAndRedirectToAdmin();
     }
   }, [searchParams]);
+
+  const exchangeAndRedirectToAdmin = async () => {
+    try {
+      const ssoResponse = await fetch('/api/auth/sso/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appId: 'busibox-admin' }),
+        credentials: 'include',
+      });
+      const ssoData = await ssoResponse.json();
+      if (ssoData.success && ssoData.data?.token) {
+        window.location.href = `/admin/setup?token=${encodeURIComponent(ssoData.data.token)}`;
+        return;
+      }
+    } catch {
+      // Fall through to bare redirect
+    }
+    window.location.href = '/admin/setup';
+  };
 
   const consumeTokenAndRedirect = async (token: string) => {
     try {
@@ -39,8 +57,30 @@ function SetupRedirect() {
         return;
       }
 
-      // Session cookie is now set — redirect to admin setup (no token needed)
-      window.location.href = '/admin/setup';
+      // Portal session cookie is now set. Exchange it for an admin-scoped SSO
+      // token so the admin app's SessionProvider can do a proper token exchange
+      // and set its own cookies. Without this, the admin app relies on the
+      // shared busibox-session cookie which can't be refreshed by its auth
+      // state manager, causing session expiry after ~30 seconds.
+      let adminSetupUrl = '/admin/setup';
+      try {
+        const ssoResponse = await fetch('/api/auth/sso/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ appId: 'busibox-admin' }),
+          credentials: 'include',
+        });
+        const ssoData = await ssoResponse.json();
+        if (ssoData.success && ssoData.data?.token) {
+          adminSetupUrl = `/admin/setup?token=${encodeURIComponent(ssoData.data.token)}`;
+        } else {
+          console.warn('[Setup] SSO token exchange for admin failed, falling back to cookie-based auth:', ssoData);
+        }
+      } catch (ssoErr) {
+        console.warn('[Setup] SSO token exchange for admin failed, falling back to cookie-based auth:', ssoErr);
+      }
+
+      window.location.href = adminSetupUrl;
     } catch (err) {
       console.error('[Setup] Magic link verification failed:', err);
       setError('An unexpected error occurred. Please try again.');
