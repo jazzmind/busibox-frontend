@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { SessionProvider } from "@jazzmind/busibox-app/components/auth/SessionProvider";
 import { ThemeProvider, CustomizationProvider, BusiboxApiProvider } from "@jazzmind/busibox-app";
 import { FetchWrapper } from "@jazzmind/busibox-app";
 import { VersionBar } from "@jazzmind/busibox-app";
+import { PathAwareSessionProvider } from "./path-aware-session-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -46,9 +46,9 @@ export default function RootLayout({
         <FetchWrapper skipAuthUrls={['/api/auth/session']} />
         <ThemeProvider>
           <BusiboxApiProvider value={{ nextApiBasePath: basePath, crossAppPaths }}>
-            <SessionProvider
+            <PathAwareSessionProvider
               appId="busibox-admin"
-              portalUrl={process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL}
+              portalUrl={process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL || ""}
               checkIntervalMs={process.env.NEXT_PUBLIC_AUTH_CHECK_INTERVAL_MS ? Number(process.env.NEXT_PUBLIC_AUTH_CHECK_INTERVAL_MS) : undefined}
               refreshBufferMs={process.env.NEXT_PUBLIC_AUTH_REFRESH_BUFFER_MS ? Number(process.env.NEXT_PUBLIC_AUTH_REFRESH_BUFFER_MS) : undefined}
               tokenExpiresOverrideMs={process.env.NEXT_PUBLIC_TOKEN_EXPIRES_OVERRIDE_MS ? Number(process.env.NEXT_PUBLIC_TOKEN_EXPIRES_OVERRIDE_MS) : undefined}
@@ -57,7 +57,7 @@ export default function RootLayout({
                 {children}
                 <VersionBar />
               </CustomizationProvider>
-            </SessionProvider>
+            </PathAwareSessionProvider>
           </BusiboxApiProvider>
         </ThemeProvider>
       </body>
