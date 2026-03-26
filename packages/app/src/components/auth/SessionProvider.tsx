@@ -210,9 +210,26 @@ export function SessionProvider({
   // IMPORTANT: portalUrl env fallback only applies when an explicit portalUrl prop
   // was passed. Apps that use <SessionProvider> without portalUrl (e.g. portal itself)
   // must NOT auto-redirect to themselves on auth failure.
-  const portalUrl = portalUrlProp
-    ? portalUrlProp
-    : '';
+  //
+  // Tunnel awareness: NEXT_PUBLIC_BUSIBOX_PORTAL_URL is baked at build time
+  // (e.g. https://busibox.example.com/portal) but the user may be accessing
+  // via an SSH tunnel (e.g. https://localhost:4443). When the browser origin
+  // differs from the configured portalUrl origin, rewrite portalUrl to use the
+  // browser's origin so that auth redirects stay on the tunnel.
+  const portalUrl = useMemo(() => {
+    if (!portalUrlProp) return '';
+    if (typeof window === 'undefined') return portalUrlProp;
+    try {
+      const configured = new URL(portalUrlProp);
+      const browser = window.location;
+      if (configured.origin !== browser.origin) {
+        return `${browser.origin}${configured.pathname}`;
+      }
+    } catch {
+      // portalUrlProp is not a valid URL — use as-is
+    }
+    return portalUrlProp;
+  }, [portalUrlProp]);
   const basePath = basePathProp || envBasePath;
   const resolvedAppId = appId || (typeof process !== 'undefined' ? process.env?.APP_NAME : '') || 'busibox-app';
   const shouldAutoRedirect = autoRedirect ?? Boolean(portalUrl);
