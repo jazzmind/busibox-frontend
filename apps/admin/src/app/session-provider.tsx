@@ -6,15 +6,16 @@ import { SessionProvider } from '@jazzmind/busibox-app/components/auth/SessionPr
 /**
  * Admin-specific SessionProvider wrapper.
  *
- * On setup routes (/admin/setup, /setup) the admin app uses its own
- * cookie-based auth via the shared busibox-session cookie set by the portal.
- * The SessionProvider's auth state manager can't refresh that token (it
- * requires admin-scoped cookies from a proper SSO exchange) and would
- * redirect to the portal after 30 seconds.
+ * On setup routes the admin app starts with only the shared busibox-session
+ * cookie (no admin-scoped cookies until SSO exchange completes). The auth
+ * state manager's local refresh (POST /api/auth/session) will fail for this
+ * cookie, but the silent SSO refresh via the portal WILL work because the
+ * browser sends the portal's busibox-session cookie to the portal's refresh
+ * endpoint automatically.
  *
- * Fix: disable auto-redirect and pass no portalUrl on setup routes so the
- * auth state manager stays passive. Authenticated routes get the full
- * SessionProvider with auto-redirect enabled.
+ * We keep portalUrl on setup routes so silentRefreshUrl is constructed and
+ * the silent SSO refresh path is available. We only disable autoRedirect so
+ * a failed refresh doesn't bounce the user away from the setup wizard.
  */
 export function AdminSessionProvider({
   children,
@@ -35,7 +36,7 @@ export function AdminSessionProvider({
   return (
     <SessionProvider
       appId="busibox-admin"
-      portalUrl={isSetup ? undefined : portalUrl}
+      portalUrl={portalUrl}
       autoRedirect={!isSetup}
       checkIntervalMs={checkIntervalMs}
       refreshBufferMs={refreshBufferMs}
