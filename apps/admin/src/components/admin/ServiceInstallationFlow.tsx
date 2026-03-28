@@ -881,17 +881,11 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Always verify health after deployment (deploy-api handles all service types)
-      // Special handling for vllm/mlx - model downloads happen in background
       const isLLMRuntime = service.id === 'vllm';
       if (isLLMRuntime) {
         addServiceLog(service.id, {
           type: 'info',
-          message: 'Model downloads are happening in background (may take 5-15 minutes depending on model size)...',
-          timestamp: Date.now(),
-        });
-        addServiceLog(service.id, {
-          type: 'info',
-          message: 'Service will be ready once models are downloaded. You can continue using other services.',
+          message: 'Waiting for vLLM to load model and become healthy (may take 2-5 minutes)...',
           timestamp: Date.now(),
         });
       } else {
@@ -902,8 +896,8 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
         });
       }
 
-      // vllm needs longer timeout due to model downloads (up to 15 minutes)
-      const maxRetries = isLLMRuntime ? 900 : 30; // 15 minutes for vllm, 30 seconds for others
+      // vLLM needs longer timeout for model loading (5 minutes)
+      const maxRetries = isLLMRuntime ? 300 : 30;
       let healthy = false;
 
       for (let i = 0; i < maxRetries; i++) {
@@ -911,11 +905,10 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
         if (healthy) {
           break;
         }
-        // Show progress for vllm every 30 seconds
         if (isLLMRuntime && i > 0 && i % 30 === 0) {
           addServiceLog(service.id, {
             type: 'info',
-            message: `Still downloading models... (${Math.floor(i / 60)} minutes elapsed)`,
+            message: `Still waiting for vLLM to become healthy... (${Math.floor(i / 60)} minutes elapsed)`,
             timestamp: Date.now(),
           });
         }
@@ -924,14 +917,13 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
 
       if (!healthy) {
         if (isLLMRuntime) {
-          // For vllm, don't fail - just mark as installing (models still downloading)
           addServiceLog(service.id, {
             type: 'warning',
-            message: 'Model downloads still in progress. Service will be ready once complete.',
+            message: 'vLLM did not become healthy within 5 minutes. Check GPU availability and container logs: docker logs prod-vllm',
             timestamp: Date.now(),
           });
-          updateServiceStatus(service.id, 'installing'); // Keep as installing, not error
-          return true; // Don't block installation flow
+          updateServiceStatus(service.id, 'error');
+          return true; // Don't block other services
         } else {
           throw new Error('Service health check timeout after deployment');
         }
