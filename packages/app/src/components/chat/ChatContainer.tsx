@@ -2,8 +2,9 @@
 /**
  * Chat Container - Client Component
  * 
- * Interactive wrapper that receives server-rendered data and handles
- * all client-side state and interactions.
+ * Multi-conversation chat UI with sidebar, insights panel, and agent selection.
+ * Delegates all SSE streaming to the shared useChatStream hook so event handling
+ * stays consistent with ChatInterface and SimpleChatInterface.
  */
 
 
@@ -16,9 +17,12 @@ import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { AgentSelectionPanel } from './AgentSelectionPanel';
 import { ThinkingToggle, ThoughtEvent } from './ThinkingToggle';
+import { ThinkingStream } from './ThinkingStream';
+import { StepTimeline } from './StepTimeline';
 import { StreamingToolCard } from './StreamingToolCard';
 import { InsightEditModal, type InsightData } from './InsightEditModal';
 import { stripThinkTags } from './chat-utils';
+import { useChatStream, type StreamState, type StreamResult } from '../../lib/hooks/useChatStream';
 import type {
   Conversation,
   Message,
@@ -76,7 +80,7 @@ function mapMessage(msg: any): Message {
   };
 }
 
-interface StreamState {
+interface BackgroundStreamState {
   controller: AbortController;
   content: string;
   agentName?: string;
@@ -147,16 +151,11 @@ export function ChatContainer({
     window.history.replaceState({}, '', url.toString());
   }, [conversationQueryParam]);
 
-  // Chat state
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingContent, setStreamingContent] = useState('');
-  const [streamingAgentName, setStreamingAgentName] = useState<string | undefined>(undefined);
-  const [thoughts, setThoughts] = useState<ThoughtEvent[]>([]);
+  // Background stream tracking for non-active conversations
   const [streamingConvIds, setStreamingConvIds] = useState<Set<string>>(new Set());
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const [promptActive, setPromptActive] = useState(false);
-  const [streamingParts, setStreamingParts] = useState<MessagePart[]>([]);
-  const streamMapRef = useRef<Map<string, StreamState>>(new Map());
+  const backgroundStreamRef = useRef<Map<string, BackgroundStreamState>>(new Map());
   const currentConversationRef = useRef<string | null>(initialConversation?.id ?? null);
 
   useEffect(() => {
@@ -165,10 +164,10 @@ export function ChatContainer({
 
   useEffect(() => {
     return () => {
-      for (const streamState of streamMapRef.current.values()) {
+      for (const streamState of backgroundStreamRef.current.values()) {
         streamState.controller.abort();
       }
-      streamMapRef.current.clear();
+      backgroundStreamRef.current.clear();
     };
   }, []);
 
@@ -188,35 +187,67 @@ export function ChatContainer({
     return currentConversationRef.current === conversationId;
   }, []);
 
-  const applyStreamStateForConversation = useCallback((conversationId: string) => {
-    const streamState = streamMapRef.current.get(conversationId);
-    if (!streamState) {
-      setIsStreaming(false);
-      setStreamingContent('');
-      setStreamingAgentName(undefined);
-      setThoughts([]);
-      setStreamingParts([]);
-      return;
-    }
-    setIsStreaming(true);
-    setStreamingContent(streamState.content);
-    setStreamingAgentName(streamState.agentName);
-    setThoughts(streamState.thoughts);
-    setStreamingParts(streamState.parts);
-  }, []);
+  // Resolve the agent API URL for the useChatStream hook.
+  // On the portal, this resolves to the cross-app proxy path.
+  const agentUrl = useMemo(() => {
+    return resolve('agent', '/api/agent');
+  }, [resolve]);
 
-  // Memoize default agent selection to prevent infinite loop
-  // Use agent IDs (UUIDs) not names for backend compatibility
-  // Chat agent is the versatile general-purpose agent that should be the default
+  // Set up the shared streaming hook
+  const { state: streamState, sendMessage: hookSendMessage, cancel: hookCancel } = useChatStream({
+    token: '', // Portal uses cookie auth through the proxy, no bearer token needed
+    agentUrl,
+    onConversationCreated: (id, title) => {
+      if (title) {
+        setConversations(prev => {
+          const existing = prev.find(c => c.id === id);
+          if (existing) {
+            return prev.map(c => c.id === id ? { ...c, title } : c);
+          }
+          const newConv: Conversation = {
+            id,
+            userId: '',
+            title,
+            source,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            messageCount: 0,
+          };
+          return [newConv, ...prev];
+        });
+      }
+      currentConversationRef.current = id;
+      setCurrentConversation(prev => ({
+        id,
+        userId: prev?.userId || '',
+        title: title || prev?.title || 'New Conversation',
+        source: prev?.source ?? source,
+        createdAt: prev?.createdAt || new Date(),
+        updatedAt: new Date(),
+        messageCount: prev?.messageCount ?? 0,
+        model: prev?.model,
+        metadata: prev?.metadata,
+      }));
+      updateUrlWithConversation(id);
+    },
+    onTitleUpdate: (id, title) => {
+      setCurrentConversation(prev =>
+        prev && prev.id === id ? { ...prev, title } : prev
+      );
+      setConversations(prev => prev.map(c =>
+        c.id === id ? { ...c, title } : c
+      ));
+    },
+  });
+
+  // Memoize default agent selection
   const defaultAgents = useMemo(() => {
-    // Try to find by various possible names
     const chatAgent = availableAgents.find(a => 
       (a.name === 'chat' || a.name === 'chat-agent' || a.name === 'chat_agent') && a.is_active
     );
     return chatAgent ? [chatAgent.id] : [];
   }, [availableAgents]);
 
-  // Selection state - default to only "chat" agent (stores agent IDs)
   const [selectedAgents, setSelectedAgents] = useState<string[]>(defaultAgents);
 
   // Insights state
@@ -257,10 +288,7 @@ export function ChatContainer({
     currentConversationRef.current = conversation.id;
     setCurrentConversation(conversation);
     updateUrlWithConversation(conversation.id);
-    applyStreamStateForConversation(conversation.id);
     setQuickReplies([]);
-    setThoughts([]);
-    setInsights([]);
     if (isMobile) {
       setMobileSidebarOpen(false);
     }
@@ -272,7 +300,6 @@ export function ChatContainer({
       const mappedMessages = (data.messages || []).map(mapMessage);
       if (currentConversationRef.current === conversation.id) {
         setMessages(mappedMessages);
-        applyStreamStateForConversation(conversation.id);
       }
     } catch (error: any) {
       console.error('Failed to load messages:', error);
@@ -282,10 +309,8 @@ export function ChatContainer({
         setIsLoadingMessages(false);
       }
     }
-  }, [apiCall, isMobile, updateUrlWithConversation, applyStreamStateForConversation]);
+  }, [apiCall, isMobile, updateUrlWithConversation]);
 
-  /** Create a new conversation and return its ID, or null on failure.
-   *  Shared by the "New Chat" button, send-message auto-create, and attachment auto-create. */
   const ensureConversation = useCallback(async (): Promise<string | null> => {
     if (currentConversation?.id) return currentConversation.id;
     try {
@@ -318,7 +343,6 @@ export function ChatContainer({
       setConversations(prev => [newConv, ...prev]);
       setCurrentConversation(newConv);
       setMessages([]);
-      applyStreamStateForConversation(newConv.id);
       updateUrlWithConversation(newConv.id);
       if (isMobile) {
         setMobileSidebarOpen(false);
@@ -327,16 +351,16 @@ export function ChatContainer({
       console.error('Failed to create conversation:', error);
       toast.error('Failed to create conversation');
     }
-  }, [apiCall, source, isMobile, updateUrlWithConversation, applyStreamStateForConversation]);
+  }, [apiCall, source, isMobile, updateUrlWithConversation]);
 
   const handleDeleteConversation = useCallback(async (conversationId: string) => {
     if (!confirm('Are you sure you want to delete this conversation?')) return;
 
     try {
-      const streamState = streamMapRef.current.get(conversationId);
-      if (streamState) {
-        streamState.controller.abort();
-        streamMapRef.current.delete(conversationId);
+      const bgStream = backgroundStreamRef.current.get(conversationId);
+      if (bgStream) {
+        bgStream.controller.abort();
+        backgroundStreamRef.current.delete(conversationId);
         setConversationStreamingStatus(conversationId, false);
       }
 
@@ -357,6 +381,7 @@ export function ChatContainer({
     }
   }, [apiCall, currentConversation, updateUrlWithConversation, setConversationStreamingStatus]);
 
+  // ── Send message using useChatStream hook ──────────────────────────────
   const handleSendMessage = useCallback(async (
     content: string,
     attachmentIds?: string[],
@@ -366,12 +391,10 @@ export function ChatContainer({
     setQuickReplies([]);
     setPromptActive(false);
 
-    // Create conversation if none exists
     const convId = await ensureConversation();
     if (!convId) return;
 
-    // Add user message optimistically
-    let tempUserMessage: Message = {
+    const tempUserMessage: Message = {
       id: `temp-${Date.now()}`,
       conversationId: convId,
       role: 'user',
@@ -379,578 +402,79 @@ export function ChatContainer({
       attachments: attachmentMeta,
       createdAt: new Date(),
     };
-    if (isConversationActive(convId)) {
-      setMessages(prev => [...prev, tempUserMessage]);
-    }
-
-    const controller = new AbortController();
-    let streamConversationId = convId;
-
-    streamMapRef.current.set(streamConversationId, {
-      controller,
-      content: '',
-      thoughts: [],
-      parts: [],
-      tempUserMessage,
-      hasAddedMessage: false,
-      messages: [tempUserMessage],
-    });
-    setConversationStreamingStatus(streamConversationId, true);
-
-    if (isConversationActive(streamConversationId)) {
-      setIsStreaming(true);
-      setStreamingContent('');
-      setStreamingAgentName(undefined);
-      setThoughts([]);
-      setStreamingParts([]);
-    }
-
-    // Track agent name in outer scope to persist across stream events
-    let capturedAgentName: string | undefined;
-    let fullContent = '';
-    let collectedThoughts: ThoughtEvent[] = [];
-    let collectedParts: MessagePart[] = [];
-    const pendingTools = new Map<string, number>();
-    let hasAddedMessage = false;
+    setMessages(prev => [...prev, tempUserMessage]);
 
     try {
-      // Use agentic streaming endpoint for real-time thinking updates
-      const response = await apiCall('/chat/message/stream/agentic', {
-        method: 'POST',
-        signal: controller.signal,
-        body: JSON.stringify({
-          message: content,
-          conversation_id: convId,
-          model: 'auto',
-          selected_agents: selectedAgents,
-          attachment_ids: attachmentIds,
-        }),
+      const result = await hookSendMessage({
+        message: content,
+        conversation_id: convId,
+        model: 'auto',
+        selected_agents: selectedAgents,
+        attachment_ids: attachmentIds,
       });
 
-      if (!response.body) {
-        throw new Error('No response body');
+      // Handle quick replies / prompt from final state
+      if (streamState.promptActive && streamState.quickReplies.length > 0) {
+        setQuickReplies(streamState.quickReplies);
+        setPromptActive(true);
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let eventType = '';
-      let buffer = '';
+      // Build the final assistant message
+      const cleanedContent = stripThinkTags(result.content);
+      if (cleanedContent) {
+        const finalParts: MessagePart[] = [
+          ...result.parts,
+          { type: 'text', content: cleanedContent },
+        ];
+        const assistantMessage: Message = {
+          id: `assistant-${Date.now()}`,
+          conversationId: result.conversationId || convId,
+          role: 'assistant',
+          content: cleanedContent,
+          agentName: result.agentName,
+          thoughts: result.thoughts.length > 0 ? result.thoughts : undefined,
+          parts: finalParts,
+          createdAt: new Date(),
+        };
 
-      while (true) {
-        if (controller.signal.aborted) break;
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('event:')) {
-            eventType = line.slice(6).trim();
-          } else if (line.startsWith('data:')) {
-            const data = line.slice(5).trim();
-            if (data && eventType) {
-              try {
-                const parsed = JSON.parse(data);
-                
-                // Create thought event for tracking
-                const newThought: ThoughtEvent = {
-                  type: eventType,
-                  source: parsed.source,
-                  message: parsed.message,
-                  data: parsed.data || parsed,
-                  timestamp: new Date(),
-                };
-
-                // Extract agent name from source if available
-                if (parsed.source && !parsed.source.includes('dispatcher')) {
-                  capturedAgentName = parsed.source;
-                  const streamState = streamMapRef.current.get(streamConversationId);
-                  if (streamState) {
-                    streamState.agentName = capturedAgentName;
-                  }
-                  if (isConversationActive(streamConversationId)) {
-                    setStreamingAgentName(capturedAgentName);
-                  }
-                }
-
-                switch (eventType) {
-                  case 'conversation_created':
-                    if (parsed.conversation_id) {
-                      const newConversationId = parsed.conversation_id;
-                      const previousConversationId = streamConversationId;
-
-                      if (newConversationId !== previousConversationId) {
-                        const currentStream = streamMapRef.current.get(previousConversationId);
-                        if (currentStream) {
-                          streamMapRef.current.delete(previousConversationId);
-                          setConversationStreamingStatus(previousConversationId, false);
-
-                          tempUserMessage = {
-                            ...currentStream.tempUserMessage,
-                            conversationId: newConversationId,
-                          };
-                          const migratedMessages = currentStream.messages.map(msg =>
-                            msg.id === currentStream.tempUserMessage.id
-                              ? tempUserMessage
-                              : msg.conversationId === previousConversationId
-                              ? { ...msg, conversationId: newConversationId }
-                              : msg
-                          );
-
-                          streamMapRef.current.set(newConversationId, {
-                            ...currentStream,
-                            tempUserMessage,
-                            messages: migratedMessages,
-                          });
-                          setConversationStreamingStatus(newConversationId, true);
-                        }
-                        streamConversationId = newConversationId;
-                      }
-
-                      if (parsed.title) {
-                        setConversations(prev => {
-                          const existing = prev.find(c => c.id === newConversationId);
-                          if (existing) {
-                            return prev.map(c =>
-                              c.id === newConversationId ? { ...c, title: parsed.title } : c
-                            );
-                          }
-                          const newConv: Conversation = {
-                            id: newConversationId,
-                            userId: '',
-                            title: parsed.title,
-                            source,
-                            createdAt: new Date(),
-                            updatedAt: new Date(),
-                            messageCount: 0,
-                          };
-                          return [newConv, ...prev];
-                        });
-                      }
-
-                      if (isConversationActive(previousConversationId) || isConversationActive(newConversationId)) {
-                        currentConversationRef.current = newConversationId;
-                        setCurrentConversation(prev =>
-                          prev && prev.id !== previousConversationId
-                            ? prev
-                            : {
-                                id: newConversationId,
-                                userId: prev?.userId || '',
-                                title: parsed.title || prev?.title || 'New Conversation',
-                                source: prev?.source ?? source,
-                                createdAt: prev?.createdAt || new Date(),
-                                updatedAt: new Date(),
-                                messageCount: prev?.messageCount ?? 0,
-                                model: prev?.model,
-                                metadata: prev?.metadata,
-                              }
-                        );
-                        updateUrlWithConversation(newConversationId);
-                      }
-                    }
-                    break;
-
-                  case 'title_update':
-                    // Update conversation title
-                    if (parsed.conversation_id && parsed.title) {
-                      setCurrentConversation(prev =>
-                        prev && prev.id === parsed.conversation_id ? { ...prev, title: parsed.title } : prev
-                      );
-                      setConversations(prev => prev.map(c => 
-                        c.id === parsed.conversation_id ? { ...c, title: parsed.title } : c
-                      ));
-                    }
-                    break;
-
-                  case 'thought':
-                    collectedThoughts = [...collectedThoughts, newThought];
-                    {
-                      const streamState = streamMapRef.current.get(streamConversationId);
-                      if (streamState) {
-                        streamState.thoughts = collectedThoughts;
-                      }
-                    }
-                    if (isConversationActive(streamConversationId)) {
-                      setThoughts(collectedThoughts);
-                    }
-                    break;
-
-                  case 'tool_start':
-                    collectedThoughts = [...collectedThoughts, newThought];
-                    {
-                      const toolSource = parsed.source || 'tool';
-                      const toolName = String(parsed.data?.tool_name || parsed.data?.display_name || toolSource);
-                      const toolPart: MessagePart = {
-                        type: 'tool_call',
-                        id: `tool-${Date.now()}-${toolName}`,
-                        name: toolName,
-                        displayName: String(parsed.data?.display_name || parsed.message || toolName),
-                        status: 'running',
-                        input: (parsed.data || undefined) as Record<string, unknown> | undefined,
-                        startedAt: new Date(),
-                      };
-                      pendingTools.set(toolSource, collectedParts.length);
-                      collectedParts = [...collectedParts, toolPart];
-                      const streamState = streamMapRef.current.get(streamConversationId);
-                      if (streamState) {
-                        streamState.thoughts = collectedThoughts;
-                        streamState.parts = collectedParts;
-                      }
-                      if (isConversationActive(streamConversationId)) {
-                        setThoughts(collectedThoughts);
-                        setStreamingParts(collectedParts);
-                      }
-                    }
-                    break;
-
-                  case 'tool_result':
-                    collectedThoughts = [...collectedThoughts, newThought];
-                    {
-                      const resultSource = parsed.source || 'tool';
-                      const idx = pendingTools.get(resultSource);
-                      if (idx !== undefined && collectedParts[idx]?.type === 'tool_call') {
-                        const existing = collectedParts[idx] as Extract<MessagePart, { type: 'tool_call' }>;
-                        collectedParts = [...collectedParts];
-                        collectedParts[idx] = {
-                          ...existing,
-                          status: parsed.data?.success === false ? 'error' : 'completed',
-                          output: parsed.message || undefined,
-                          error: parsed.data?.success === false ? String(parsed.message || 'Failed') : undefined,
-                          completedAt: new Date(),
-                        };
-                        pendingTools.delete(resultSource);
-                      } else {
-                        const toolName = String(parsed.data?.tool_name || parsed.data?.display_name || resultSource);
-                        collectedParts = [...collectedParts, {
-                          type: 'tool_call',
-                          id: `tool-${Date.now()}-${toolName}`,
-                          name: toolName,
-                          displayName: String(parsed.data?.display_name || toolName),
-                          status: parsed.data?.success === false ? 'error' : 'completed',
-                          output: parsed.message || undefined,
-                          completedAt: new Date(),
-                        }];
-                      }
-                      const streamState = streamMapRef.current.get(streamConversationId);
-                      if (streamState) {
-                        streamState.thoughts = collectedThoughts;
-                        streamState.parts = collectedParts;
-                      }
-                      if (isConversationActive(streamConversationId)) {
-                        setThoughts(collectedThoughts);
-                        setStreamingParts(collectedParts);
-                      }
-                    }
-                    break;
-
-                  case 'content':
-                    // Stream content to message area
-                    const contentData = parsed.data || {};
-                    const messageText = parsed.message || '';
-                    
-                    if (contentData.streaming && contentData.partial) {
-                      fullContent += messageText;
-                    } else if (contentData.complete) {
-                      // Final marker - content already accumulated
-                    } else if (messageText) {
-                      fullContent = messageText;
-                    }
-                    {
-                      const cleanContent = stripThinkTags(fullContent);
-                      const streamState = streamMapRef.current.get(streamConversationId);
-                      if (streamState) {
-                        streamState.content = cleanContent;
-                      }
-                      if (isConversationActive(streamConversationId)) {
-                        setStreamingContent(cleanContent);
-                      }
-                    }
-                    break;
-
-                  case 'content_chunk':
-                    // Legacy content chunk event (fallback)
-                    fullContent += parsed.chunk || parsed.content || '';
-                    {
-                      const streamState = streamMapRef.current.get(streamConversationId);
-                      if (streamState) {
-                        streamState.content = fullContent;
-                      }
-                    }
-                    if (isConversationActive(streamConversationId)) {
-                      setStreamingContent(fullContent);
-                    }
-                    if (parsed.agent_name && !capturedAgentName) {
-                      capturedAgentName = parsed.agent_name;
-                      const streamState = streamMapRef.current.get(streamConversationId);
-                      if (streamState) {
-                        streamState.agentName = capturedAgentName;
-                      }
-                      if (isConversationActive(streamConversationId)) {
-                        setStreamingAgentName(capturedAgentName);
-                      }
-                    }
-                    break;
-
-                  case 'prompt':
-                    {
-                      const promptOptions = parsed.options || parsed.data?.options;
-                      if (promptOptions && Array.isArray(promptOptions)) {
-                        setQuickReplies(promptOptions);
-                        setPromptActive(true);
-
-                        const promptType = (parsed.data?.prompt_type || 'choice') as 'confirm' | 'choice' | 'open';
-                        collectedParts = [...collectedParts, { type: 'prompt', options: promptOptions, promptType }];
-
-                        // Finalize accumulated content as a completed message so the user can respond
-                        const cleanedSoFar = stripThinkTags(fullContent);
-                        if (cleanedSoFar && !hasAddedMessage) {
-                          const finalParts: MessagePart[] = [...collectedParts];
-                          const assistantMessage: Message = {
-                            id: `assistant-prompt-${Date.now()}`,
-                            conversationId: streamConversationId,
-                            role: 'assistant',
-                            content: cleanedSoFar,
-                            agentName: capturedAgentName,
-                            thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
-                            parts: finalParts,
-                            createdAt: new Date(),
-                          };
-
-                          if (isConversationActive(streamConversationId)) {
-                            setMessages(prev => {
-                              const withoutTemp = prev.filter(m => m.id !== tempUserMessage.id);
-                              return [
-                                ...withoutTemp,
-                                { ...tempUserMessage, id: `user-${Date.now()}` },
-                                assistantMessage,
-                              ];
-                            });
-                            setStreamingContent('');
-                            setThoughts([]);
-                            setStreamingParts([]);
-                          }
-                          hasAddedMessage = true;
-                          const streamState = streamMapRef.current.get(streamConversationId);
-                          if (streamState) {
-                            streamState.hasAddedMessage = true;
-                          }
-                        }
-                      }
-                    }
-                    break;
-
-                  case 'message_complete':
-                    // Only add message if we haven't already
-                    if (!hasAddedMessage) {
-                      const completedConversationId = parsed.conversation_id || streamConversationId;
-                      
-                      const cleanedFinalContent = stripThinkTags(fullContent);
-                      if (cleanedFinalContent) {
-                        const finalParts: MessagePart[] = [
-                          ...collectedParts,
-                          { type: 'text', content: cleanedFinalContent },
-                        ];
-                        const assistantMessage: Message = {
-                          id: parsed.message_id || `assistant-${Date.now()}`,
-                          conversationId: completedConversationId,
-                          role: 'assistant',
-                          content: cleanedFinalContent,
-                          model: parsed.model,
-                          agentName: parsed.agent_name || capturedAgentName,
-                          thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
-                          parts: finalParts,
-                          createdAt: new Date(),
-                        };
-
-                        if (isConversationActive(completedConversationId)) {
-                          setMessages(prev => {
-                            const withoutTemp = prev.filter(m => m.id !== tempUserMessage.id);
-                            return [
-                              ...withoutTemp,
-                              { ...tempUserMessage, id: `user-${Date.now()}` },
-                              assistantMessage,
-                            ];
-                          });
-                        } else {
-                          const streamState = streamMapRef.current.get(completedConversationId);
-                          if (streamState) {
-                            const withoutTemp = streamState.messages.filter(m => m.id !== tempUserMessage.id);
-                            streamState.messages = [
-                              ...withoutTemp,
-                              { ...tempUserMessage, id: `user-${Date.now()}` },
-                              assistantMessage,
-                            ];
-                          }
-                        }
-                        hasAddedMessage = true;
-                        const streamState = streamMapRef.current.get(completedConversationId);
-                        if (streamState) {
-                          streamState.hasAddedMessage = true;
-                        }
-                      }
-
-                      streamMapRef.current.delete(completedConversationId);
-                      setConversationStreamingStatus(completedConversationId, false);
-
-                      if (isConversationActive(completedConversationId)) {
-                        setStreamingContent('');
-                        setThoughts([]);
-                        setStreamingParts([]);
-                        setStreamingAgentName(undefined);
-                        setIsStreaming(false);
-                      }
-                    }
-                    break;
-
-                  case 'error':
-                    const errorMessage = parsed.message || parsed.error || 'An error occurred';
-                    const errorSource = parsed.data?.source || parsed.source || '';
-                    const isToolError = errorSource && !errorSource.includes('agent') && !errorSource.includes('dispatcher');
-
-                    if (isToolError) {
-                      collectedThoughts = [...collectedThoughts, {
-                        type: 'error',
-                        source: errorSource,
-                        message: `Tool error (${errorSource}): ${errorMessage}`,
-                        timestamp: new Date(),
-                      }];
-                      // Update matching pending tool part to error status
-                      const errIdx = pendingTools.get(errorSource);
-                      if (errIdx !== undefined && collectedParts[errIdx]?.type === 'tool_call') {
-                        const existing = collectedParts[errIdx] as Extract<MessagePart, { type: 'tool_call' }>;
-                        collectedParts = [...collectedParts];
-                        collectedParts[errIdx] = { ...existing, status: 'error', error: errorMessage, completedAt: new Date() };
-                        pendingTools.delete(errorSource);
-                      }
-                      if (isConversationActive(streamConversationId)) {
-                        setThoughts(collectedThoughts);
-                        setStreamingParts(collectedParts);
-                      }
-                    } else {
-                      // Fatal error
-                      if (isConversationActive(streamConversationId)) {
-                        toast.error(errorMessage);
-                      }
-
-                      if (!hasAddedMessage) {
-                        const errorAssistantMessage: Message = {
-                          id: `error-${Date.now()}`,
-                          conversationId: streamConversationId,
-                          role: 'assistant',
-                          content: fullContent.trim()
-                            ? `${fullContent}\n\n⚠️ **Error:** ${errorMessage}`
-                            : `⚠️ **Error:** ${errorMessage}`,
-                          thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
-                          parts: collectedParts,
-                          createdAt: new Date(),
-                        };
-
-                        if (isConversationActive(streamConversationId)) {
-                          setMessages(prev => {
-                            const withoutTemp = prev.filter(m => m.id !== tempUserMessage.id);
-                            return [
-                              ...withoutTemp,
-                              { ...tempUserMessage, id: `user-${Date.now()}` },
-                              errorAssistantMessage,
-                            ];
-                          });
-                        } else {
-                          const streamState = streamMapRef.current.get(streamConversationId);
-                          if (streamState) {
-                            const withoutTemp = streamState.messages.filter(m => m.id !== tempUserMessage.id);
-                            streamState.messages = [
-                              ...withoutTemp,
-                              { ...tempUserMessage, id: `user-${Date.now()}` },
-                              errorAssistantMessage,
-                            ];
-                          }
-                        }
-                        hasAddedMessage = true;
-                        const streamState = streamMapRef.current.get(streamConversationId);
-                        if (streamState) {
-                          streamState.hasAddedMessage = true;
-                        }
-                      }
-
-                      streamMapRef.current.delete(streamConversationId);
-                      setConversationStreamingStatus(streamConversationId, false);
-
-                      if (isConversationActive(streamConversationId)) {
-                        setStreamingContent('');
-                        setThoughts([]);
-                        setStreamingParts([]);
-                        setStreamingAgentName(undefined);
-                        setIsStreaming(false);
-                        setPromptActive(false);
-                      }
-                    }
-                    break;
-                }
-              } catch (e) {
-                // Ignore parse errors for partial data
-              }
-            }
-          }
-        }
+        setMessages(prev => {
+          const withoutTemp = prev.filter(m => m.id !== tempUserMessage.id);
+          return [
+            ...withoutTemp,
+            { ...tempUserMessage, id: `user-${Date.now()}` },
+            assistantMessage,
+          ];
+        });
       }
 
-      // Reload conversations to update timestamps (filter by source if set)
-      if (!controller.signal.aborted) {
-        const convUrl = source ? `/conversations?source=${encodeURIComponent(source)}` : '/conversations';
-        const convResponse = await apiCall(convUrl);
-        const convData = await convResponse.json();
-        const rawConversations = convData.conversations || convData || [];
-        setConversations(rawConversations.map(mapConversation));
-      }
+      // Reload conversations to update timestamps
+      const convUrl = source ? `/conversations?source=${encodeURIComponent(source)}` : '/conversations';
+      const convResponse = await apiCall(convUrl);
+      const convData = await convResponse.json();
+      const rawConversations = convData.conversations || convData || [];
+      setConversations(rawConversations.map(mapConversation));
     } catch (error: any) {
-      if (error.name === 'AbortError' || controller.signal.aborted) {
-        // Aborted by user or conversation switch — not an error
-        return;
-      }
+      if (error.name === 'AbortError') return;
       console.error('Failed to send message:', error);
-      if (isConversationActive(streamConversationId)) {
-        toast.error(error.message || 'Failed to send message');
-        setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id));
-      }
-    } finally {
-      const currentStream = streamMapRef.current.get(streamConversationId);
-      if (currentStream?.controller === controller) {
-        streamMapRef.current.delete(streamConversationId);
-        setConversationStreamingStatus(streamConversationId, false);
-      }
-      if (isConversationActive(streamConversationId)) {
-        applyStreamStateForConversation(streamConversationId);
-      }
+      toast.error(error.message || 'Failed to send message');
+      setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id));
     }
   }, [
     apiCall,
     ensureConversation,
     selectedAgents,
     source,
-    isConversationActive,
-    setConversationStreamingStatus,
-    applyStreamStateForConversation,
-    updateUrlWithConversation,
+    hookSendMessage,
+    streamState.promptActive,
+    streamState.quickReplies,
   ]);
 
   const handleStopStreaming = useCallback(() => {
-    const conversationId = currentConversationRef.current;
-    if (!conversationId) return;
-
-    const streamState = streamMapRef.current.get(conversationId);
-    if (!streamState) return;
-
-    streamState.controller.abort();
-    streamMapRef.current.delete(conversationId);
-    setConversationStreamingStatus(conversationId, false);
-    applyStreamStateForConversation(conversationId);
-  }, [setConversationStreamingStatus, applyStreamStateForConversation]);
+    hookCancel();
+  }, [hookCancel]);
 
   const handleDeleteMessage = useCallback(async (messageId: string) => {
     if (!currentConversation) {
-      // No conversation - just remove from local state
       setMessages(prev => prev.filter(m => m.id !== messageId));
       return;
     }
@@ -968,7 +492,6 @@ export function ChatContainer({
   }, [apiCall, currentConversation]);
 
   const handleRetryMessage = useCallback(async (messageContent: string, attachmentIds?: string[]) => {
-    // Capture attachment metadata from the original message before removing it
     let attachmentMeta: MessageAttachment[] | undefined;
     if (attachmentIds && attachmentIds.length > 0) {
       const userMsg = [...messages].reverse().find(m => m.role === 'user' && m.attachments?.length);
@@ -977,12 +500,10 @@ export function ChatContainer({
       }
     }
 
-    // Delete the last assistant message from local state
     if (messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
       setMessages(prev => prev.slice(0, -1));
     }
     
-    // Delete the user message that we're retrying from local state
     if (messages.length > 0) {
       const lastUserMsgIndex = [...messages].reverse().findIndex(m => m.role === 'user');
       if (lastUserMsgIndex !== -1) {
@@ -991,12 +512,11 @@ export function ChatContainer({
       }
     }
     
-    // Re-send with both attachment IDs (for the backend) and metadata (for the UI)
     await handleSendMessage(messageContent, attachmentIds, attachmentMeta);
   }, [messages, handleSendMessage]);
 
-  // Load insights list (paginated, with optional category filter)
-  // Passes conversation_id so thread-scoped insights (goal, context) are filtered
+  // ── Insights ───────────────────────────────────────────────────────────
+
   const loadInsights = useCallback(async (category: string | null, offset: number, append: boolean = false) => {
     setIsLoadingInsights(true);
     try {
@@ -1030,7 +550,6 @@ export function ChatContainer({
     }
   }, [apiCall]);
 
-  // Refresh insights when conversation changes (if panel is open)
   useEffect(() => {
     if (showInsightsPanel && currentConversation?.id) {
       loadInsights(insightCategoryFilter, 0, false);
@@ -1038,14 +557,12 @@ export function ChatContainer({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentConversation?.id]);
 
-  // Load more insights (infinite scroll)
   const loadMoreInsights = useCallback(() => {
     if (!isLoadingInsights && hasMoreInsights) {
       loadInsights(insightCategoryFilter, insightOffset + INSIGHT_PAGE_SIZE, true);
     }
   }, [isLoadingInsights, hasMoreInsights, insightCategoryFilter, insightOffset, loadInsights]);
 
-  // Handle category filter click
   const handleCategoryFilter = useCallback((category: string | null) => {
     setInsightCategoryFilter(category);
     setInsightOffset(0);
@@ -1075,7 +592,6 @@ export function ChatContainer({
         toast('No insights could be extracted from this conversation');
       }
 
-      // Reload insights list and stats
       await loadInsights(insightCategoryFilter, 0, false);
       const statsResponse = await apiCall('/insights/stats/me');
       setInsightStats(await statsResponse.json());
@@ -1089,7 +605,6 @@ export function ChatContainer({
 
   const handleSearchInsights = useCallback(async () => {
     if (!insightSearchQuery.trim()) {
-      // If no search query, load all insights
       loadInsights(insightCategoryFilter, 0, false);
       return;
     }
@@ -1107,7 +622,7 @@ export function ChatContainer({
       const data = await response.json();
       setInsights(data.results || []);
       setInsightTotal(data.results?.length || 0);
-      setHasMoreInsights(false); // Search results don't paginate
+      setHasMoreInsights(false);
 
       if (!data.results?.length) {
         toast('No insights found');
@@ -1120,9 +635,7 @@ export function ChatContainer({
     }
   }, [apiCall, insightSearchQuery, currentConversation, insightCategoryFilter, loadInsights]);
 
-  // Handle insight click - open modal
   const handleInsightClick = useCallback((result: InsightSearchResult) => {
-    // Convert Date to string if needed for InsightData type
     const createdAt = result.insight?.createdAt;
     const createdAtStr = createdAt instanceof Date 
       ? createdAt.toISOString() 
@@ -1137,7 +650,6 @@ export function ChatContainer({
     });
   }, []);
 
-  // Handle insight save
   const handleSaveInsight = useCallback(async (id: string, content: string, category: string) => {
     try {
       await apiCall(`/insights/${id}`, {
@@ -1145,9 +657,7 @@ export function ChatContainer({
         body: JSON.stringify({ content, category }),
       });
       toast.success('Insight updated');
-      // Refresh insights list
       await loadInsights(insightCategoryFilter, 0, false);
-      // Update the selected insight
       setSelectedInsight(prev => prev ? { ...prev, content, category } : null);
     } catch (error: any) {
       console.error('Failed to save insight:', error);
@@ -1156,14 +666,12 @@ export function ChatContainer({
     }
   }, [apiCall, insightCategoryFilter, loadInsights]);
 
-  // Handle insight delete
   const handleDeleteInsight = useCallback(async (id: string) => {
     try {
       await apiCall(`/insights/${id}`, {
         method: 'DELETE',
       });
       toast.success('Insight deleted');
-      // Refresh insights list and stats
       await loadInsights(insightCategoryFilter, 0, false);
       const statsResponse = await apiCall('/insights/stats/me');
       setInsightStats(await statsResponse.json());
@@ -1198,7 +706,6 @@ export function ChatContainer({
       const result = await response.json();
       toast.success(`Added ${result.count || 1} insight`);
 
-      // Reload insights list and stats
       await loadInsights(insightCategoryFilter, 0, false);
       const statsResponse = await apiCall('/insights/stats/me');
       setInsightStats(await statsResponse.json());
@@ -1207,6 +714,10 @@ export function ChatContainer({
       toast.error('Failed to add insight');
     }
   }, [apiCall, currentConversation, insightCategoryFilter, loadInsights]);
+
+  // ── Render ─────────────────────────────────────────────────────────────
+
+  const isStreaming = streamState.isStreaming;
 
   const conversationSidebar = (
     <div className="w-64 h-full bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
@@ -1381,7 +892,6 @@ export function ChatContainer({
                     if (willOpen) {
                       setShowAgentPanel(false);
                       setShowTasksPanel(false);
-                      // Load insights when panel opens
                       loadInsights(null, 0, false);
                     }
                   }}
@@ -1434,9 +944,9 @@ export function ChatContainer({
           ) : (
             <MessageList
               messages={messages}
-              streamingContent={streamingContent}
-              streamingAgentName={streamingAgentName}
-              streamingThoughts={thoughts}
+              streamingContent={streamState.content || undefined}
+              streamingAgentName={streamState.agentName}
+              streamingThoughts={streamState.thoughts}
               isLoading={isStreaming}
               onDeleteMessage={handleDeleteMessage}
               onRetryMessage={handleRetryMessage}
@@ -1445,38 +955,42 @@ export function ChatContainer({
           )}
         </div>
 
-        {/* Streaming tool cards */}
-        {isStreaming && streamingParts.filter(p => p.type === 'tool_call').length > 0 && (
-          <div className="flex-shrink-0 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-            {streamingParts
-              .filter((p): p is Extract<MessagePart, { type: 'tool_call' }> => p.type === 'tool_call')
-              .map((part) => (
-                <StreamingToolCard key={part.id} part={part} />
-              ))}
+        {/* Step timeline + thinking stream + tool cards during streaming */}
+        {isStreaming && (streamState.thoughts.length > 0 || streamState.parts.length > 0) && (
+          <div className="flex-shrink-0 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-2">
+            <StepTimeline thoughts={streamState.thoughts} parts={streamState.parts} isActive={isStreaming} />
+            <ThinkingStream thoughts={streamState.thoughts} isActive={isStreaming && !streamState.content} />
+            {streamState.thoughts.filter(t => t.data?.phase !== 'model_reasoning').length > 0 && (
+              <div className="text-xs">
+                <ThinkingToggle
+                  thoughts={streamState.thoughts.filter(t => t.data?.phase !== 'model_reasoning')}
+                  isActive={isStreaming && !streamState.content}
+                />
+              </div>
+            )}
+            {streamState.parts.filter(p => p.type === 'tool_call').length > 0 && (
+              <div>
+                {streamState.parts
+                  .filter((p): p is Extract<MessagePart, { type: 'tool_call' }> => p.type === 'tool_call')
+                  .map((part) => (
+                    <StreamingToolCard key={part.id} part={part} />
+                  ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Quick-reply buttons -- visible whenever options exist (including mid-stream prompt) */}
-        {quickReplies.length > 0 && (
+        {/* Quick-reply buttons */}
+        {(quickReplies.length > 0 || (streamState.quickReplies.length > 0 && streamState.promptActive)) && (
           <div className="flex-shrink-0 px-3 pt-2 pb-1 flex flex-wrap gap-2 justify-center border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-            {quickReplies.map((reply) => (
+            {(quickReplies.length > 0 ? quickReplies : streamState.quickReplies).map((reply) => (
               <button
                 key={reply}
                 type="button"
                 onClick={() => {
                   setQuickReplies([]);
                   setPromptActive(false);
-                  // Abort lingering stream before sending the reply
-                  const convId = currentConversationRef.current;
-                  if (convId) {
-                    const streamState = streamMapRef.current.get(convId);
-                    if (streamState) {
-                      streamState.controller.abort();
-                      streamMapRef.current.delete(convId);
-                      setConversationStreamingStatus(convId, false);
-                    }
-                  }
-                  setIsStreaming(false);
+                  hookCancel();
                   setTimeout(() => handleSendMessage(reply), 50);
                 }}
                 className="px-4 py-1.5 text-sm font-medium rounded-full border border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
@@ -1491,8 +1005,8 @@ export function ChatContainer({
         <MessageInput
           onSend={handleSendMessage}
           onStop={handleStopStreaming}
-          disabled={isStreaming && !promptActive}
-          isStreaming={isStreaming && !promptActive}
+          disabled={isStreaming && !promptActive && !streamState.promptActive}
+          isStreaming={isStreaming && !promptActive && !streamState.promptActive}
           conversationId={currentConversation?.id}
           onEnsureConversation={ensureConversation}
         />
@@ -1617,7 +1131,6 @@ export function ChatContainer({
             className="flex-1 overflow-y-auto p-4 space-y-3"
             onScroll={(e) => {
               const target = e.target as HTMLDivElement;
-              // Load more when scrolled near bottom
               if (target.scrollHeight - target.scrollTop - target.clientHeight < 100) {
                 loadMoreInsights();
               }
@@ -1668,7 +1181,6 @@ export function ChatContainer({
                       <ReactMarkdown 
                         remarkPlugins={[remarkGfm]}
                         components={{
-                          // Ensure links wrap properly
                           a: ({ children, href }) => (
                             <a 
                               href={href} 
@@ -1680,7 +1192,6 @@ export function ChatContainer({
                               {children}
                             </a>
                           ),
-                          // Ensure paragraphs don't have excessive margins
                           p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
                         }}
                       >
@@ -1733,7 +1244,7 @@ export function ChatContainer({
             name: a.display_name || a.name,
             description: a.description || '',
             enabled: a.is_active,
-            capabilities: [], // Could add capabilities from agent definition if available
+            capabilities: [],
           }))}
           onClose={() => setShowAgentPanel(false)}
         />
@@ -1787,4 +1298,3 @@ export function ChatContainer({
     </div>
   );
 }
-
