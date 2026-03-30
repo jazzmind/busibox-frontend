@@ -21,8 +21,15 @@ export type {
   AgentClient,
   AgentClientConfig,
   AgentDefinition,
+  AgentDefinitionInput,
   ToolDefinition,
+  AgentSyncResult,
+  AgentStatus,
+  SyncStatus,
 } from './agent-service-client';
+
+// Standalone agent sync helpers (no client factory needed)
+export { syncAgentDefinitions, getAgentSyncStatus } from './sync';
 
 // Enhanced chat client (browser-side)
 export {

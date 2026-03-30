@@ -39,7 +39,7 @@ import 'katex/dist/katex.min.css';
 import { MessageList } from './MessageList';
 import { ThinkingToggle, ThoughtEvent } from './ThinkingToggle';
 import { StreamingToolCard } from './StreamingToolCard';
-import { stripThinkTags, preprocessLatex, streamingMarkdownComponents } from './chat-utils';
+import { stripThinkTags, extractThinkContent, preprocessLatex, streamingMarkdownComponents } from './chat-utils';
 import { sendChatMessage, streamChatMessage, streamChatMessageAgentic, getConversationHistory } from '../../lib/agent/chat-client';
 import type { ChatMessageRequest, Message, Attachment, MessagePart } from '../../types/chat';
 
@@ -447,6 +447,29 @@ export function ChatInterface({
                 } else if (msgText) {
                   fullContent = msgText;
                 }
+
+                const thinkTexts = extractThinkContent(fullContent);
+                if (thinkTexts.length > 0) {
+                  const thinkThought: ExecutionEvent = {
+                    type: 'thought',
+                    source: 'model',
+                    message: thinkTexts.join('\n\n'),
+                    data: event.data,
+                    timestamp: new Date(),
+                  };
+                  const hasModelThought = collectedThoughts.some(
+                    t => t.source === 'model' && t.type === 'thought'
+                  );
+                  if (hasModelThought) {
+                    collectedThoughts = collectedThoughts.map(t =>
+                      t.source === 'model' && t.type === 'thought' ? thinkThought : t
+                    );
+                  } else {
+                    collectedThoughts = [...collectedThoughts, thinkThought];
+                  }
+                  setThoughts(collectedThoughts);
+                }
+
                 setStreamingContent(stripThinkTags(fullContent));
               }
               break;

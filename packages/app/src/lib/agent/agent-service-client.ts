@@ -51,6 +51,41 @@ export interface ToolDefinition {
   name: string;
   description: string;
   enabled: boolean;
+  is_builtin?: boolean;
+  scopes?: string[];
+}
+
+export interface AgentDefinitionInput {
+  name: string;
+  display_name: string;
+  description: string;
+  instructions: string;
+  model: string;
+  tools?: { names: string[] };
+  workflows?: {
+    execution_mode?: string;
+    tool_strategy?: string;
+    max_iterations?: number;
+  };
+  allow_frontier_fallback?: boolean;
+  is_builtin?: boolean;
+  scopes?: string[];
+}
+
+export interface AgentSyncResult {
+  created: string[];
+  updated: string[];
+  failed: string[];
+}
+
+export interface AgentStatus {
+  name: string;
+  displayName: string;
+  exists: boolean;
+}
+
+export interface SyncStatus {
+  agents: AgentStatus[];
 }
 
 /**
@@ -89,10 +124,18 @@ export function createAgentClient(config: AgentClientConfig) {
     },
 
     async getTools(): Promise<ToolDefinition[]> {
-      return [
-        { name: 'web_search', description: 'Search the web for current information', enabled: true },
-        { name: 'doc_search', description: 'Search your document libraries', enabled: true },
-      ];
+      try {
+        const tools = await fetchJson<any[]>('/agents/tools');
+        return tools.map((t: any) => ({
+          name: t.name,
+          description: t.description || '',
+          enabled: t.is_active !== false,
+          is_builtin: t.is_builtin,
+          scopes: t.scopes,
+        }));
+      } catch {
+        return [];
+      }
     },
 
     async getConversations(options?: { limit?: number; offset?: number; source?: string }): Promise<Conversation[]> {
@@ -222,6 +265,57 @@ export function createAgentClient(config: AgentClientConfig) {
       return fetchJson(`/insights/conversation/${conversationId}`, {
         method: 'DELETE',
       });
+    },
+
+    async syncAgents(definitions: AgentDefinitionInput[]): Promise<AgentSyncResult> {
+      const created: string[] = [];
+      const updated: string[] = [];
+      const failed: string[] = [];
+
+      for (const agent of definitions) {
+        try {
+          const data = await fetchJson<any>('/agents/definitions', {
+            method: 'POST',
+            body: JSON.stringify(agent),
+          });
+          if (data.version && data.version > 1) {
+            updated.push(agent.name);
+          } else {
+            created.push(agent.name);
+          }
+        } catch (err) {
+          console.error(`[agent-sync] Failed to sync agent ${agent.name}:`, err instanceof Error ? err.message : err);
+          failed.push(agent.name);
+        }
+      }
+
+      return { created, updated, failed };
+    },
+
+    async getSyncStatus(definitions: AgentDefinitionInput[]): Promise<SyncStatus> {
+      const agents: AgentStatus[] = [];
+
+      try {
+        const data = await fetchJson<any>('/agents');
+        const items = data.items || data || [];
+        const agentNames = Array.isArray(items)
+          ? items.map((a: { name: string }) => a.name)
+          : [];
+
+        for (const def of definitions) {
+          agents.push({
+            name: def.name,
+            displayName: def.display_name,
+            exists: agentNames.includes(def.name),
+          });
+        }
+      } catch {
+        for (const def of definitions) {
+          agents.push({ name: def.name, displayName: def.display_name, exists: false });
+        }
+      }
+
+      return { agents };
     },
   };
 }
