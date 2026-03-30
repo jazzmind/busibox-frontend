@@ -9,19 +9,20 @@ import {
   Layers, 
   Calendar, 
   User,
+  ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Loader2,
   ExternalLink,
-  Link as LinkIcon,
-  List,
   Trash2,
   AlertTriangle,
   Download,
   Upload,
-  Shield
+  Shield,
+  Lock,
+  CheckCircle2,
+  Eye
 } from 'lucide-react';
-import type { AppDataRelation, AppDataSchema } from '@jazzmind/busibox-app';
+import type { AppDataSchema } from '@jazzmind/busibox-app';
 import { DeleteConfirmModal } from '@jazzmind/busibox-app';
 
 interface AppDataDocument {
@@ -38,36 +39,13 @@ interface AppDataDocument {
   updatedAt?: string;
 }
 
-interface DataRecord {
-  id: string;
-  [key: string]: unknown;
-}
-
-interface DocumentLookup {
-  [documentName: string]: {
-    id: string;
-    displayName?: string;
-    itemLabel?: string;
-  };
-}
-
-interface RelatedRecordsCache {
-  [key: string]: {
-    records: DataRecord[];
-    total: number;
-    loading: boolean;
-    expanded: boolean;
-  };
-}
-
-interface OrphanInfo {
+interface AdminRecordMeta {
   recordId: string;
-  orphanRelations: {
-    relationName: string;
-    foreignKey: string;
-    foreignKeyValue: string;
-    targetDocument: string;
-  }[];
+  documentId: string;
+  ownerId: string | null;
+  visibility: string;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 interface DocumentRole {
@@ -85,28 +63,25 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
   const router = useRouter();
   const searchParams = useSearchParams();
   const [document, setDocument] = useState<AppDataDocument | null>(null);
-  const [records, setRecords] = useState<DataRecord[]>([]);
   const [totalRecordCount, setTotalRecordCount] = useState<number>(0);
+  const [accessibleRecordIds, setAccessibleRecordIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [documentLookup, setDocumentLookup] = useState<DocumentLookup>({});
-  const [relatedRecordsCache, setRelatedRecordsCache] = useState<RelatedRecordsCache>({});
-  const [orphanRecords, setOrphanRecords] = useState<{ [recordId: string]: OrphanInfo }>({});
   
   // Delete modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [relatedDocCounts, setRelatedDocCounts] = useState<{ name: string; count: number }[]>([]);
   const [exportLoading, setExportLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Admin record metadata
-  const [adminRecords, setAdminRecords] = useState<{ recordId: string; documentId: string; ownerId: string | null; visibility: string; createdAt: string | null; updatedAt: string | null }[]>([]);
+  // Unified record table (admin bypass metadata + pagination)
+  const PAGE_SIZE = 50;
+  const [adminRecords, setAdminRecords] = useState<AdminRecordMeta[]>([]);
   const [adminRecordsTotal, setAdminRecordsTotal] = useState(0);
   const [adminRecordsLoading, setAdminRecordsLoading] = useState(false);
-  const [adminRecordsExpanded, setAdminRecordsExpanded] = useState(false);
+  const [tablePage, setTablePage] = useState(0);
   const [deletingRecordId, setDeletingRecordId] = useState<string | null>(null);
   const [deletingRecordLoading, setDeletingRecordLoading] = useState(false);
   const [rolesLoading, setRolesLoading] = useState(true);
@@ -148,70 +123,12 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
   };
   const activeDocument = document ?? fallbackDocument;
 
-  // Fetch related records for hasMany relations
-  const fetchRelatedRecords = useCallback(async (
-    relationName: string,
-    relation: AppDataRelation,
-    recordId: string
-  ) => {
-    const cacheKey = `${relationName}:${recordId}`;
-    
-    // Already loading or loaded
-    if (relatedRecordsCache[cacheKey]?.loading || relatedRecordsCache[cacheKey]?.records) {
-      return;
-    }
-
-    setRelatedRecordsCache(prev => ({
-      ...prev,
-      [cacheKey]: { records: [], total: 0, loading: true, expanded: true },
-    }));
-
-    try {
-      const response = await fetch(
-        `/api/data/${resolvedParams.id}/related?document=${encodeURIComponent(relation.document)}&foreignKey=${encodeURIComponent(relation.foreignKey)}&value=${encodeURIComponent(recordId)}&limit=10`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data) {
-          setRelatedRecordsCache(prev => ({
-            ...prev,
-            [cacheKey]: {
-              records: data.data.records || [],
-              total: data.data.total || 0,
-              loading: false,
-              expanded: true,
-            },
-          }));
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching related records:', err);
-      setRelatedRecordsCache(prev => ({
-        ...prev,
-        [cacheKey]: { records: [], total: 0, loading: false, expanded: true },
-      }));
-    }
-  }, [resolvedParams.id, relatedRecordsCache]);
-
-  // Toggle expansion for related records section
-  const toggleRelatedRecords = useCallback((cacheKey: string) => {
-    setRelatedRecordsCache(prev => ({
-      ...prev,
-      [cacheKey]: {
-        ...prev[cacheKey],
-        expanded: !prev[cacheKey]?.expanded,
-      },
-    }));
-  }, []);
-
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchDocumentMeta = async () => {
       setIsLoading(true);
       setError(null);
       
       try {
-        // First fetch the document metadata
         const docResponse = await fetch(`/api/data/${resolvedParams.id}`);
         if (!docResponse.ok) {
           const errorData = await docResponse.json().catch(() => ({}));
@@ -221,73 +138,12 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
         const docData = await docResponse.json();
         if (docData.success && docData.data) {
           const fetchedDocument = docData.data.document;
-          const fetchedRecords = docData.data.records || [];
-          const fetchedTotalCount = docData.data.totalRecordCount ?? fetchedDocument?.recordCount ?? fetchedRecords.length;
-          
-          console.log('[AppDataDetailPage] Document:', fetchedDocument?.name);
-          console.log('[AppDataDetailPage] Schema:', fetchedDocument?.schema 
-            ? `${Object.keys(fetchedDocument.schema.fields || {}).length} fields, ${Object.keys(fetchedDocument.schema.relations || {}).length} relations`
-            : 'no schema');
-          if (fetchedDocument?.schema?.relations) {
-            console.log('[AppDataDetailPage] Relations:', Object.keys(fetchedDocument.schema.relations));
-          }
-          console.log('[AppDataDetailPage] Accessible records:', fetchedRecords.length, '/', fetchedTotalCount);
+          const fetchedTotalCount = docData.data.totalRecordCount ?? fetchedDocument?.recordCount ?? 0;
+          const fetchedAccessibleIds: string[] = docData.data.accessibleRecordIds || [];
           
           setDocument(fetchedDocument);
-          setRecords(fetchedRecords);
           setTotalRecordCount(fetchedTotalCount);
-          
-          // Also fetch document list for relation lookups
-          const listResponse = await fetch('/api/libraries');
-          if (listResponse.ok) {
-            const listData = await listResponse.json();
-            if (listData.success && listData.data) {
-              const lookup: DocumentLookup = {};
-              // Process app data libraries
-              const appData = listData.data.appDataLibraries || [];
-              for (const doc of appData) {
-                lookup[doc.name] = {
-                  id: doc.id,
-                  displayName: doc.displayName || doc.name,
-                  itemLabel: doc.itemLabel,
-                };
-              }
-              setDocumentLookup(lookup);
-            }
-          }
-          
-          // Check for orphan records if there are belongsTo relations
-          const relations = fetchedDocument?.schema?.relations || {};
-          const hasBelongsTo = Object.values(relations).some(
-            (rel) => (rel as AppDataRelation).type === 'belongsTo'
-          );
-          
-          if (hasBelongsTo && fetchedRecords.length > 0) {
-            try {
-              const orphanResponse = await fetch(`/api/data/${resolvedParams.id}/check-orphans`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  records: fetchedRecords,
-                  relations,
-                }),
-              });
-              
-              if (orphanResponse.ok) {
-                const orphanData = await orphanResponse.json();
-                if (orphanData.success && orphanData.data?.orphans) {
-                  const orphanMap: { [recordId: string]: OrphanInfo } = {};
-                  for (const orphan of orphanData.data.orphans) {
-                    orphanMap[orphan.recordId] = orphan;
-                  }
-                  setOrphanRecords(orphanMap);
-                }
-              }
-            } catch (orphanErr) {
-              console.error('Error checking orphans:', orphanErr);
-              // Non-critical error, continue without orphan info
-            }
-          }
+          setAccessibleRecordIds(new Set(fetchedAccessibleIds));
         } else {
           throw new Error(docData.error || 'Invalid response format');
         }
@@ -299,7 +155,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
       }
     };
 
-    fetchData();
+    fetchDocumentMeta();
   }, [resolvedParams.id]);
 
   const formatDate = (dateStr?: string) => {
@@ -317,34 +173,6 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  // Calculate related document counts for cascade delete
-  const calculateRelatedCounts = useCallback(() => {
-    if (!document?.schema?.relations) return;
-    
-    const hasManyRelations = Object.entries(document.schema.relations).filter(
-      ([, rel]) => rel.type === 'hasMany'
-    );
-    
-    // Count records that have hasMany relations
-    const counts: { name: string; count: number }[] = [];
-    for (const [relationName, relation] of hasManyRelations) {
-      // Sum up all related records from cache
-      let totalForRelation = 0;
-      for (const record of records) {
-        if (!record.id) continue;
-        const cacheKey = `${relationName}:${record.id}`;
-        const cachedData = relatedRecordsCache[cacheKey];
-        if (cachedData?.total) {
-          totalForRelation += cachedData.total;
-        }
-      }
-      if (totalForRelation > 0) {
-        counts.push({ name: relation.label || relationName, count: totalForRelation });
-      }
-    }
-    
-    setRelatedDocCounts(counts);
-  }, [document, records, relatedRecordsCache]);
 
   // Handle document delete
   const handleDeleteDocument = async (cascade: boolean) => {
@@ -368,9 +196,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  // Open delete modal and calculate related counts
   const openDeleteModal = () => {
-    calculateRelatedCounts();
     setShowDeleteModal(true);
   };
 
@@ -629,10 +455,11 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  const fetchAdminRecords = useCallback(async () => {
+  const fetchAdminRecords = useCallback(async (page: number) => {
     setAdminRecordsLoading(true);
     try {
-      const response = await fetch(`/api/data/admin/documents/${resolvedParams.id}/records?limit=200`);
+      const offset = page * PAGE_SIZE;
+      const response = await fetch(`/api/data/admin/documents/${resolvedParams.id}/records?limit=${PAGE_SIZE}&offset=${offset}`);
       if (response.ok) {
         const data = await response.json();
         setAdminRecords(data.records || []);
@@ -645,6 +472,11 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
     }
   }, [resolvedParams.id]);
 
+  // Load admin records on mount and when page changes
+  useEffect(() => {
+    fetchAdminRecords(tablePage);
+  }, [fetchAdminRecords, tablePage]);
+
   const handleAdminDeleteRecord = async (recordId: string) => {
     setDeletingRecordLoading(true);
     try {
@@ -652,9 +484,8 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
         method: 'DELETE',
       });
       if (response.ok) {
-        setAdminRecords(prev => prev.filter(r => r.recordId !== recordId));
-        setAdminRecordsTotal(prev => prev - 1);
         setDeletingRecordId(null);
+        fetchAdminRecords(tablePage);
       }
     } catch (err) {
       console.error('Failed to delete record:', err);
@@ -963,286 +794,86 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
           )}
         </div>
 
-        {/* Records List */}
+        {/* Records Table */}
         <div>
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            {activeDocument.itemLabel ? `${activeDocument.itemLabel}s` : 'Records'} ({records.length}{totalRecordCount > records.length ? ` of ${totalRecordCount}` : ''})
+            {activeDocument.itemLabel ? `${activeDocument.itemLabel}s` : 'Records'} ({adminRecordsTotal})
           </h2>
 
-          {!isLoading && totalRecordCount > records.length && (
-            <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-              <Shield className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+          {/* Required roles for this collection */}
+          {!isLoading && !rolesLoading && documentRoles.length > 0 && (
+            <div className="mb-4 flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+              <Shield className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-amber-800">
-                  {totalRecordCount - records.length} record{totalRecordCount - records.length !== 1 ? 's' : ''} hidden
-                </p>
-                <p className="text-xs text-amber-700 mt-0.5">
-                  Your current roles do not grant access to all records in this collection. Use the Admin Record Metadata section below to view metadata and manage all records.
-                </p>
+                <p className="text-xs font-medium text-gray-600 mb-1.5">Required roles for data access:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {documentRoles.map((role) => {
+                    const roleName =
+                      role.role_name && !role.role_name.startsWith('Role-')
+                        ? role.role_name
+                        : availableRoles.find((r) => r.id === role.role_id)?.name || role.role_name;
+                    const adminHasRole = currentUserRoleIds.includes(role.role_id);
+                    return (
+                      <span
+                        key={role.role_id}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                          adminHasRole
+                            ? 'bg-green-100 text-green-700 ring-1 ring-green-300'
+                            : 'bg-gray-200 text-gray-500'
+                        }`}
+                        title={adminHasRole ? 'You have this role' : 'You do not have this role'}
+                      >
+                        {adminHasRole ? (
+                          <CheckCircle2 className="w-3 h-3" />
+                        ) : (
+                          <Lock className="w-3 h-3" />
+                        )}
+                        {roleName}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
-          
-          {isLoading && records.length === 0 ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((idx) => (
-                <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4">
-                  <div className="h-5 w-48 rounded bg-gray-200 animate-pulse mb-2" />
-                  <div className="h-4 w-72 rounded bg-gray-100 animate-pulse" />
-                </div>
-              ))}
-            </div>
-          ) : records.length > 0 ? (
-            <div className="space-y-3">
-              {records.map((record, index) => {
-                // Try to find a display name field
-                const displayName = record.name || record.title || record.label || `Record ${index + 1}`;
-                const description = record.description || record.content || record.summary;
-                const status = record.status as string | undefined;
-                
-                // Get relations from schema
-                const relations = activeDocument.schema?.relations || {};
-                const belongsToRelations = Object.entries(relations).filter(
-                  ([, rel]) => rel.type === 'belongsTo'
-                );
-                const hasManyRelations = Object.entries(relations).filter(
-                  ([, rel]) => rel.type === 'hasMany'
-                );
-                
-                // Check if this record is orphaned
-                const orphanInfo = record.id ? orphanRecords[record.id] : null;
-                const isOrphan = !!orphanInfo;
-                
-                return (
-                  <div
-                    key={record.id || index}
-                    className={`bg-white border rounded-xl hover:border-green-300 transition-colors overflow-hidden ${
-                      isOrphan ? 'border-orange-300 bg-orange-50/30' : 'border-gray-200'
-                    }`}
-                  >
-                    {/* Main record info - clickable link to record detail */}
-                    <Link
-                      href={`/data/${resolvedParams.id}/record/${record.id}`}
-                      className="flex items-center gap-4 p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-medium text-gray-900 truncate">
-                            {String(displayName)}
-                          </h3>
-                          {/* Orphan indicator */}
-                          {isOrphan && (
-                            <span 
-                              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-orange-700 bg-orange-100 rounded-full"
-                              title={`Parent not found: ${orphanInfo.orphanRelations.map(r => `${r.relationName} (${r.foreignKeyValue.slice(0, 8)}...)`).join(', ')}`}
-                            >
-                              <AlertTriangle className="w-3 h-3" />
-                              Orphan
-                            </span>
-                          )}
-                        </div>
-                        {typeof description === 'string' && description.length > 0 && (
-                          <p className="text-sm text-gray-500 truncate mt-1">
-                            {description.slice(0, 100)}
-                          </p>
-                        )}
-                        
-                        {/* BelongsTo relations - show as inline badges (non-clickable here) */}
-                        {belongsToRelations.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {belongsToRelations.map(([relationName, relation]) => {
-                              const foreignKeyValue = record[relation.foreignKey] as string | undefined;
-                              if (!foreignKeyValue) return null;
-                              
-                              const targetDoc = documentLookup[relation.document];
-                              const isOrphanRelation = orphanInfo?.orphanRelations.some(
-                                r => r.relationName === relationName
-                              );
-                              
-                              return (
-                                <span
-                                  key={relationName}
-                                  className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
-                                    isOrphanRelation 
-                                      ? 'text-orange-600 bg-orange-100' 
-                                      : 'text-green-600 bg-green-50'
-                                  }`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  title={isOrphanRelation ? `Parent not found: ${foreignKeyValue}` : undefined}
-                                >
-                                  {isOrphanRelation ? (
-                                    <AlertTriangle className="w-3 h-3" />
-                                  ) : (
-                                    <LinkIcon className="w-3 h-3" />
-                                  )}
-                                  {relation.label || targetDoc?.displayName || relationName}
-                                  {isOrphanRelation && ' (missing)'}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                      {status && (
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 capitalize">
-                          {status.replace(/-/g, ' ')}
-                        </span>
-                      )}
-                      <ChevronRight className="w-4 h-4 text-gray-400" />
-                    </Link>
-                    
-                    {/* HasMany relations - expandable sections */}
-                    {hasManyRelations.length > 0 && record.id && (
-                      <div className="border-t border-gray-100 bg-gray-50/50">
-                        {hasManyRelations.map(([relationName, relation]) => {
-                          const cacheKey = `${relationName}:${record.id}`;
-                          const cachedData = relatedRecordsCache[cacheKey];
-                          const isExpanded = cachedData?.expanded;
-                          const isLoading = cachedData?.loading;
-                          const relatedRecords = cachedData?.records || [];
-                          const total = cachedData?.total || 0;
-                          
-                          const targetDoc = documentLookup[relation.document];
-                          
-                          return (
-                            <div key={relationName} className="border-b border-gray-100 last:border-b-0">
-                              <button
-                                onClick={() => {
-                                  if (!cachedData) {
-                                    fetchRelatedRecords(relationName, relation, record.id);
-                                  } else {
-                                    toggleRelatedRecords(cacheKey);
-                                  }
-                                }}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 transition-colors"
-                              >
-                                {isLoading ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : isExpanded ? (
-                                  <ChevronDown className="w-3 h-3" />
-                                ) : (
-                                  <ChevronRight className="w-3 h-3" />
-                                )}
-                                <List className="w-3 h-3" />
-                                <span>{relation.label || relationName}</span>
-                                {cachedData && !isLoading && (
-                                  <span className="ml-1 text-xs text-gray-400">({total})</span>
-                                )}
-                              </button>
-                              
-                              {isExpanded && !isLoading && relatedRecords.length > 0 && (
-                                <div className="px-4 pb-2 space-y-1">
-                                  {relatedRecords.slice(0, 5).map((relRecord, relIndex) => {
-                                    const relDisplayField = relation.displayField || 'name';
-                                    const relDisplayValue = relRecord[relDisplayField] || relRecord.name || relRecord.title || `Item ${relIndex + 1}`;
-                                    
-                                    return (
-                                      <div
-                                        key={relRecord.id || relIndex}
-                                        className="flex items-center gap-2 text-sm py-1 px-2 rounded hover:bg-white transition-colors"
-                                      >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
-                                        {targetDoc ? (
-                                          <Link
-                                            href={`/data/${targetDoc.id}?highlight=${relRecord.id}`}
-                                            className="text-gray-700 hover:text-green-600 truncate"
-                                          >
-                                            {String(relDisplayValue)}
-                                          </Link>
-                                        ) : (
-                                          <span className="text-gray-700 truncate">{String(relDisplayValue)}</span>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                  {total > 5 && targetDoc && (
-                                    <Link
-                                      href={`/data/${targetDoc.id}?filter=${relation.foreignKey}:${record.id}`}
-                                      className="block text-xs text-green-600 hover:text-green-700 py-1 px-2"
-                                    >
-                                      View all {total} {relation.label || relationName}...
-                                    </Link>
-                                  )}
-                                </div>
-                              )}
-                              
-                              {isExpanded && !isLoading && relatedRecords.length === 0 && (
-                                <div className="px-4 pb-2 text-xs text-gray-400">
-                                  No {relation.label || relationName} found
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-12 bg-gray-50 rounded-xl">
-              <Layers className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-500">No records yet</p>
-            </div>
-          )}
-        </div>
 
-        {/* Admin Record Metadata */}
-        <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50/50 overflow-hidden">
-          <button
-            onClick={() => {
-              if (!adminRecordsExpanded) {
-                setAdminRecordsExpanded(true);
-                if (adminRecords.length === 0 && !adminRecordsLoading) {
-                  fetchAdminRecords();
-                }
-              } else {
-                setAdminRecordsExpanded(false);
-              }
-            }}
-            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-amber-100/50 transition-colors"
-          >
-            <Shield className="w-5 h-5 text-amber-600" />
-            <span className="text-sm font-semibold text-amber-800">Admin: Record Metadata</span>
-            <span className="text-xs text-amber-600 ml-auto">
-              {adminRecordsTotal > 0 ? `${adminRecordsTotal} records` : ''}
-            </span>
-            {adminRecordsExpanded ? (
-              <ChevronDown className="w-4 h-4 text-amber-600" />
-            ) : (
-              <ChevronRight className="w-4 h-4 text-amber-600" />
-            )}
-          </button>
-
-          {adminRecordsExpanded && (
-            <div className="px-5 pb-4">
-              <p className="text-xs text-amber-700 mb-3">
-                Shows record-level metadata (owner, visibility, timestamps). Record contents are not exposed.
-              </p>
-
-              {adminRecordsLoading ? (
-                <div className="flex items-center justify-center py-6">
-                  <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
-                </div>
-              ) : adminRecords.length > 0 ? (
-                <div className="border border-amber-200 rounded-lg overflow-hidden bg-white">
-                  <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Record ID</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Visibility</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
-                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {adminRecords.map(rec => (
+          {adminRecordsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
+            </div>
+          ) : adminRecords.length > 0 ? (
+            <>
+              <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase w-12">Access</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Record ID</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Visibility</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500 uppercase w-28">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {adminRecords.map(rec => {
+                      const hasAccess = accessibleRecordIds.has(rec.recordId);
+                      return (
                         <tr key={rec.recordId} className="hover:bg-gray-50">
-                          <td className="px-3 py-2 font-mono text-xs text-gray-600">{rec.recordId.slice(0, 12)}...</td>
-                          <td className="px-3 py-2 font-mono text-xs text-gray-500">{rec.ownerId ? `${rec.ownerId.slice(0, 8)}...` : '—'}</td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2.5">
+                            {hasAccess ? (
+                              <CheckCircle2 className="w-4 h-4 text-green-500" title="You have data access" />
+                            ) : (
+                              <Lock className="w-4 h-4 text-gray-300" title="Metadata only — you lack the required role" />
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-xs text-gray-600">
+                            {rec.recordId.slice(0, 16)}…
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-xs text-gray-500">
+                            {rec.ownerId ? `${rec.ownerId.slice(0, 8)}…` : '—'}
+                          </td>
+                          <td className="px-3 py-2.5">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                               rec.visibility === 'personal'
                                 ? 'bg-yellow-100 text-yellow-800'
@@ -1255,26 +886,73 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
                               {rec.visibility}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-xs text-gray-500">
+                          <td className="px-3 py-2.5 text-xs text-gray-500">
                             {rec.createdAt ? new Date(rec.createdAt).toLocaleDateString() : '—'}
                           </td>
-                          <td className="px-3 py-2 text-right">
-                            <button
-                              onClick={() => setDeletingRecordId(rec.recordId)}
-                              className="p-1 hover:bg-red-50 rounded transition-colors"
-                              title="Delete record"
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
-                            </button>
+                          <td className="px-3 py-2.5 text-right">
+                            <div className="inline-flex items-center gap-1">
+                              <Link
+                                href={`/data/${resolvedParams.id}/record/${rec.recordId}`}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${
+                                  hasAccess
+                                    ? 'text-green-700 bg-green-50 hover:bg-green-100'
+                                    : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
+                                }`}
+                                title={hasAccess ? 'View full record data' : 'View metadata only'}
+                              >
+                                <Eye className="w-3 h-3" />
+                                {hasAccess ? 'View' : 'Meta'}
+                              </Link>
+                              <button
+                                onClick={() => setDeletingRecordId(rec.recordId)}
+                                className="p-1 hover:bg-red-50 rounded transition-colors"
+                                title="Delete record"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {adminRecordsTotal > PAGE_SIZE && (
+                <div className="flex items-center justify-between mt-4">
+                  <p className="text-sm text-gray-500">
+                    Showing {tablePage * PAGE_SIZE + 1}–{Math.min((tablePage + 1) * PAGE_SIZE, adminRecordsTotal)} of {adminRecordsTotal}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setTablePage(p => Math.max(0, p - 1))}
+                      disabled={tablePage === 0}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Previous
+                    </button>
+                    <span className="text-sm text-gray-600">
+                      Page {tablePage + 1} of {Math.ceil(adminRecordsTotal / PAGE_SIZE)}
+                    </span>
+                    <button
+                      onClick={() => setTablePage(p => p + 1)}
+                      disabled={(tablePage + 1) * PAGE_SIZE >= adminRecordsTotal}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <p className="text-xs text-gray-500 py-3">No records found.</p>
               )}
+            </>
+          ) : (
+            <div className="text-center py-12 bg-gray-50 rounded-xl">
+              <Layers className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+              <p className="text-gray-500">No records yet</p>
             </div>
           )}
         </div>
@@ -1334,7 +1012,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
           itemName={activeDocument.displayName || activeDocument.name}
           itemType="collection"
           isDocument={true}
-          relatedCounts={relatedDocCounts}
+          relatedCounts={[]}
           onConfirm={handleDeleteDocument}
           onCancel={() => setShowDeleteModal(false)}
           isDeleting={deleteLoading}

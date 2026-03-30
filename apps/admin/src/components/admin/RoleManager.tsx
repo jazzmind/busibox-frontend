@@ -49,9 +49,11 @@ export function RoleManager({ userId, userRoles, onRoleChanged }: RoleManagerPro
       const data = await response.json();
       
       if (data.success) {
-        // Filter out roles the user already has
+        // Filter out roles the user already has and app-scoped roles
         const userRoleIds = userRoles.map(r => r.id);
-        const available = data.data.roles.filter((role: Role) => !userRoleIds.includes(role.id));
+        const available = data.data.roles.filter(
+          (role: Role) => !userRoleIds.includes(role.id) && !role.name.startsWith('app:')
+        );
         setAvailableRoles(available);
       } else {
         setError(data.error || 'Failed to load roles');

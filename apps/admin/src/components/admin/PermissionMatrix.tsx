@@ -59,13 +59,16 @@ export function PermissionMatrix({ roleId, appId }: PermissionMatrixProps) {
         const allApps = appsData.data.apps || [];
         const allRoles = rolesData.data.roles || [];
 
+        // Filter out app-scoped roles (e.g. "app:busibox-workforce") — managed per-app, not here
+        const nonAppRoles = allRoles.filter((r: Role) => !r.name.startsWith('app:'));
+
         // Filter if needed
         setApps(appId ? allApps.filter((a: App) => a.id === appId) : allApps);
-        setRoles(roleId ? allRoles.filter((r: Role) => r.id === roleId) : allRoles);
+        setRoles(roleId ? nonAppRoles.filter((r: Role) => r.id === roleId) : nonAppRoles);
 
-        // Build permissions map
+        // Build permissions map (only for non-app roles)
         const perms: Permission[] = [];
-        for (const role of allRoles) {
+        for (const role of nonAppRoles) {
           const roleDetailResponse = await fetch(`/api/roles/${role.id}`);
           const roleDetailData = await roleDetailResponse.json();
           

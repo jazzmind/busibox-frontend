@@ -6,16 +6,16 @@ import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
   Database, 
-  Layers, 
   ChevronRight,
   ChevronDown,
   Loader2,
   Trash2,
-  Edit3,
   LinkIcon,
   List,
   AlertTriangle,
-  ExternalLink
+  ExternalLink,
+  ShieldAlert,
+  Lock
 } from 'lucide-react';
 import type { AppDataRelation, AppDataSchema } from '@jazzmind/busibox-app';
 
@@ -69,6 +69,15 @@ export default function RecordDetailPage({
   const [document, setDocument] = useState<AppDataDocument | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAccessDenied, setIsAccessDenied] = useState(false);
+  const [adminMeta, setAdminMeta] = useState<{
+    recordId: string;
+    documentId: string;
+    ownerId: string | null;
+    visibility: string;
+    createdAt: string | null;
+    updatedAt: string | null;
+  } | null>(null);
   const [documentLookup, setDocumentLookup] = useState<DocumentLookup>({});
   const [relatedRecordsCache, setRelatedRecordsCache] = useState<RelatedRecordsCache>({});
   const [orphanRelations, setOrphanRelations] = useState<OrphanInfo[]>([]);
@@ -201,6 +210,18 @@ export default function RecordDetailPage({
         
         if (!recordResponse.ok) {
           const errorData = await recordResponse.json().catch(() => ({}));
+          if (recordResponse.status === 403) {
+            setIsAccessDenied(true);
+            setError(errorData.error || 'Access denied');
+            if (errorData.adminMeta) {
+              setAdminMeta(errorData.adminMeta);
+            }
+            if (errorData.document) {
+              setDocument(errorData.document);
+            }
+            setIsLoading(false);
+            return;
+          }
           throw new Error(errorData.error || `Failed to fetch record: ${recordResponse.status}`);
         }
         
@@ -305,6 +326,114 @@ export default function RecordDetailPage({
         <div className="text-center">
           <Loader2 className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-3" />
           <p className="text-gray-500">Loading record...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAccessDenied) {
+    const metaFormatDate = (dateStr?: string | null) => {
+      if (!dateStr) return '—';
+      try {
+        return new Date(dateStr).toLocaleDateString('en-US', {
+          year: 'numeric', month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit',
+        });
+      } catch { return dateStr; }
+    };
+
+    return (
+      <div className="min-h-full bg-white">
+        <div className="border-b border-gray-200 bg-white">
+          <div className="max-w-4xl mx-auto px-6 py-6">
+            <Link
+              href={`/data/${resolvedParams.id}`}
+              className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-700 mb-4"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to {document?.displayName || document?.name || 'Collection'}
+            </Link>
+
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-amber-50 rounded-xl">
+                <Lock className="w-8 h-8 text-amber-500" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold text-gray-900">Record Metadata</h1>
+                <div className="flex items-center gap-3 mt-2 text-sm text-gray-500">
+                  {document?.sourceApp && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                      {document.sourceApp}
+                    </span>
+                  )}
+                  <ChevronRight className="w-4 h-4 text-gray-300" />
+                  <span>{document?.displayName || document?.name || 'Unknown'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-4xl mx-auto px-6 py-8">
+          <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <ShieldAlert className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-800">Data access restricted</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                You don&apos;t have the app-specific role needed to view this record&apos;s full data.
+                Below is the admin-level metadata for this record.
+              </p>
+            </div>
+          </div>
+
+          {adminMeta ? (
+            <div className="bg-gray-50 rounded-xl overflow-hidden">
+              <table className="w-full">
+                <tbody className="divide-y divide-gray-200">
+                  <tr className="hover:bg-gray-100/50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-500 w-1/3">Record ID</td>
+                    <td className="px-4 py-3 text-sm font-mono text-gray-900">{adminMeta.recordId}</td>
+                  </tr>
+                  <tr className="hover:bg-gray-100/50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-500">Document ID</td>
+                    <td className="px-4 py-3 text-sm font-mono text-gray-900">{adminMeta.documentId}</td>
+                  </tr>
+                  <tr className="hover:bg-gray-100/50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-500">Owner</td>
+                    <td className="px-4 py-3 text-sm font-mono text-gray-900">{adminMeta.ownerId || '—'}</td>
+                  </tr>
+                  <tr className="hover:bg-gray-100/50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-500">Visibility</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        adminMeta.visibility === 'personal'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : adminMeta.visibility === 'shared'
+                          ? 'bg-green-100 text-green-800'
+                          : adminMeta.visibility === 'inherit'
+                          ? 'bg-gray-100 text-gray-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {adminMeta.visibility}
+                      </span>
+                    </td>
+                  </tr>
+                  <tr className="hover:bg-gray-100/50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-500">Created</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{metaFormatDate(adminMeta.createdAt)}</td>
+                  </tr>
+                  <tr className="hover:bg-gray-100/50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-500">Updated</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{metaFormatDate(adminMeta.updatedAt)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-400 text-sm">
+              No metadata available for this record.
+            </div>
+          )}
         </div>
       </div>
     );

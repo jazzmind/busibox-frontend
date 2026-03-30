@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuth, apiSuccess, apiError } from '@jazzmind/busibox-app/lib/next/middleware';
 import { exchangeWithSubjectToken } from '@jazzmind/busibox-app/lib/authz/next-client';
 import { getDataApiUrl } from '@jazzmind/busibox-app/lib/next/api-url';
+import { resolveAppResourceId } from '../../../../../../lib/app-lookup';
 
 interface RouteParams {
   params: Promise<{ id: string; recordId: string }>;
@@ -10,6 +11,10 @@ interface RouteParams {
 /**
  * GET /api/data/{docId}/record/{recordId}
  * Fetch a single record from a data document.
+ *
+ * Uses app-scoped token exchange when the document belongs to an app,
+ * so the admin's app-specific roles are included in the data-api token
+ * and RLS can grant access.
  */
 export async function GET(
   request: NextRequest,
@@ -24,7 +29,6 @@ export async function GET(
     const { user, sessionJwt } = authResult;
     const { id: documentId, recordId } = await params;
 
-    // Exchange token for data-api access
     let tokenResult;
     try {
       tokenResult = await exchangeWithSubjectToken({
@@ -42,12 +46,59 @@ export async function GET(
     }
 
     const dataApiUrl = getDataApiUrl();
+    const adminAuthHeader = { Authorization: `Bearer ${tokenResult.accessToken}` };
 
-    // Query for the specific record by ID
+    // Step 1: Get document metadata via admin endpoint to discover sourceApp
+    const adminDocResponse = await fetch(
+      `${dataApiUrl}/data/admin/documents/${documentId}?includeRecords=false`,
+      { headers: adminAuthHeader },
+    );
+
+    let sourceApp: string | undefined;
+    let documentFromAdmin = null;
+    if (adminDocResponse.ok) {
+      const adminDocData = await adminDocResponse.json();
+      sourceApp = adminDocData.sourceApp || adminDocData.metadata?.sourceApp;
+      const schema = adminDocData.schema || adminDocData.metadata?.schema;
+      documentFromAdmin = {
+        id: adminDocData.id || documentId,
+        name: adminDocData.name,
+        displayName: schema?.displayName || adminDocData.metadata?.displayName || adminDocData.name,
+        sourceApp: sourceApp || 'unknown',
+        itemLabel: schema?.itemLabel || adminDocData.metadata?.itemLabel,
+        schema: schema,
+      };
+
+      console.log('[admin/data/[id]/record/[recordId]] Document schema:',
+        schema ? `has ${Object.keys(schema.relations || {}).length} relations` : 'no schema');
+    }
+
+    // Step 2: If document belongs to an app, get app-scoped token
+    let queryToken = tokenResult.accessToken;
+    if (sourceApp && sourceApp !== 'unknown') {
+      const appResourceId = await resolveAppResourceId(sessionJwt, sourceApp);
+      if (appResourceId) {
+        try {
+          const appTokenResult = await exchangeWithSubjectToken({
+            sessionJwt,
+            audience: 'data-api',
+            resourceId: appResourceId,
+            purpose: `admin-record-access:${sourceApp}`,
+          });
+          if (appTokenResult?.accessToken) {
+            queryToken = appTokenResult.accessToken;
+          }
+        } catch (appExchangeError) {
+          console.log('[admin/data/[id]/record/[recordId]] App-scoped token exchange failed:', appExchangeError);
+        }
+      }
+    }
+
+    // Step 3: Query for the specific record using the (possibly app-scoped) token
     const queryResponse = await fetch(`${dataApiUrl}/data/${documentId}/query`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${tokenResult.accessToken}`,
+        'Authorization': `Bearer ${queryToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -70,37 +121,38 @@ export async function GET(
     const records = queryData.records || [];
 
     if (records.length === 0) {
-      return apiError('Record not found', 404);
+      // Fetch admin metadata for this record so the UI can still display it
+      let adminMeta = null;
+      try {
+        const metaResponse = await fetch(
+          `${dataApiUrl}/data/admin/documents/${documentId}/records?limit=200`,
+          { headers: adminAuthHeader },
+        );
+        if (metaResponse.ok) {
+          const metaData = await metaResponse.json();
+          const allRecords = metaData.records || [];
+          adminMeta = allRecords.find(
+            (r: { recordId: string }) => r.recordId === recordId,
+          ) || null;
+        }
+      } catch (metaErr) {
+        console.error('[admin/data/[id]/record/[recordId]] Admin metadata fetch failed:', metaErr);
+      }
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: sourceApp
+            ? 'You do not have app-level access to view this record\'s data.'
+            : 'Record not found',
+          adminMeta,
+          document: documentFromAdmin,
+        },
+        { status: sourceApp ? 403 : 404 },
+      );
     }
 
-    const record = records[0];
-
-    // Also get document info for context
-    const docResponse = await fetch(`${dataApiUrl}/data/${documentId}?includeRecords=false`, {
-      headers: {
-        'Authorization': `Bearer ${tokenResult.accessToken}`,
-      },
-    });
-
-    let document = null;
-    if (docResponse.ok) {
-      const docData = await docResponse.json();
-      // Schema can be at top level or in metadata
-      const schema = docData.schema || docData.metadata?.schema;
-      document = {
-        id: docData.id || documentId,
-        name: docData.name,
-        displayName: schema?.displayName || docData.metadata?.displayName || docData.name,
-        sourceApp: docData.sourceApp || docData.metadata?.sourceApp,
-        itemLabel: schema?.itemLabel || docData.metadata?.itemLabel,
-        schema: schema,
-      };
-      
-      console.log('[admin/data/[id]/record/[recordId]] Document schema:', 
-        schema ? `has ${Object.keys(schema.relations || {}).length} relations` : 'no schema');
-    }
-
-    return apiSuccess({ record, document });
+    return apiSuccess({ record: records[0], document: documentFromAdmin });
   } catch (error) {
     console.error('[admin/data/[id]/record/[recordId]] Error:', error);
     return apiError(

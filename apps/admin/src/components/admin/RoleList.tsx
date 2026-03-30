@@ -37,7 +37,10 @@ export function RoleList() {
       const data = await response.json();
 
       if (data.success) {
-        setRoles(data.data.roles);
+        const nonAppRoles = data.data.roles.filter(
+          (role: RoleListItem) => !role.name.startsWith('app:')
+        );
+        setRoles(nonAppRoles);
       } else {
         setError(data.error || 'Failed to load roles');
       }

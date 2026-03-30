@@ -136,11 +136,15 @@ export async function exchangeWithSubjectToken(args: {
   audience: AuthzAudience;
   scopes?: string[];
   purpose?: string;
+  /** App resource ID for app-scoped token exchange. When provided, the issued
+   *  token will include the user's app-specific roles (e.g. from RBAC bindings). */
+  resourceId?: string;
 }): Promise<{ accessToken: string; tokenType: 'bearer'; expiresIn: number; scope: string }> {
   authzLog('[AUTHZ] Zero Trust token exchange:', {
     userId: args.userId,
     audience: args.audience,
     scopes: args.scopes,
+    resourceId: args.resourceId,
   });
 
   const result = await exchangeTokenZeroTrust(
@@ -149,6 +153,7 @@ export async function exchangeWithSubjectToken(args: {
       audience: args.audience,
       scopes: args.scopes,
       purpose: args.purpose,
+      resourceId: args.resourceId,
     },
     {
       authzBaseUrl: getAuthzBaseUrl(),

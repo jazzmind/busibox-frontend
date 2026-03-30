@@ -98,6 +98,10 @@ export default function SystemDashboardPage() {
   const [isRedeploying, setIsRedeploying] = useState(false);
   const [redeployError, setRedeployError] = useState<string | null>(null);
 
+  // Self-redeploy recovery state
+  const [awaitingRecovery, setAwaitingRecovery] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ type: 'redeploy' | 'rebuild' | 'mode-toggle'; appName?: string; mode?: 'dev' | 'prod' } | null>(null);
+
   const fetchServiceStatus = useCallback(async (fresh = false) => {
     try {
       const url = fresh ? '/api/services/status?fresh=true' : '/api/services/status';
@@ -273,7 +277,107 @@ export default function SystemDashboardPage() {
     }
   };
 
-  const handleRedeploy = async () => {
+  const handleRedeployApp = async (appName: string) => {
+    const appState = devModeData?.apps?.[appName];
+    const currentMode = appState?.mode || 'dev';
+
+    setAppActionInProgress(appName);
+    try {
+      if (currentMode === 'prod') {
+        const response = await fetch('/api/services/core-dev-mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ app: appName, mode: 'prod', force: true }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data) {
+            setDevModeData(prev => prev ? { ...prev, apps: { ...prev.apps, ...data.data } } : prev);
+          }
+          await pollForModeChange([appName], 'prod', 40, 2000);
+        } else {
+          const err = await response.json().catch(() => ({}));
+          console.error('Redeploy failed:', err);
+        }
+      } else {
+        const response = await fetch('/api/services/core-apps-restart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ app: appName, clean: true }),
+        });
+        if (response.ok) {
+          await fetchDevMode();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to redeploy app:', error);
+    } finally {
+      setAppActionInProgress(null);
+      await fetchDevMode();
+    }
+  };
+
+  const willAffectAdmin = (action: { type: string; appName?: string }) => {
+    return action.type === 'redeploy' || action.appName === 'admin';
+  };
+
+  const startRecoveryPolling = () => {
+    setAwaitingRecovery(true);
+    const poll = async () => {
+      for (let i = 0; i < 120; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+          const res = await fetch('/api/health', { signal: AbortSignal.timeout(5000) });
+          if (res.ok) {
+            window.location.reload();
+            return;
+          }
+        } catch {
+          // admin is still down, keep polling
+        }
+      }
+      setAwaitingRecovery(false);
+    };
+    poll();
+  };
+
+  const executeAction = async (action: { type: 'redeploy' | 'rebuild' | 'mode-toggle'; appName?: string; mode?: 'dev' | 'prod' }) => {
+    const affectsAdmin = willAffectAdmin(action);
+
+    if (action.type === 'redeploy') {
+      if (affectsAdmin) startRecoveryPolling();
+      await doRedeploy();
+    } else if (action.type === 'rebuild' && action.appName) {
+      if (affectsAdmin) startRecoveryPolling();
+      await handleRedeployApp(action.appName);
+    } else if (action.type === 'mode-toggle' && action.appName && action.mode) {
+      if (affectsAdmin) startRecoveryPolling();
+      await handleToggleAppMode(action.appName, action.mode);
+    }
+  };
+
+  const needsConfirmation = (action: { type: string; appName?: string; mode?: 'dev' | 'prod' }) => {
+    if (willAffectAdmin(action)) return true;
+    if (action.type === 'rebuild' && action.mode === 'dev') return true;
+    return false;
+  };
+
+  const requestAction = (action: { type: 'redeploy' | 'rebuild' | 'mode-toggle'; appName?: string; mode?: 'dev' | 'prod' }) => {
+    if (needsConfirmation(action)) {
+      setPendingAction(action);
+    } else {
+      executeAction(action);
+    }
+  };
+
+  const confirmPendingAction = () => {
+    if (!pendingAction) return;
+    const action = pendingAction;
+    setPendingAction(null);
+    executeAction(action);
+  };
+
+  const doRedeploy = async () => {
     if (isRedeploying) return;
     setIsRedeploying(true);
     setRedeployError(null);
@@ -519,7 +623,7 @@ export default function SystemDashboardPage() {
                       </button>
                       <div className="w-px h-5 bg-gray-200 dark:bg-gray-600" />
                       <button
-                        onClick={handleRedeploy}
+                        onClick={() => requestAction({ type: 'redeploy' })}
                         disabled={appActionInProgress !== null || isRedeploying}
                         className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50 transition-colors"
                         title="Clean caches, reinstall deps, rebuild all apps"
@@ -593,7 +697,7 @@ export default function SystemDashboardPage() {
                         <div className="flex items-center gap-1.5">
                           {/* Mode toggle */}
                           <button
-                            onClick={() => handleToggleAppMode(appName, isDev ? 'prod' : 'dev')}
+                            onClick={() => requestAction({ type: 'mode-toggle', appName, mode: isDev ? 'prod' : 'dev' })}
                             disabled={isThisAppBusy}
                             className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 ${
                               isThisAppBusy
@@ -611,6 +715,17 @@ export default function SystemDashboardPage() {
                             ) : (
                               <><Zap className="w-3 h-3" /> Dev</>
                             )}
+                          </button>
+
+                          {/* Redeploy */}
+                          <button
+                            onClick={() => requestAction({ type: 'rebuild', appName, mode: isDev ? 'dev' : 'prod' })}
+                            disabled={isThisAppBusy}
+                            className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50 transition-colors"
+                            title={isDev ? 'Clean cache and restart (dev mode)' : 'Rebuild app (stop, build, restart)'}
+                          >
+                            <Wrench className="w-3 h-3" />
+                            Redeploy
                           </button>
 
                           {/* Restart */}
@@ -821,6 +936,100 @@ export default function SystemDashboardPage() {
           </div>
         )}
       </main>
+
+      {/* Confirmation dialog */}
+      {pendingAction && (() => {
+        const isDevModeRedeploy = pendingAction.type === 'rebuild' && pendingAction.mode === 'dev';
+        const affectsAdmin = willAffectAdmin(pendingAction);
+        const displayName = pendingAction.appName ? (APP_DISPLAY_NAMES[pendingAction.appName] || pendingAction.appName) : '';
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl max-w-md mx-4 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`p-2 rounded-lg ${isDevModeRedeploy ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-amber-100 dark:bg-amber-900/40'}`}>
+                  {isDevModeRedeploy
+                    ? <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    : <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  }
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {isDevModeRedeploy ? `Redeploy ${displayName}?` : 'Admin will restart'}
+                </h3>
+              </div>
+
+              {isDevModeRedeploy ? (
+                <>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    <strong>{displayName}</strong> is in dev mode with Turbopack hot-reload. Code changes are applied automatically without redeploying.
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    Redeploying is only needed when:
+                  </p>
+                  <ul className="text-sm text-gray-600 dark:text-gray-400 mb-4 ml-4 list-disc space-y-1">
+                    <li>Dependencies changed (<code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">package.json</code>)</li>
+                    <li>Environment variables were updated</li>
+                    <li>The shared package (<code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">@jazzmind/busibox-app</code>) was rebuilt</li>
+                    <li>Turbopack is stuck or showing stale content</li>
+                  </ul>
+                  {affectsAdmin && (
+                    <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">
+                      This will temporarily take the admin UI offline. The page will auto-reload when it&apos;s back.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    {pendingAction.type === 'redeploy'
+                      ? 'Redeploying all core apps will temporarily take this admin UI offline while it rebuilds.'
+                      : `This action will ${pendingAction.type === 'rebuild' ? 'rebuild' : 'switch'} the admin app, which will temporarily take this UI offline.`
+                    }
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                    The page will automatically reload once the admin app is back.
+                  </p>
+                </>
+              )}
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setPendingAction(null)}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmPendingAction}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg text-white transition-colors ${
+                    isDevModeRedeploy ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  {isDevModeRedeploy ? 'Redeploy Anyway' : 'Continue'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Recovery overlay while admin app is restarting */}
+      {awaitingRecovery && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl max-w-sm mx-4 p-8 text-center">
+            <div className="mb-4">
+              <Wrench className="w-10 h-10 text-amber-500 mx-auto animate-pulse" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Rebuilding...
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              The admin app is restarting. This page will automatically reload when it&apos;s ready.
+            </p>
+            <RefreshCw className="w-5 h-5 text-gray-400 mx-auto animate-spin" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
