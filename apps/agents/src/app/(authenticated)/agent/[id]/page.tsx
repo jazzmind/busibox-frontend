@@ -294,9 +294,8 @@ export default function AgentDetailPage() {
     ...(agent?.workflow ? [{ id: 'workflow' as TabType, label: 'Workflow', icon: GitBranch }] : []),
   ];
 
-  // Calculate height: 100vh minus header (h-16 = 4rem) minus nav (h-12 = 3rem) = 7rem total
   return (
-    <div className="flex bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 7rem)' }}>
+    <div className="flex bg-gray-50 dark:bg-gray-900 h-full">
       {/* Sidebar */}
       <div 
         className={`${

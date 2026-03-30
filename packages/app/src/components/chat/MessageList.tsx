@@ -750,17 +750,6 @@ export function MessageList({
                 <ThinkingStream thoughts={streamingThoughts} isActive={!!isLoading && !streamingContent} />
               )}
 
-              {/* Collapsible details for non-reasoning events */}
-              {streamingThoughts && streamingThoughts.filter(t => t.data?.phase !== 'model_reasoning').length > 0 && (
-                <div className="mb-2 text-xs">
-                  <ThinkingToggle
-                    thoughts={streamingThoughts.filter(t => t.data?.phase !== 'model_reasoning')}
-                    isActive={!!isLoading && !streamingContent}
-                    defaultOpen={true}
-                  />
-                </div>
-              )}
-
               {/* Live tool-call cards */}
               {streamingParts && streamingParts.filter(p => p.type === 'tool_call').length > 0 && (
                 <div className="mb-2">

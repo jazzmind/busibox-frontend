@@ -3,7 +3,7 @@
 import { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Header, Footer } from '@jazzmind/busibox-app';
+import { Header } from '@jazzmind/busibox-app';
 import type { NavigationItem } from '@jazzmind/busibox-app';
 import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvider';
 
@@ -30,7 +30,7 @@ export default function AuthenticatedLayout({ children }: { children: ReactNode 
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
       <Header
         session={{ user, isAuthenticated }}
         onLogout={async () => redirectToPortal()}
@@ -55,10 +55,9 @@ export default function AuthenticatedLayout({ children }: { children: ReactNode 
           ))}
         </div>
       </nav>
-      <main className="flex-1">
+      <main className="flex-1 min-h-0 overflow-auto">
         {children}
       </main>
-      <Footer />
     </div>
   );
 }
