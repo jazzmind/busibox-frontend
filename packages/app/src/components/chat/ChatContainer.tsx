@@ -552,7 +552,7 @@ export function ChatContainer({
       loadInsights(insightCategoryFilter, 0, false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentConversation?.id]);
+  }, [currentConversation?.id, showInsightsPanel]);
 
   const loadMoreInsights = useCallback(() => {
     if (!isLoadingInsights && hasMoreInsights) {

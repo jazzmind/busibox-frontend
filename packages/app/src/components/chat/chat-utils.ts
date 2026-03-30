@@ -41,7 +41,7 @@ export const streamingMarkdownComponents = { a: CitationLink };
 
 const THINK_COMPLETE_RE = /<think>[\s\S]*?<\/think>/g;
 const THINK_UNCLOSED_RE = /<think>[\s\S]*$/;
-const THINK_ORPHAN_CLOSE_RE = /^[^<]*<\/think>/;
+const THINK_STRAY_CLOSE_RE = /<\/think>/g;
 const THINK_EXTRACT_RE = /<think>([\s\S]*?)<\/think>/g;
 const THINK_EXTRACT_UNCLOSED_RE = /<think>([\s\S]*)$/;
 
@@ -66,7 +66,7 @@ export function extractThinkContent(text: string): string[] {
 export function stripThinkTags(text: string): string {
   let result = text.replace(THINK_COMPLETE_RE, '');
   result = result.replace(THINK_UNCLOSED_RE, '');
-  result = result.replace(THINK_ORPHAN_CLOSE_RE, '');
+  result = result.replace(THINK_STRAY_CLOSE_RE, '');
   return result.trim();
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { stripThinkTags } from '../../components/chat/chat-utils';
 import { streamChatMessageAgentic } from '../agent/chat-client';
 import { createAccumulator, processStreamEvent } from '../agent/stream-event-processor';
@@ -63,17 +64,20 @@ export function useChatStream({ token, agentUrl, onConversationCreated, onTitleU
 
     const accumulated = createAccumulator();
 
-    setState(prev => ({
-      ...prev,
-      content: '',
-      thoughts: [],
-      parts: [],
-      interimMessages: [],
-      quickReplies: [],
-      promptActive: false,
-      isStreaming: true,
-      conversationId: request.conversation_id || prev.conversationId,
-    }));
+    // Use flushSync for the initial state reset so the UI clears immediately.
+    flushSync(() => {
+      setState(prev => ({
+        ...prev,
+        content: '',
+        thoughts: [],
+        parts: [],
+        interimMessages: [],
+        quickReplies: [],
+        promptActive: false,
+        isStreaming: true,
+        conversationId: request.conversation_id || prev.conversationId,
+      }));
+    });
 
     let resultConversationId = request.conversation_id;
 
@@ -95,32 +99,41 @@ export function useChatStream({ token, agentUrl, onConversationCreated, onTitleU
           onTitleUpdate?.(result.titleUpdate.id, result.titleUpdate.title);
         }
 
-        setState(prev => ({
-          ...prev,
-          content: result.content ?? prev.content,
-          thoughts: result.thoughts ?? prev.thoughts,
-          parts: result.parts ?? prev.parts,
-          agentName: accumulated.agentName ?? prev.agentName,
-          interimMessages: result.interimMessages ?? prev.interimMessages,
-          quickReplies: result.quickReplies ?? prev.quickReplies,
-          promptActive: result.promptActive ?? prev.promptActive,
-          conversationId: resultConversationId,
-        }));
+        // flushSync forces React to commit this state update to the DOM
+        // immediately rather than batching it. Without this, React 18's
+        // automatic batching delays all setState calls inside the async
+        // generator until the promise resolves, so the parent component
+        // never sees intermediate streaming updates.
+        flushSync(() => {
+          setState(prev => ({
+            ...prev,
+            content: result.content ?? prev.content,
+            thoughts: result.thoughts ?? prev.thoughts,
+            parts: result.parts ?? prev.parts,
+            agentName: accumulated.agentName ?? prev.agentName,
+            interimMessages: result.interimMessages ?? prev.interimMessages,
+            quickReplies: result.quickReplies ?? prev.quickReplies,
+            promptActive: result.promptActive ?? prev.promptActive,
+            conversationId: resultConversationId,
+          }));
+        });
 
         if (result.error) {
           throw new Error(result.error);
         }
       }
     } finally {
-      setState(prev => ({
-        ...prev,
-        isStreaming: false,
-        content: '',
-        thoughts: [],
-        parts: [],
-        agentName: undefined,
-        interimMessages: [],
-      }));
+      flushSync(() => {
+        setState(prev => ({
+          ...prev,
+          isStreaming: false,
+          content: '',
+          thoughts: [],
+          parts: [],
+          agentName: undefined,
+          interimMessages: [],
+        }));
+      });
       abortControllerRef.current = null;
     }
 
