@@ -143,12 +143,17 @@ export function ChatInterface({
     setLoadingHistory(true);
     try {
       const history = await getConversationHistory(convId, { token: tokenRef.current, agentUrl });
-      const displayMessages: DisplayMessage[] = history.map(msg => ({
-        id: msg.id,
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-        createdAt: new Date((msg as any).created_at || (msg as any).createdAt || Date.now()),
-      }));
+      const displayMessages: DisplayMessage[] = history.map(msg => {
+        const raw = msg as any;
+        const thoughts = raw.routing_decision?.thoughts || raw.thoughts;
+        return {
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          createdAt: new Date(raw.created_at || raw.createdAt || Date.now()),
+          thoughts: thoughts?.length > 0 ? thoughts : undefined,
+        };
+      });
       setMessages(displayMessages);
       setConversationId(convId);
     } catch (error) {

@@ -106,6 +106,19 @@ export function ThinkingToggle({ thoughts, isActive = false, defaultOpen = false
   const summary = buildSummary(thoughts);
   const Chevron = isOpen ? ChevronDown : ChevronRight;
 
+  // Merge tool_start/tool_result pairs: when a tool_result exists for a source,
+  // skip the tool_start so we don't show both spinner and check for the same tool.
+  const mergedThoughts = (() => {
+    const completedSources = new Set<string>();
+    for (const t of thoughts) {
+      if (t.type === 'tool_result' && t.source) completedSources.add(t.source);
+    }
+    return thoughts.filter(t => {
+      if (t.type === 'tool_start' && t.source && completedSources.has(t.source)) return false;
+      return true;
+    });
+  })();
+
   return (
     <div className="w-full">
       {/* Layer 1: Summary bar -- always visible */}
@@ -125,7 +138,7 @@ export function ThinkingToggle({ thoughts, isActive = false, defaultOpen = false
       {/* Layer 2: Step-by-step events */}
       {isOpen && (
         <div className="mt-1.5 p-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded text-xs space-y-1 max-h-64 overflow-y-auto transition-all">
-          {thoughts.map((thought, idx) => (
+          {mergedThoughts.map((thought, idx) => (
             <div key={idx} className={`flex items-start gap-2 ${getEventColor(thought.type)}`}>
               <span className="mt-0.5">{getEventIcon(thought.type)}</span>
               <div className="flex-1 min-w-0">
