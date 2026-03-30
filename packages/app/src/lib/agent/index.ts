@@ -31,6 +31,17 @@ export type {
 // Standalone agent sync helpers (no client factory needed)
 export { syncAgentDefinitions, getAgentSyncStatus } from './sync';
 
+// Stream event processor (shared between ChatInterface and useChatStream)
+export {
+  createAccumulator,
+  processStreamEvent,
+} from './stream-event-processor';
+
+export type {
+  StreamAccumulator,
+  StreamEventResult,
+} from './stream-event-processor';
+
 // Enhanced chat client (browser-side)
 export {
   sendChatMessage,

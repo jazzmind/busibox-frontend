@@ -33,8 +33,9 @@ import { Send, Bot, Loader2, Paperclip, Plus, Trash2, Volume2, X } from 'lucide-
 import toast from 'react-hot-toast';
 import { MessageList } from './MessageList';
 import type { ThoughtEvent } from './ThinkingToggle';
-import { stripThinkTags, extractThinkContent } from './chat-utils';
+import { stripThinkTags } from './chat-utils';
 import { sendChatMessage, streamChatMessageAgentic, getConversationHistory } from '../../lib/agent/chat-client';
+import { createAccumulator, processStreamEvent } from '../../lib/agent/stream-event-processor';
 import type { ChatMessageRequest, Message, Attachment, MessagePart } from '../../types/chat';
 
 type ExecutionEvent = ThoughtEvent;
@@ -251,300 +252,148 @@ export function ChatInterface({
         setInterimMessages([]);
         setStreamingAgentName(undefined);
         setStreamingParts([]);
-        let fullContent = '';
-        let collectedThoughts: ExecutionEvent[] = [];
-        let collectedParts: MessagePart[] = [];
+        const accumulated = createAccumulator();
         let hasAddedMessage = false;
-        // Track in-flight tool calls by source so we can update their status
-        const pendingTools = new Map<string, number>(); // source -> index in collectedParts
 
         for await (const event of streamChatMessageAgentic(request, { token: tokenRef.current, agentUrl, signal: controller.signal })) {
-          const newEvent: ExecutionEvent = {
-            type: event.type,
-            source: event.data?.source,
-            message: event.data?.message,
-            data: event.data,
-            timestamp: new Date(),
-          };
+          const parsed = event.data;
 
-          if (event.data?.source && !event.data.source.includes('dispatcher')) {
-            setStreamingAgentName(event.data.source);
+          // message_complete and error have ChatInterface-specific side effects
+          // (creating DisplayMessages, toasts) so they're handled inline.
+          if (event.type === 'message_complete') {
+            if (!hasAddedMessage) {
+              setConversationId(parsed.conversation_id);
+
+              const cleanedContent = stripThinkTags(accumulated.fullContent);
+              if (cleanedContent) {
+                const finalParts: MessagePart[] = [
+                  ...accumulated.parts,
+                  { type: 'text', content: cleanedContent },
+                ];
+                const assistantMessage: DisplayMessage = {
+                  role: 'assistant',
+                  content: cleanedContent,
+                  timestamp: new Date(),
+                  thoughts: accumulated.thoughts.length > 0 ? accumulated.thoughts : undefined,
+                  agentName: accumulated.agentName,
+                  parts: finalParts,
+                };
+                setMessages((prev) => [...prev, assistantMessage]);
+                hasAddedMessage = true;
+              }
+
+              setStreamingContent('');
+              setThoughts([]);
+              setInterimMessages([]);
+              setStreamingAgentName(undefined);
+              setStreamingParts([]);
+              setIsLoading(false);
+
+              if (cleanedContent) {
+                onResponseReceived?.(cleanedContent);
+              }
+            }
+            continue;
           }
 
-          switch (event.type) {
-            case 'conversation_created':
-              setConversationId(event.data.conversation_id);
-              break;
+          if (event.type === 'error') {
+            const errorMessage = parsed?.message || parsed?.error || 'An error occurred';
+            const errorSource = parsed?.source || parsed?.data?.source || '';
+            const isToolError = errorSource && !errorSource.includes('agent') && !errorSource.includes('dispatcher');
 
-            case 'thought':
-            case 'plan':
-            case 'progress':
-              collectedThoughts = [...collectedThoughts, newEvent];
-              setThoughts(collectedThoughts);
-              break;
+            if (isToolError) {
+              accumulated.thoughts = [...accumulated.thoughts, {
+                type: 'error' as const,
+                source: errorSource,
+                message: `Tool error (${errorSource}): ${errorMessage}`,
+                data: parsed,
+                timestamp: new Date(),
+              }];
+              setThoughts(accumulated.thoughts);
 
-            case 'tool_start':
-              {
-                collectedThoughts = [...collectedThoughts, newEvent];
-                setThoughts(collectedThoughts);
-                const toolSource = event.data?.source || 'tool';
-                const toolName = String(event.data?.data?.tool_name || event.data?.data?.display_name || toolSource);
-                const toolPart: MessagePart = {
-                  type: 'tool_call',
-                  id: `tool-${Date.now()}-${toolName}`,
-                  name: toolName,
-                  displayName: String(event.data?.data?.display_name || event.data?.message || toolName),
-                  status: 'running',
-                  input: (event.data?.data || undefined) as Record<string, unknown> | undefined,
-                  startedAt: new Date(),
-                };
-                pendingTools.set(toolSource, collectedParts.length);
-                collectedParts = [...collectedParts, toolPart];
-                setStreamingParts(collectedParts);
+              const errIdx = accumulated.pendingTools.get(errorSource);
+              if (errIdx !== undefined && accumulated.parts[errIdx]?.type === 'tool_call') {
+                const existing = accumulated.parts[errIdx] as Extract<MessagePart, { type: 'tool_call' }>;
+                accumulated.parts = [...accumulated.parts];
+                accumulated.parts[errIdx] = { ...existing, status: 'error', error: errorMessage, completedAt: new Date() };
+                accumulated.pendingTools.delete(errorSource);
+                setStreamingParts(accumulated.parts);
               }
-              break;
+            } else {
+              toast.error(errorMessage);
 
-            case 'tool_result':
-              {
-                collectedThoughts = [...collectedThoughts, newEvent];
-                setThoughts(collectedThoughts);
-                const resultSource = event.data?.source || 'tool';
-                const idx = pendingTools.get(resultSource);
-                if (idx !== undefined && collectedParts[idx]?.type === 'tool_call') {
-                  const existing = collectedParts[idx] as Extract<MessagePart, { type: 'tool_call' }>;
-                  const updated: MessagePart = {
-                    ...existing,
-                    status: event.data?.data?.success === false ? 'error' : 'completed',
-                    output: event.data?.message || undefined,
-                    error: event.data?.data?.success === false ? String(event.data?.message || 'Failed') : undefined,
-                    completedAt: new Date(),
-                  };
-                  collectedParts = [...collectedParts];
-                  collectedParts[idx] = updated;
-                  pendingTools.delete(resultSource);
-                } else {
-                  // No matching tool_start; append as a standalone completed tool
-                  const toolName = String(event.data?.data?.tool_name || event.data?.data?.display_name || resultSource);
-                  collectedParts = [...collectedParts, {
-                    type: 'tool_call',
-                    id: `tool-${Date.now()}-${toolName}`,
-                    name: toolName,
-                    displayName: String(event.data?.data?.display_name || toolName),
-                    status: event.data?.data?.success === false ? 'error' : 'completed',
-                    output: event.data?.message || undefined,
-                    completedAt: new Date(),
-                  }];
-                }
-                setStreamingParts(collectedParts);
-              }
-              break;
-
-            case 'interim':
-              {
-                const payload = event.data || {};
-                const nested = payload.data || {};
-                const interimMessage = String(payload.message || '').trim();
-                const audioUrl = typeof nested.audio_url === 'string' ? nested.audio_url : '';
-                const rendered = audioUrl
-                  ? `${interimMessage || 'Voice output ready'} (${audioUrl})`
-                  : interimMessage;
-                if (rendered) {
-                  setInterimMessages(prev => [...prev, rendered]);
-                }
-              }
-              break;
-
-            case 'content':
-              {
-                const contentData = event.data?.data || {};
-                const msgText = event.data?.message || '';
-                
-                if (contentData.streaming && contentData.partial) {
-                  fullContent += msgText;
-                } else if (contentData.complete) {
-                  // Final marker
-                } else if (msgText) {
-                  fullContent = msgText;
-                }
-
-                const thinkTexts = extractThinkContent(fullContent);
-                if (thinkTexts.length > 0) {
-                  const thinkThought: ExecutionEvent = {
-                    type: 'thought',
-                    source: 'model',
-                    message: thinkTexts.join('\n\n'),
-                    data: event.data,
-                    timestamp: new Date(),
-                  };
-                  const hasModelThought = collectedThoughts.some(
-                    t => t.source === 'model' && t.type === 'thought'
-                  );
-                  if (hasModelThought) {
-                    collectedThoughts = collectedThoughts.map(t =>
-                      t.source === 'model' && t.type === 'thought' ? thinkThought : t
-                    );
-                  } else {
-                    collectedThoughts = [...collectedThoughts, thinkThought];
-                  }
-                  setThoughts(collectedThoughts);
-                }
-
-                setStreamingContent(stripThinkTags(fullContent));
-              }
-              break;
-
-            case 'clarify_parallel':
-              {
-                // Agent is asking a question while continuing work in the background
-                const bgStatus = event.data?.data?.background_status || event.data?.background_status;
-                const clarifyMsg = event.data?.message || '';
-                if (clarifyMsg) {
-                  fullContent += clarifyMsg + '\n\n';
-                  setStreamingContent(stripThinkTags(fullContent));
-                }
-                if (bgStatus) {
-                  collectedThoughts = [...collectedThoughts, {
-                    type: 'progress',
-                    source: event.data?.source,
-                    message: String(bgStatus),
-                    data: { phase: 'background_work' },
-                    timestamp: new Date(),
-                  }];
-                  setThoughts(collectedThoughts);
-                }
-                const clarifyOptions = event.data?.data?.options || event.data?.options;
-                if (clarifyOptions && Array.isArray(clarifyOptions) && clarifyOptions.length > 0) {
-                  setQuickReplies(clarifyOptions);
-                  setPromptActive(true);
-                }
-              }
-              break;
-
-            case 'prompt':
-              {
-                const promptOptions = event.data?.data?.options || event.data?.options;
-                if (promptOptions && Array.isArray(promptOptions)) {
-                  setQuickReplies(promptOptions);
-                  setPromptActive(true);
-
-                  // Add a prompt part for rendering
-                  const promptType = (event.data?.data?.prompt_type || 'choice') as 'confirm' | 'choice' | 'open';
-                  collectedParts = [...collectedParts, { type: 'prompt', options: promptOptions, promptType }];
-                  setStreamingParts(collectedParts);
-
-                  // Finalize accumulated content as a completed message
-                  const cleanedSoFar = stripThinkTags(fullContent);
-                  if (cleanedSoFar && !hasAddedMessage) {
-                    const assistantMessage: DisplayMessage = {
-                      role: 'assistant',
-                      content: cleanedSoFar,
-                      timestamp: new Date(),
-                      thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
-                      agentName: streamingAgentName,
-                      parts: collectedParts,
-                    };
-                    setMessages((prev) => [...prev, assistantMessage]);
-                    hasAddedMessage = true;
-                  }
-                  setStreamingContent('');
-                  setThoughts([]);
-                  setInterimMessages([]);
-                  setStreamingParts([]);
-                }
-              }
-              break;
-
-            case 'complete':
-              break;
-
-            case 'message_complete':
               if (!hasAddedMessage) {
-                setConversationId(event.data.conversation_id);
-                
-                const cleanedContent = stripThinkTags(fullContent);
-                if (cleanedContent) {
-                  // Build final text part if there's content not yet in parts
-                  const finalParts: MessagePart[] = [
-                    ...collectedParts,
-                    { type: 'text', content: cleanedContent },
-                  ];
-                  const assistantMessage: DisplayMessage = {
-                    role: 'assistant',
-                    content: cleanedContent,
-                    timestamp: new Date(),
-                    thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
-                    agentName: streamingAgentName,
-                    parts: finalParts,
-                  };
-                  setMessages((prev) => [...prev, assistantMessage]);
-                  hasAddedMessage = true;
-                }
-                
-                setStreamingContent('');
-                setThoughts([]);
-                setInterimMessages([]);
-                setStreamingAgentName(undefined);
-                setStreamingParts([]);
-                setIsLoading(false);
-
-                if (cleanedContent) {
-                  onResponseReceived?.(cleanedContent);
-                }
+                const errorContent = accumulated.fullContent.trim()
+                  ? `${accumulated.fullContent}\n\n**Error:** ${errorMessage}`
+                  : `**Error:** ${errorMessage}`;
+                const errorAssistantMessage: DisplayMessage = {
+                  role: 'assistant',
+                  content: errorContent,
+                  timestamp: new Date(),
+                  thoughts: accumulated.thoughts.length > 0 ? accumulated.thoughts : undefined,
+                  agentName: accumulated.agentName,
+                  parts: accumulated.parts,
+                };
+                setMessages((prev) => [...prev, errorAssistantMessage]);
+                hasAddedMessage = true;
               }
-              break;
 
-            case 'error':
-              {
-                const errorMessage = event.data?.message || event.data?.error || 'An error occurred';
-                const errorSource = event.data?.source || event.data?.data?.source || '';
-                const isToolError = errorSource && !errorSource.includes('agent') && !errorSource.includes('dispatcher');
+              setStreamingContent('');
+              setThoughts([]);
+              setInterimMessages([]);
+              setStreamingAgentName(undefined);
+              setStreamingParts([]);
+            }
+            continue;
+          }
 
-                if (isToolError) {
-                  collectedThoughts = [...collectedThoughts, {
-                    type: 'error' as const,
-                    source: errorSource,
-                    message: `Tool error (${errorSource}): ${errorMessage}`,
-                    data: event.data,
-                    timestamp: new Date(),
-                  }];
-                  setThoughts(collectedThoughts);
+          // All other events go through the shared processor
+          const result = processStreamEvent(event.type, parsed, accumulated);
 
-                  // Update matching pending tool part to error status
-                  const errIdx = pendingTools.get(errorSource);
-                  if (errIdx !== undefined && collectedParts[errIdx]?.type === 'tool_call') {
-                    const existing = collectedParts[errIdx] as Extract<MessagePart, { type: 'tool_call' }>;
-                    collectedParts = [...collectedParts];
-                    collectedParts[errIdx] = { ...existing, status: 'error', error: errorMessage, completedAt: new Date() };
-                    pendingTools.delete(errorSource);
-                    setStreamingParts(collectedParts);
-                  }
-                } else {
-                  toast.error(errorMessage);
+          if (result.conversationId && !result.titleUpdate) {
+            setConversationId(result.conversationId);
+          }
+          if (accumulated.agentName) {
+            setStreamingAgentName(accumulated.agentName);
+          }
+          if (result.content !== undefined) {
+            setStreamingContent(result.content);
+          }
+          if (result.thoughts) {
+            setThoughts(result.thoughts);
+          }
+          if (result.parts) {
+            setStreamingParts(result.parts);
+          }
+          if (result.interimMessages) {
+            setInterimMessages(result.interimMessages);
+          }
+          if (result.quickReplies) {
+            setQuickReplies(result.quickReplies);
+          }
+          if (result.promptActive !== undefined) {
+            setPromptActive(result.promptActive);
+          }
 
-                  if (!hasAddedMessage) {
-                    const errorContent = fullContent.trim()
-                      ? `${fullContent}\n\n**Error:** ${errorMessage}`
-                      : `**Error:** ${errorMessage}`;
-                    const errorAssistantMessage: DisplayMessage = {
-                      role: 'assistant',
-                      content: errorContent,
-                      timestamp: new Date(),
-                      thoughts: collectedThoughts.length > 0 ? collectedThoughts : undefined,
-                      agentName: streamingAgentName,
-                      parts: collectedParts,
-                    };
-                    setMessages((prev) => [...prev, errorAssistantMessage]);
-                    hasAddedMessage = true;
-                  }
-
-                  setStreamingContent('');
-                  setThoughts([]);
-                  setInterimMessages([]);
-                  setStreamingAgentName(undefined);
-                  setStreamingParts([]);
-                }
-              }
-              break;
+          // prompt event: finalize accumulated content as a completed message
+          if (event.type === 'prompt' && result.promptActive) {
+            const cleanedSoFar = stripThinkTags(accumulated.fullContent);
+            if (cleanedSoFar && !hasAddedMessage) {
+              const assistantMessage: DisplayMessage = {
+                role: 'assistant',
+                content: cleanedSoFar,
+                timestamp: new Date(),
+                thoughts: accumulated.thoughts.length > 0 ? accumulated.thoughts : undefined,
+                agentName: accumulated.agentName,
+                parts: accumulated.parts,
+              };
+              setMessages((prev) => [...prev, assistantMessage]);
+              hasAddedMessage = true;
+            }
+            setStreamingContent('');
+            setThoughts([]);
+            setInterimMessages([]);
+            setStreamingParts([]);
           }
         }
       } else {
