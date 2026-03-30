@@ -29,7 +29,7 @@
 
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, Loader2, Paperclip, Brain, CheckCircle, AlertCircle, Plus, Trash2, Volume2, X } from 'lucide-react';
+import { Send, Bot, Loader2, Paperclip, Plus, Trash2, Volume2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -38,94 +38,14 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { MessageList } from './MessageList';
 import { ThinkingToggle, ThoughtEvent } from './ThinkingToggle';
+import { ThinkingStream } from './ThinkingStream';
+import { StepTimeline } from './StepTimeline';
 import { StreamingToolCard } from './StreamingToolCard';
 import { stripThinkTags, extractThinkContent, preprocessLatex, streamingMarkdownComponents } from './chat-utils';
-import { sendChatMessage, streamChatMessage, streamChatMessageAgentic, getConversationHistory } from '../../lib/agent/chat-client';
+import { sendChatMessage, streamChatMessageAgentic, getConversationHistory } from '../../lib/agent/chat-client';
 import type { ChatMessageRequest, Message, Attachment, MessagePart } from '../../types/chat';
 
 type ExecutionEvent = ThoughtEvent;
-
-// Real-time execution status display (legacy, for non-agentic streaming)
-function ExecutionStatus({ events, isActive }: { events: ExecutionEvent[]; isActive: boolean }) {
-  if (events.length === 0) return null;
-
-  // Only show the last few relevant events
-  const relevantEvents = events.filter(e => 
-    ['planning', 'tool_start', 'tool_result', 'agent_start', 'agent_result', 'synthesis_start'].includes(e.type)
-  ).slice(-4);
-
-  if (relevantEvents.length === 0) return null;
-
-  return (
-    <div className="flex gap-3 justify-start mb-4">
-      <div className="bg-blue-600 dark:bg-blue-500 rounded-full p-2 h-8 w-8 flex items-center justify-center flex-shrink-0">
-        <Bot className="w-4 h-4 text-white" />
-      </div>
-      <div className="max-w-[80%] rounded-lg p-3 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-        <div className="space-y-1.5">
-          {relevantEvents.map((event, idx) => (
-            <div key={idx} className="flex items-center gap-2 text-sm">
-              {event.type === 'planning' && (
-                <>
-                  <Brain className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
-                  <span className="text-purple-700 dark:text-purple-400">{event.message || 'Analyzing...'}</span>
-                </>
-              )}
-              {event.type === 'tool_start' && (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin flex-shrink-0" />
-                  <span className="text-blue-700 dark:text-blue-400">{event.message || `Running ${event.data?.display_name || event.data?.tool}...`}</span>
-                </>
-              )}
-              {event.type === 'tool_result' && (
-                <>
-                  {event.data?.success !== false ? (
-                    <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                  ) : (
-                    <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                  )}
-                  <span className={event.data?.success !== false ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>
-                    {event.message || `${event.data?.display_name || event.data?.tool_name} done`}
-                  </span>
-                </>
-              )}
-              {event.type === 'agent_start' && (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin flex-shrink-0" />
-                  <span className="text-indigo-700 dark:text-indigo-400">{event.message || `Consulting ${event.data?.display_name || event.data?.agent}...`}</span>
-                </>
-              )}
-              {event.type === 'agent_result' && (
-                <>
-                  {event.data?.success !== false ? (
-                    <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                  ) : (
-                    <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                  )}
-                  <span className={event.data?.success !== false ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>
-                    {event.message || 'Agent responded'}
-                  </span>
-                </>
-              )}
-              {event.type === 'synthesis_start' && (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 text-purple-500 animate-spin flex-shrink-0" />
-                  <span className="text-purple-700 dark:text-purple-400">{event.message || 'Combining results...'}</span>
-                </>
-              )}
-            </div>
-          ))}
-          {isActive && (
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              <span>Processing...</span>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 
 export interface ChatInterfaceProps {
@@ -147,9 +67,9 @@ export interface ChatInterfaceProps {
   welcomeMessage?: string;
   /** Model to use ('auto', 'chat', 'research', 'frontier') */
   model?: string;
-  /** Use streaming responses (default: true) */
+  /** @deprecated Standard streaming is removed; agentic streaming is always used */
   useStreaming?: boolean;
-  /** Use agentic streaming with real-time thoughts (default: false) */
+  /** Use agentic streaming with real-time thoughts (default: true) */
   useAgenticStreaming?: boolean;
   /** Custom CSS class */
   className?: string;
@@ -186,8 +106,8 @@ export function ChatInterface({
   placeholder = 'Type your message...',
   welcomeMessage,
   model = 'auto',
-  useStreaming = true,
-  useAgenticStreaming = false,
+  useStreaming: _useStreaming = true,
+  useAgenticStreaming = true,
   className = '',
   onMessageSent,
   onResponseReceived,
@@ -199,8 +119,7 @@ export function ChatInterface({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
-  const [executionEvents, setExecutionEvents] = useState<ExecutionEvent[]>([]);
-  const [thoughts, setThoughts] = useState<ExecutionEvent[]>([]);  // For agentic streaming
+  const [thoughts, setThoughts] = useState<ExecutionEvent[]>([]);
   const [interimMessages, setInterimMessages] = useState<string[]>([]);
   const [streamingAgentName, setStreamingAgentName] = useState<string | undefined>(undefined);
   const [conversationId, setConversationId] = useState<string | undefined>(initialConversationId);
@@ -474,6 +393,33 @@ export function ChatInterface({
               }
               break;
 
+            case 'clarify_parallel':
+              {
+                // Agent is asking a question while continuing work in the background
+                const bgStatus = event.data?.data?.background_status || event.data?.background_status;
+                const clarifyMsg = event.data?.message || '';
+                if (clarifyMsg) {
+                  fullContent += clarifyMsg + '\n\n';
+                  setStreamingContent(stripThinkTags(fullContent));
+                }
+                if (bgStatus) {
+                  collectedThoughts = [...collectedThoughts, {
+                    type: 'progress',
+                    source: event.data?.source,
+                    message: String(bgStatus),
+                    data: { phase: 'background_work' },
+                    timestamp: new Date(),
+                  }];
+                  setThoughts(collectedThoughts);
+                }
+                const clarifyOptions = event.data?.data?.options || event.data?.options;
+                if (clarifyOptions && Array.isArray(clarifyOptions) && clarifyOptions.length > 0) {
+                  setQuickReplies(clarifyOptions);
+                  setPromptActive(true);
+                }
+              }
+              break;
+
             case 'prompt':
               {
                 const promptOptions = event.data?.data?.options || event.data?.options;
@@ -601,94 +547,12 @@ export function ChatInterface({
               break;
           }
         }
-      } else if (useStreaming) {
-        // Standard streaming response
-        setStreamingContent('');
-        setExecutionEvents([]);
-        let fullContent = '';
-        let collectedEvents: ExecutionEvent[] = [];
-
-        for await (const event of streamChatMessage(request, { token, agentUrl, signal: controller.signal })) {
-          const newEvent: ExecutionEvent = {
-            type: event.type,
-            message: event.data?.message,
-            data: event.data,
-            timestamp: new Date(),
-          };
-
-          switch (event.type) {
-            case 'conversation_created':
-              setConversationId(event.data.conversation_id);
-              break;
-
-            case 'planning':
-            case 'tool_start':
-            case 'agent_start':
-            case 'agent_response_start':
-            case 'synthesis_start':
-              collectedEvents = [...collectedEvents, newEvent];
-              setExecutionEvents(collectedEvents);
-              break;
-
-            case 'tool_result':
-            case 'agent_result':
-            case 'routing_decision':
-            case 'model_selected':
-              collectedEvents = [...collectedEvents, newEvent];
-              setExecutionEvents(collectedEvents);
-              break;
-
-            case 'content_chunk':
-              // Only append if chunk is defined and not empty
-              if (event.data.chunk !== undefined && event.data.chunk !== null) {
-                fullContent += event.data.chunk;
-                setStreamingContent(fullContent);
-              }
-              break;
-
-            case 'execution_complete':
-              // Clear execution events when content starts flowing
-              break;
-
-            case 'message_complete':
-              setConversationId(event.data.conversation_id);
-              
-              // Add assistant message to display
-              const assistantMessage: DisplayMessage = {
-                role: 'assistant',
-                content: fullContent,
-                timestamp: new Date(),
-              };
-              setMessages((prev) => [...prev, assistantMessage]);
-              setStreamingContent('');
-              setExecutionEvents([]);
-
-              // Callback
-              onResponseReceived?.(fullContent);
-              break;
-
-            case 'error':
-              const streamErrorMessage = event.data?.error || 'An error occurred';
-              toast.error(streamErrorMessage);
-              // Add error message to chat
-              const streamErrorAssistantMessage: DisplayMessage = {
-                role: 'assistant',
-                content: `⚠️ **Error:** ${streamErrorMessage}`,
-                timestamp: new Date(),
-              };
-              setMessages((prev) => [...prev, streamErrorAssistantMessage]);
-              setStreamingContent('');
-              setExecutionEvents([]);
-              break;
-          }
-        }
       } else {
-        // Non-streaming response
+        // Non-streaming fallback
         const response = await sendChatMessage(request, { token, agentUrl });
 
         setConversationId(response.conversation_id);
 
-        // Add assistant message to display
         const assistantMessage: DisplayMessage = {
           role: 'assistant',
           content: response.content,
@@ -696,7 +560,6 @@ export function ChatInterface({
         };
         setMessages((prev) => [...prev, assistantMessage]);
 
-        // Callback
         onResponseReceived?.(response.content);
       }
 
@@ -952,17 +815,17 @@ export function ChatInterface({
               
               return displayMessages;
             })()}
-            streamingContent={!useAgenticStreaming ? streamingContent : undefined}
+            streamingContent={undefined}
             streamingAgentName={streamingAgentName}
-            isLoading={!useAgenticStreaming && isLoading && messages.length === 0}
+            isLoading={false}
             onDeleteMessage={handleDeleteMessage}
             onRetryMessage={handleRetryMessage}
             onSuggestedAction={(action) => handleSubmit(null, action)}
           />
         )}
 
-        {/* Agentic streaming content with ThinkingToggle and tool-call cards */}
-        {useAgenticStreaming && (isLoading || streamingContent) && !promptActive && (
+        {/* Streaming content with ThinkingToggle and tool-call cards */}
+        {(isLoading || streamingContent) && !promptActive && (
           <div className="flex gap-4 justify-start">
             <div className="flex flex-col items-center gap-1">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0 text-white font-semibold text-sm">
@@ -976,10 +839,21 @@ export function ChatInterface({
             </div>
             <div className="max-w-3xl flex-1">
               <div className="rounded-lg px-4 py-3 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                {/* ThinkingToggle component */}
-                {thoughts.length > 0 && (
+                {/* Step timeline: dispatch -> plan -> tools -> response */}
+                {(thoughts.length > 0 || streamingParts.length > 0) && (
+                  <StepTimeline thoughts={thoughts} parts={streamingParts} isActive={isLoading} />
+                )}
+
+                {/* Live thinking stream from model reasoning */}
+                <ThinkingStream thoughts={thoughts} isActive={isLoading && !streamingContent} />
+
+                {/* ThinkingToggle for non-reasoning events */}
+                {thoughts.filter(t => t.data?.phase !== 'model_reasoning').length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2 text-xs">
-                    <ThinkingToggle thoughts={thoughts} isActive={isLoading && !streamingContent} />
+                    <ThinkingToggle
+                      thoughts={thoughts.filter(t => t.data?.phase !== 'model_reasoning')}
+                      isActive={isLoading && !streamingContent}
+                    />
                   </div>
                 )}
 
@@ -1030,25 +904,7 @@ export function ChatInterface({
           </div>
         )}
 
-        {/* Execution status - show what's happening (legacy, non-agentic) */}
-        {!useAgenticStreaming && isLoading && executionEvents.length > 0 && !streamingContent && (
-          <ExecutionStatus events={executionEvents} isActive={isLoading} />
-        )}
-
-        {/* Loading indicator - only show if no events and no streaming (non-agentic) */}
-        {!useAgenticStreaming && isLoading && !streamingContent && executionEvents.length === 0 && (
-          <div className="flex gap-3 justify-start">
-            <div className="bg-blue-600 dark:bg-blue-500 rounded-full p-2 h-8 w-8 flex items-center justify-center flex-shrink-0">
-              <Bot className="w-4 h-4 text-white" />
-            </div>
-            <div className="max-w-[80%] rounded-lg p-4 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm">Thinking...</span>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* empty */}
 
         <div ref={messagesEndRef} />
       </div>
