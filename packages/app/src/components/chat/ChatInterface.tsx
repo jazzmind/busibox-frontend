@@ -593,7 +593,6 @@ export function ChatInterface({
     } finally {
       setIsLoading(false);
       setStreamingContent('');
-      setExecutionEvents([]);
       setThoughts([]);
       setInterimMessages([]);
       setAbortController(null);
@@ -629,7 +628,6 @@ export function ChatInterface({
     setMessages([]);
     setConversationId(undefined);
     setStreamingContent('');
-    setExecutionEvents([]);
     setThoughts([]);
     setInterimMessages([]);
     setIsLoading(false);
