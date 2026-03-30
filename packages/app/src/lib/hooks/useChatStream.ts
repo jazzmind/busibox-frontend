@@ -287,7 +287,15 @@ export function useChatStream({ token, agentUrl, onConversationCreated, onTitleU
         }
       }
     } finally {
-      setState(prev => ({ ...prev, isStreaming: false }));
+      setState(prev => ({
+        ...prev,
+        isStreaming: false,
+        content: '',
+        thoughts: [],
+        parts: [],
+        agentName: undefined,
+        interimMessages: [],
+      }));
       abortControllerRef.current = null;
     }
 
