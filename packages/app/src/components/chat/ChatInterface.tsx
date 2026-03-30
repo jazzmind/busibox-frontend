@@ -28,7 +28,7 @@
  */
 
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Bot, Loader2, Paperclip, Plus, Trash2, Volume2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MessageList } from './MessageList';
@@ -125,6 +125,11 @@ export function ChatInterface({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const tokenRef = useRef(token);
+
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -134,18 +139,10 @@ export function ChatInterface({
     scrollToBottom();
   }, [messages, streamingContent]);
 
-  // Load conversation history when initialConversationId is provided
-  useEffect(() => {
-    if (initialConversationId && token) {
-      loadConversationHistory(initialConversationId);
-    }
-  }, [initialConversationId, token]);
-
-  const loadConversationHistory = async (convId: string) => {
+  const loadConversationHistory = useCallback(async (convId: string) => {
     setLoadingHistory(true);
     try {
-      const history = await getConversationHistory(convId, { token, agentUrl });
-      // Convert to DisplayMessage format
+      const history = await getConversationHistory(convId, { token: tokenRef.current, agentUrl });
       const displayMessages: DisplayMessage[] = history.map(msg => ({
         id: msg.id,
         role: msg.role as 'user' | 'assistant',
@@ -160,7 +157,14 @@ export function ChatInterface({
     } finally {
       setLoadingHistory(false);
     }
-  };
+  }, [agentUrl]);
+
+  // Load conversation history when initialConversationId changes (not on token refresh)
+  useEffect(() => {
+    if (initialConversationId && tokenRef.current) {
+      loadConversationHistory(initialConversationId);
+    }
+  }, [initialConversationId, loadConversationHistory]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -249,7 +253,7 @@ export function ChatInterface({
         // Track in-flight tool calls by source so we can update their status
         const pendingTools = new Map<string, number>(); // source -> index in collectedParts
 
-        for await (const event of streamChatMessageAgentic(request, { token, agentUrl, signal: controller.signal })) {
+        for await (const event of streamChatMessageAgentic(request, { token: tokenRef.current, agentUrl, signal: controller.signal })) {
           const newEvent: ExecutionEvent = {
             type: event.type,
             source: event.data?.source,
@@ -540,7 +544,7 @@ export function ChatInterface({
         }
       } else {
         // Non-streaming fallback
-        const response = await sendChatMessage(request, { token, agentUrl });
+        const response = await sendChatMessage(request, { token: tokenRef.current, agentUrl });
 
         setConversationId(response.conversation_id);
 
@@ -642,7 +646,7 @@ export function ChatInterface({
       const response = await fetch(`${agentUrl || ''}/chat/${conversationId}/messages/${messageId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${tokenRef.current}`,
           'Content-Type': 'application/json',
         },
       });
@@ -674,7 +678,7 @@ export function ChatInterface({
       const response = await fetch(`${agentUrl || ''}/conversations/${conversationId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${tokenRef.current}`,
           'Content-Type': 'application/json',
         },
       });

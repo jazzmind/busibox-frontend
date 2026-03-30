@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { SimpleChatInterface } from '@jazzmind/busibox-app/components';
@@ -59,12 +59,17 @@ function SidebarConversationsList({
 }) {
   const [conversations, setConversations] = useState<SidebarConversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const tokenRef = useRef(token);
+
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
 
   useEffect(() => {
     async function fetchConversations() {
       try {
         const res = await fetch(`/api/conversations?agent_id=${agentId}&limit=20`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${tokenRef.current}` },
         });
         const data = await res.json();
         setConversations(data.conversations || []);
@@ -75,7 +80,7 @@ function SidebarConversationsList({
       }
     }
     fetchConversations();
-  }, [agentId, token]);
+  }, [agentId]);
 
   // Remove conversation from list when deleted
   useEffect(() => {

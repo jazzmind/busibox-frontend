@@ -187,7 +187,6 @@ export async function* streamChatMessageAgentic(
 
   try {
     while (true) {
-      // Check for abort
       if (options.signal?.aborted) {
         break;
       }

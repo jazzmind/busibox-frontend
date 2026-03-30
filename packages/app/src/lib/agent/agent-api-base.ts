@@ -46,7 +46,6 @@ export function getAgentApiUrl(): string {
     return 'http://agent-api:8000';
   }
 
-  console.warn('[AGENT-API] Client-side call detected - should use Next.js API routes instead');
   return process.env.NEXT_PUBLIC_AGENT_API_URL || '/api/agent';
 }
 
