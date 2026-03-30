@@ -16,10 +16,7 @@ import remarkGfm from 'remark-gfm';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { AgentSelectionPanel } from './AgentSelectionPanel';
-import { ThinkingToggle, ThoughtEvent } from './ThinkingToggle';
-import { ThinkingStream } from './ThinkingStream';
-import { StepTimeline } from './StepTimeline';
-import { StreamingToolCard } from './StreamingToolCard';
+import type { ThoughtEvent } from './ThinkingToggle';
 import { InsightEditModal, type InsightData } from './InsightEditModal';
 import { stripThinkTags } from './chat-utils';
 import { useChatStream, type StreamState, type StreamResult } from '../../lib/hooks/useChatStream';
@@ -947,6 +944,7 @@ export function ChatContainer({
               streamingContent={streamState.content || undefined}
               streamingAgentName={streamState.agentName}
               streamingThoughts={streamState.thoughts}
+              streamingParts={streamState.parts}
               isLoading={isStreaming}
               onDeleteMessage={handleDeleteMessage}
               onRetryMessage={handleRetryMessage}
@@ -954,31 +952,6 @@ export function ChatContainer({
             />
           )}
         </div>
-
-        {/* Step timeline + thinking stream + tool cards during streaming */}
-        {isStreaming && (streamState.thoughts.length > 0 || streamState.parts.length > 0) && (
-          <div className="flex-shrink-0 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-2">
-            <StepTimeline thoughts={streamState.thoughts} parts={streamState.parts} isActive={isStreaming} />
-            <ThinkingStream thoughts={streamState.thoughts} isActive={isStreaming && !streamState.content} />
-            {streamState.thoughts.filter(t => t.data?.phase !== 'model_reasoning').length > 0 && (
-              <div className="text-xs">
-                <ThinkingToggle
-                  thoughts={streamState.thoughts.filter(t => t.data?.phase !== 'model_reasoning')}
-                  isActive={isStreaming && !streamState.content}
-                />
-              </div>
-            )}
-            {streamState.parts.filter(p => p.type === 'tool_call').length > 0 && (
-              <div>
-                {streamState.parts
-                  .filter((p): p is Extract<MessagePart, { type: 'tool_call' }> => p.type === 'tool_call')
-                  .map((part) => (
-                    <StreamingToolCard key={part.id} part={part} />
-                  ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Quick-reply buttons */}
         {(quickReplies.length > 0 || (streamState.quickReplies.length > 0 && streamState.promptActive)) && (
@@ -1001,12 +974,12 @@ export function ChatContainer({
           </div>
         )}
 
-        {/* Message Input */}
+        {/* Message Input -- always enabled so the user can send follow-ups mid-stream */}
         <MessageInput
           onSend={handleSendMessage}
           onStop={handleStopStreaming}
-          disabled={isStreaming && !promptActive && !streamState.promptActive}
-          isStreaming={isStreaming && !promptActive && !streamState.promptActive}
+          disabled={false}
+          isStreaming={isStreaming}
           conversationId={currentConversation?.id}
           onEnsureConversation={ensureConversation}
         />

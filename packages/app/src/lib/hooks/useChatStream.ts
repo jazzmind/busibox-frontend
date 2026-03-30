@@ -219,6 +219,12 @@ export function useChatStream({ token, agentUrl, onConversationCreated, onTitleU
   const sendMessage = useCallback(async (
     request: ChatMessageRequest,
   ): Promise<StreamResult> => {
+    // Abort any in-flight stream before starting a new one
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
@@ -231,11 +237,18 @@ export function useChatStream({ token, agentUrl, onConversationCreated, onTitleU
       interimMessages: [] as string[],
     };
 
-    setState({
-      ...INITIAL_STATE,
+    // Only reset streaming-specific state; preserve conversationId from request
+    setState(prev => ({
+      ...prev,
+      content: '',
+      thoughts: [],
+      parts: [],
+      interimMessages: [],
+      quickReplies: [],
+      promptActive: false,
       isStreaming: true,
-      conversationId: request.conversation_id,
-    });
+      conversationId: request.conversation_id || prev.conversationId,
+    }));
 
     let resultConversationId = request.conversation_id;
 

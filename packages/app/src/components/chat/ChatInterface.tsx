@@ -199,11 +199,10 @@ export function ChatInterface({
   const handleSubmit = async (e: React.FormEvent | null, overrideMessage?: string) => {
     e?.preventDefault();
     const messageText = overrideMessage ?? input.trim();
-    // Allow submission when promptActive even if isLoading is still true
-    if (!messageText || (isLoading && !promptActive)) return;
+    if (!messageText) return;
 
-    // If we're submitting during a prompt-active state, abort the lingering stream
-    if (isLoading && promptActive && abortController) {
+    // Abort any in-flight stream so the new message can proceed
+    if (isLoading && abortController) {
       abortController.abort();
     }
 
@@ -981,7 +980,7 @@ export function ChatInterface({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                if (input.trim() && (!isLoading || promptActive)) {
+                if (input.trim()) {
                   handleSubmit(e as unknown as React.FormEvent);
                 }
               }
@@ -990,9 +989,9 @@ export function ChatInterface({
             rows={1}
             className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent resize-none"
             style={{ minHeight: '40px', maxHeight: '200px' }}
-            disabled={isLoading && !promptActive}
+            disabled={false}
           />
-          {isLoading && !promptActive ? (
+          {isLoading && !promptActive && (
             <button
               type="button"
               onClick={handleCancel}
@@ -1001,15 +1000,14 @@ export function ChatInterface({
             >
               <span className="w-5 h-5 flex items-center justify-center">⏹</span>
             </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={!input.trim()}
-              className="bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 font-medium disabled:cursor-not-allowed flex-shrink-0"
-            >
-              <Send className="w-5 h-5" />
-            </button>
           )}
+          <button
+            type="submit"
+            disabled={!input.trim()}
+            className="bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 font-medium disabled:cursor-not-allowed flex-shrink-0"
+          >
+            <Send className="w-5 h-5" />
+          </button>
         </div>
       </form>
 

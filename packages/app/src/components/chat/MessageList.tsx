@@ -15,6 +15,9 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import toast from 'react-hot-toast';
 import { ThinkingToggle, ThoughtEvent } from './ThinkingToggle';
+import { ThinkingStream } from './ThinkingStream';
+import { StepTimeline } from './StepTimeline';
+import { StreamingToolCard } from './StreamingToolCard';
 import { RawContentToggle } from './RawContentToggle';
 import type { MessagePart } from '../../types/chat';
 
@@ -85,6 +88,7 @@ interface MessageListProps {
   streamingContent?: string;
   streamingAgentName?: string;
   streamingThoughts?: ThoughtEvent[];
+  streamingParts?: MessagePart[];
   isLoading?: boolean;
   conversationOwner?: {
     id: string;
@@ -271,6 +275,7 @@ export function MessageList({
   streamingContent, 
   streamingAgentName,
   streamingThoughts,
+  streamingParts,
   isLoading,
   conversationOwner,
   currentUserId,
@@ -702,7 +707,7 @@ export function MessageList({
         </div>
       ))}
 
-      {/* Streaming message with thoughts - show as soon as loading starts */}
+      {/* Streaming message -- single consolidated area for all progress and content */}
       {(streamingContent || isLoading) && (
         <div className="flex gap-4 justify-start">
           <div className="flex flex-col items-center gap-1">
@@ -717,18 +722,39 @@ export function MessageList({
           </div>
           <div className="max-w-3xl flex-1">
             <div className="rounded-lg px-4 py-3 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-              {/* Show ThinkingToggle for real-time thoughts - open by default during streaming */}
+              {/* Step timeline: dispatch -> plan -> tools -> response */}
+              {((streamingThoughts && streamingThoughts.length > 0) || (streamingParts && streamingParts.length > 0)) && (
+                <StepTimeline thoughts={streamingThoughts || []} parts={streamingParts || []} isActive={!!isLoading} />
+              )}
+
+              {/* Live thinking stream from model reasoning */}
               {streamingThoughts && streamingThoughts.length > 0 && (
-                <div className="mb-2">
-                  <ThinkingToggle 
-                    thoughts={streamingThoughts} 
-                    isActive={isLoading && !streamingContent} 
+                <ThinkingStream thoughts={streamingThoughts} isActive={!!isLoading && !streamingContent} />
+              )}
+
+              {/* Collapsible details for non-reasoning events */}
+              {streamingThoughts && streamingThoughts.filter(t => t.data?.phase !== 'model_reasoning').length > 0 && (
+                <div className="mb-2 text-xs">
+                  <ThinkingToggle
+                    thoughts={streamingThoughts.filter(t => t.data?.phase !== 'model_reasoning')}
+                    isActive={!!isLoading && !streamingContent}
                     defaultOpen={true}
                   />
                 </div>
               )}
-              
-              {/* Show streaming content or "Thinking..." indicator */}
+
+              {/* Live tool-call cards */}
+              {streamingParts && streamingParts.filter(p => p.type === 'tool_call').length > 0 && (
+                <div className="mb-2">
+                  {streamingParts
+                    .filter((p): p is Extract<MessagePart, { type: 'tool_call' }> => p.type === 'tool_call')
+                    .map((part) => (
+                      <StreamingToolCard key={part.id} part={part} />
+                    ))}
+                </div>
+              )}
+
+              {/* Streaming content or "Thinking..." indicator */}
               {streamingContent ? (
                 <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-h1:text-xl prose-h1:mt-4 prose-h1:mb-3 prose-h2:text-lg prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:mt-3 prose-h3:mb-2 prose-p:my-2 prose-p:leading-relaxed prose-ul:my-3 prose-ol:my-3 prose-li:my-0.5 prose-hr:my-6 prose-strong:font-semibold prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-pre:border prose-blockquote:border-l-4 prose-blockquote:pl-4 prose-blockquote:italic prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline">
                   <ReactMarkdown 
@@ -740,8 +766,7 @@ export function MessageList({
                   <span className="inline-block w-2 h-4 bg-gray-400 dark:bg-gray-500 animate-pulse ml-1"></span>
                 </div>
               ) : (
-                /* Only show "Thinking..." if no thoughts are being displayed */
-                !streamingThoughts?.length && (
+                !streamingThoughts?.length && !streamingParts?.length && (
                   <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                     <div className="flex gap-1">
                       <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
