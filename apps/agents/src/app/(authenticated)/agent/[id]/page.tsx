@@ -172,7 +172,38 @@ export default function AgentDetailPage() {
     return agent?.tools?.names?.includes('rag') || false;
   }, [agent]);
 
-  // Wait for auth to be ready before fetching data
+  // Silently refresh the chat token without unmounting the UI
+  async function refreshChatToken() {
+    const tokenRes = await fetch('/api/auth/session', { method: 'POST' });
+    if (tokenRes.ok) {
+      const tokenData = await tokenRes.json();
+      setToken(tokenData.token);
+      setTokenError(null);
+    } else if (tokenRes.status === 401) {
+      console.log('[AgentDetail] Token fetch returned 401, attempting refresh');
+      const refreshed = await refreshToken();
+      if (refreshed) {
+        const retryRes = await fetch('/api/auth/session', { method: 'POST' });
+        if (retryRes.ok) {
+          const retryData = await retryRes.json();
+          setToken(retryData.token);
+          setTokenError(null);
+        } else {
+          console.log('[AgentDetail] Token fetch still failed after refresh, redirecting');
+          setIsRedirecting(true);
+          redirectToPortal('session_expired');
+        }
+      } else {
+        console.log('[AgentDetail] Token refresh failed, redirecting to portal');
+        setIsRedirecting(true);
+        redirectToPortal('session_expired');
+      }
+    } else {
+      setTokenError('token_fetch_failed');
+    }
+  }
+
+  // Load agent and initial token on first mount or when agentId changes
   useEffect(() => {
     if (!isReady || !agentId) {
       return;
@@ -182,7 +213,6 @@ export default function AgentDetailPage() {
       setLoading(true);
       setError(null);
       try {
-        // Load agent details
         const res = await fetch(`/api/agents/${agentId}`);
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || `Failed to load agent (${res.status})`);
@@ -192,35 +222,7 @@ export default function AgentDetailPage() {
           is_personal: !Boolean((data as any).is_builtin),
         });
 
-        // Get auth token for chat via session refresh
-        const tokenRes = await fetch('/api/auth/session', { method: 'POST' });
-        if (tokenRes.ok) {
-          const tokenData = await tokenRes.json();
-          setToken(tokenData.token);
-          setTokenError(null);
-        } else if (tokenRes.status === 401) {
-          // Try to refresh the token first
-          console.log('[AgentDetail] Token fetch returned 401, attempting refresh');
-          const refreshed = await refreshToken();
-          if (refreshed) {
-            const retryRes = await fetch('/api/auth/session', { method: 'POST' });
-            if (retryRes.ok) {
-              const retryData = await retryRes.json();
-              setToken(retryData.token);
-              setTokenError(null);
-            } else {
-              console.log('[AgentDetail] Token fetch still failed after refresh, redirecting');
-              setIsRedirecting(true);
-              redirectToPortal('session_expired');
-            }
-          } else {
-            console.log('[AgentDetail] Token refresh failed, redirecting to portal');
-            setIsRedirecting(true);
-            redirectToPortal('session_expired');
-          }
-        } else {
-          setTokenError('token_fetch_failed');
-        }
+        await refreshChatToken();
       } catch (e: any) {
         setError(e?.message || 'Failed to load agent');
       } finally {
@@ -228,7 +230,15 @@ export default function AgentDetailPage() {
       }
     }
     load();
-  }, [isReady, refreshKey, agentId, refreshToken, redirectToPortal]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady, agentId]);
+
+  // Silently refresh token on auth state changes without unmounting the chat
+  useEffect(() => {
+    if (!isReady || !agent) return;
+    refreshChatToken();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   // Auto-redirect when not authenticated (after a short delay to show the message)
   useEffect(() => {

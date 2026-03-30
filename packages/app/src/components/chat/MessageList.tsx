@@ -19,6 +19,7 @@ import { ThinkingStream } from './ThinkingStream';
 import { StepTimeline } from './StepTimeline';
 import { StreamingToolCard } from './StreamingToolCard';
 import { RawContentToggle } from './RawContentToggle';
+import { stripThinkTags, extractThinkContent } from './chat-utils';
 import type { MessagePart } from '../../types/chat';
 
 const DOC_LINK_RE = /^doc:(.+)$/;
@@ -148,21 +149,32 @@ function getModelAvatar(modelName?: string): string {
 }
 
 /**
- * Parse routing debug info from message content
- * Returns the debug info and cleaned content
+ * Parse routing debug info and think tags from message content.
+ * Extracts thoughts from <think> blocks and strips them from displayed content.
+ * Returns debug info, extracted thoughts, and cleaned content.
  */
-function parseRoutingDebug(content: string): { debug: any | null; cleanContent: string } {
-  const debugMatch = content.match(/<!-- ROUTING_DEBUG:([\s\S]*?):END_ROUTING -->\n*/);
+function parseMessageContent(content: string): { debug: any | null; extractedThoughts: ThoughtEvent[]; cleanContent: string } {
+  let cleaned = content;
+  let debug: any | null = null;
+
+  const debugMatch = cleaned.match(/<!-- ROUTING_DEBUG:([\s\S]*?):END_ROUTING -->\n*/);
   if (debugMatch) {
     try {
-      const debug = JSON.parse(debugMatch[1]);
-      const cleanContent = content.replace(/<!-- ROUTING_DEBUG:[\s\S]*?:END_ROUTING -->\n*/, '');
-      return { debug, cleanContent };
-    } catch {
-      return { debug: null, cleanContent: content };
-    }
+      debug = JSON.parse(debugMatch[1]);
+    } catch { /* ignore parse errors */ }
+    cleaned = cleaned.replace(/<!-- ROUTING_DEBUG:[\s\S]*?:END_ROUTING -->\n*/, '');
   }
-  return { debug: null, cleanContent: content };
+
+  const thinkTexts = extractThinkContent(cleaned);
+  const extractedThoughts: ThoughtEvent[] = thinkTexts.map(t => ({
+    type: 'thought' as const,
+    source: 'model',
+    message: t,
+    data: { phase: 'model_reasoning' },
+  }));
+  cleaned = stripThinkTags(cleaned);
+
+  return { debug, extractedThoughts, cleanContent: cleaned };
 }
 
 /**
@@ -416,14 +428,20 @@ export function MessageList({
             >
               {message.role === 'assistant' ? (
                 (() => {
-                  const { debug: routingDebug, cleanContent } = parseRoutingDebug(message.content);
+                  const { debug: routingDebug, extractedThoughts, cleanContent } = parseMessageContent(message.content);
+                  const allThoughts = [
+                    ...(message.thoughts || []),
+                    ...extractedThoughts.filter(et =>
+                      !(message.thoughts || []).some((mt: ThoughtEvent) => mt.message === et.message)
+                    ),
+                  ];
                   return (
                     <>
                       {/* Debug Options - using separate components for maintainability */}
                       <div className="flex flex-wrap gap-2 mb-2 text-xs">
                         {/* Thinking/Reasoning toggle */}
-                        {message.thoughts && message.thoughts.length > 0 && (
-                          <ThinkingToggle thoughts={message.thoughts} />
+                        {allThoughts.length > 0 && (
+                          <ThinkingToggle thoughts={allThoughts} />
                         )}
                         
                         {/* Request Debug */}

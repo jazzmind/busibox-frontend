@@ -31,17 +31,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, Loader2, Paperclip, Plus, Trash2, Volume2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
 import { MessageList } from './MessageList';
-import { ThinkingToggle, ThoughtEvent } from './ThinkingToggle';
-import { ThinkingStream } from './ThinkingStream';
-import { StepTimeline } from './StepTimeline';
-import { StreamingToolCard } from './StreamingToolCard';
-import { stripThinkTags, extractThinkContent, preprocessLatex, streamingMarkdownComponents } from './chat-utils';
+import type { ThoughtEvent } from './ThinkingToggle';
+import { stripThinkTags, extractThinkContent } from './chat-utils';
 import { sendChatMessage, streamChatMessageAgentic, getConversationHistory } from '../../lib/agent/chat-client';
 import type { ChatMessageRequest, Message, Attachment, MessagePart } from '../../types/chat';
 
@@ -812,93 +804,15 @@ export function ChatInterface({
               
               return displayMessages;
             })()}
-            streamingContent={undefined}
+            streamingContent={streamingContent || undefined}
             streamingAgentName={streamingAgentName}
-            isLoading={false}
+            streamingThoughts={thoughts}
+            streamingParts={streamingParts}
+            isLoading={isLoading}
             onDeleteMessage={handleDeleteMessage}
             onRetryMessage={handleRetryMessage}
             onSuggestedAction={(action) => handleSubmit(null, action)}
           />
-        )}
-
-        {/* Streaming content with ThinkingToggle and tool-call cards */}
-        {(isLoading || streamingContent) && !promptActive && (
-          <div className="flex gap-4 justify-start">
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0 text-white font-semibold text-sm">
-                {streamingAgentName?.charAt(0).toUpperCase() || 'A'}
-              </div>
-              {streamingAgentName && (
-                <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium capitalize">
-                  {streamingAgentName}
-                </span>
-              )}
-            </div>
-            <div className="max-w-3xl flex-1">
-              <div className="rounded-lg px-4 py-3 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                {/* Step timeline: dispatch -> plan -> tools -> response */}
-                {(thoughts.length > 0 || streamingParts.length > 0) && (
-                  <StepTimeline thoughts={thoughts} parts={streamingParts} isActive={isLoading} />
-                )}
-
-                {/* Live thinking stream from model reasoning */}
-                <ThinkingStream thoughts={thoughts} isActive={isLoading && !streamingContent} />
-
-                {/* ThinkingToggle for non-reasoning events */}
-                {thoughts.filter(t => t.data?.phase !== 'model_reasoning').length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2 text-xs">
-                    <ThinkingToggle
-                      thoughts={thoughts.filter(t => t.data?.phase !== 'model_reasoning')}
-                      isActive={isLoading && !streamingContent}
-                    />
-                  </div>
-                )}
-
-                {/* Live tool-call cards from streaming parts */}
-                {streamingParts.filter(p => p.type === 'tool_call').length > 0 && (
-                  <div className="mb-2">
-                    {streamingParts
-                      .filter((p): p is Extract<MessagePart, { type: 'tool_call' }> => p.type === 'tool_call')
-                      .map((part) => (
-                        <StreamingToolCard key={part.id} part={part} />
-                      ))}
-                  </div>
-                )}
-
-                {interimMessages.length > 0 && (
-                  <div className="mb-3 space-y-1">
-                    {interimMessages.map((msg, idx) => (
-                      <div
-                        key={`interim-${idx}`}
-                        className="text-xs rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 text-amber-800 dark:text-amber-200"
-                      >
-                        {msg}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {/* Streaming content or loading indicator */}
-                {streamingContent ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-h1:text-xl prose-h1:mt-4 prose-h1:mb-3 prose-h2:text-lg prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:mt-3 prose-h3:mb-2 prose-p:my-2 prose-p:leading-relaxed prose-ul:my-3 prose-ol:my-3 prose-li:my-0.5 prose-hr:my-6 prose-strong:font-semibold prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-pre:border prose-blockquote:border-l-4 prose-blockquote:pl-4 prose-blockquote:italic prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline">
-                    <ReactMarkdown 
-                      remarkPlugins={[remarkGfm, remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      components={streamingMarkdownComponents}
-                    >
-                      {preprocessLatex(streamingContent)}
-                    </ReactMarkdown>
-                    <span className="inline-block w-2 h-4 bg-gray-400 dark:bg-gray-500 animate-pulse ml-1"></span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Thinking...</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
         )}
 
         {/* empty */}
