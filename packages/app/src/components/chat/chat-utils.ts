@@ -39,10 +39,15 @@ export function CitationLink({ href, children, ...props }: React.AnchorHTMLAttri
 
 export const streamingMarkdownComponents = { a: CitationLink };
 
-const THINK_TAG_RE = /<think>[\s\S]*?<\/think>/g;
+const THINK_COMPLETE_RE = /<think>[\s\S]*?<\/think>/g;
+const THINK_UNCLOSED_RE = /<think>[\s\S]*$/;
+const THINK_ORPHAN_CLOSE_RE = /^[^<]*<\/think>/;
 
 export function stripThinkTags(text: string): string {
-  return text.replace(THINK_TAG_RE, '').trim();
+  let result = text.replace(THINK_COMPLETE_RE, '');
+  result = result.replace(THINK_UNCLOSED_RE, '');
+  result = result.replace(THINK_ORPHAN_CLOSE_RE, '');
+  return result.trim();
 }
 
 export function preprocessLatex(content: string): string {
