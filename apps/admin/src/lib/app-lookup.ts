@@ -18,6 +18,7 @@ export async function resolveAppResourceId(
 ): Promise<string | null> {
   try {
     const userId = getUserIdFromSessionJwt(sessionJwt);
+    if (!userId) return null;
     const ctx = await getAppConfigStoreContextForUser(userId, sessionJwt);
     const apps = await listAppsFromStore(ctx.accessToken);
 

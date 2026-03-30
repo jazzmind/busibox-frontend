@@ -862,9 +862,9 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
                         <tr key={rec.recordId} className="hover:bg-gray-50">
                           <td className="px-3 py-2.5">
                             {hasAccess ? (
-                              <CheckCircle2 className="w-4 h-4 text-green-500" title="You have data access" />
+                              <span title="You have data access"><CheckCircle2 className="w-4 h-4 text-green-500" /></span>
                             ) : (
-                              <Lock className="w-4 h-4 text-gray-300" title="Metadata only — you lack the required role" />
+                              <span title="Metadata only — you lack the required role"><Lock className="w-4 h-4 text-gray-300" /></span>
                             )}
                           </td>
                           <td className="px-3 py-2.5 font-mono text-xs text-gray-600">
