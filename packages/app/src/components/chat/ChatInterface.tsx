@@ -127,6 +127,7 @@ export function ChatInterface({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const tokenRef = useRef(token);
+  const submitGeneration = useRef(0);
 
   useEffect(() => {
     tokenRef.current = token;
@@ -205,9 +206,10 @@ export function ChatInterface({
 
     // Abort any in-flight stream so the new message can proceed
     if (isLoading && abortController) {
-      abortController.abort();
+      abortController.abort('prompt-continuation');
     }
 
+    const generation = ++submitGeneration.current;
     const userMessage = messageText;
     setInput('');
     setPromptActive(false);
@@ -421,23 +423,24 @@ export function ChatInterface({
       setAttachments([]);
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        // Request was cancelled - add partial response if any
-        if (streamingContent) {
-          const partialMessage: DisplayMessage = {
-            id: `asst-partial-${Date.now()}`,
-            role: 'assistant',
-            content: streamingContent + '\n\n*[Response interrupted]*',
-            timestamp: new Date(),
-            thoughts: thoughts.length > 0 ? thoughts : undefined,
-          };
-          setMessages((prev) => [...prev, partialMessage]);
+        const isPromptContinuation = controller.signal.reason === 'prompt-continuation';
+        if (!isPromptContinuation) {
+          if (streamingContent) {
+            const partialMessage: DisplayMessage = {
+              id: `asst-partial-${Date.now()}`,
+              role: 'assistant',
+              content: streamingContent + '\n\n*[Response interrupted]*',
+              timestamp: new Date(),
+              thoughts: thoughts.length > 0 ? thoughts : undefined,
+            };
+            setMessages((prev) => [...prev, partialMessage]);
+          }
+          toast('Response cancelled', { icon: '⏹️' });
         }
-        toast('Response cancelled', { icon: '⏹️' });
       } else {
         console.error('Chat error:', error);
         toast.error(error.message || 'Failed to send message');
 
-        // Add error message
         const errorMessage: DisplayMessage = {
           id: `asst-err-${Date.now()}`,
           role: 'assistant',
@@ -447,13 +450,15 @@ export function ChatInterface({
         setMessages((prev) => [...prev, errorMessage]);
       }
     } finally {
-      setIsLoading(false);
-      setStreamingContent('');
-      setThoughts([]);
-      setInterimMessages([]);
-      setAbortController(null);
-      setPromptActive(false);
-      setStreamingParts([]);
+      if (submitGeneration.current === generation) {
+        setIsLoading(false);
+        setStreamingContent('');
+        setThoughts([]);
+        setInterimMessages([]);
+        setAbortController(null);
+        setPromptActive(false);
+        setStreamingParts([]);
+      }
     }
   };
   
@@ -466,12 +471,7 @@ export function ChatInterface({
   const handleQuickReply = (reply: string) => {
     setQuickReplies([]);
     setPromptActive(false);
-    // Abort lingering stream before sending the reply as a new message
-    if (isLoading && abortController) {
-      abortController.abort();
-    }
-    // Small delay to let the abort settle before we fire a new request
-    setTimeout(() => handleSubmit(null, reply), 50);
+    handleSubmit(null, reply);
   };
 
   const handleNewChat = () => {

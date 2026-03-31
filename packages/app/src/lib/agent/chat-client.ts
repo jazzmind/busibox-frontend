@@ -276,12 +276,13 @@ export async function generateInsights(
  * Get all conversations for the current user
  */
 export async function getConversations(
-  options: ChatClientOptions & { limit?: number; offset?: number } = {}
+  options: ChatClientOptions & { limit?: number; offset?: number; agent_id?: string } = {}
 ): Promise<Conversation[]> {
-  const { limit, offset, ...clientOptions } = options;
+  const { limit, offset, agent_id, ...clientOptions } = options;
   const params = new URLSearchParams();
   if (limit) params.append('limit', String(limit));
   if (offset) params.append('offset', String(offset));
+  if (agent_id) params.append('agent_id', agent_id);
 
   const response = await chatFetch(
     `/conversations${params.toString() ? `?${params}` : ''}`,
