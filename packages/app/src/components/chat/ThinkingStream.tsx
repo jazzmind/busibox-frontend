@@ -40,10 +40,9 @@ export function ThinkingStream({ thoughts, isActive }: ThinkingStreamProps) {
 
   if (thinkingThoughts.length === 0) return null;
 
-  const combinedThinking = thinkingThoughts
-    .map(t => t.message || '')
-    .filter(Boolean)
-    .join('');
+  const combinedThinking = thinkingThoughts.length > 0
+    ? thinkingThoughts[thinkingThoughts.length - 1]?.message || ''
+    : '';
 
   const handleToggle = () => {
     setWasManuallyToggled(true);

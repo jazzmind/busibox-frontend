@@ -70,9 +70,28 @@ export function processStreamEvent(
 
     case 'thought':
     case 'plan':
-    case 'progress':
-      accumulated.thoughts = [...accumulated.thoughts, newThought];
+    case 'progress': {
+      const thoughtData = parsed.data?.data || parsed.data || {};
+      const isPartialThinking = eventType === 'thought' &&
+        thoughtData.partial === true &&
+        thoughtData.phase === 'model_reasoning';
+
+      if (isPartialThinking) {
+        const existingIdx = accumulated.thoughts.findLastIndex(
+          t => t.type === 'thought' && t.source === parsed.source &&
+               (t.data?.phase === 'model_reasoning' || t.data?.data?.phase === 'model_reasoning')
+        );
+        if (existingIdx >= 0) {
+          accumulated.thoughts = [...accumulated.thoughts];
+          accumulated.thoughts[existingIdx] = newThought;
+        } else {
+          accumulated.thoughts = [...accumulated.thoughts, newThought];
+        }
+      } else {
+        accumulated.thoughts = [...accumulated.thoughts, newThought];
+      }
       return { thoughts: accumulated.thoughts };
+    }
 
     case 'tool_start': {
       accumulated.thoughts = [...accumulated.thoughts, newThought];
