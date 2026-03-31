@@ -217,6 +217,7 @@ export function ChatInterface({
 
     // Add user message to display
     const userDisplayMessage: DisplayMessage = {
+      id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       role: 'user',
       content: userMessage,
       timestamp: new Date(),
@@ -271,6 +272,7 @@ export function ChatInterface({
                   { type: 'text', content: cleanedContent },
                 ];
                 const assistantMessage: DisplayMessage = {
+                  id: `asst-${Date.now()}`,
                   role: 'assistant',
                   content: cleanedContent,
                   timestamp: new Date(),
@@ -327,6 +329,7 @@ export function ChatInterface({
                   ? `${accumulated.fullContent}\n\n**Error:** ${errorMessage}`
                   : `**Error:** ${errorMessage}`;
                 const errorAssistantMessage: DisplayMessage = {
+                  id: `asst-err-${Date.now()}`,
                   role: 'assistant',
                   content: errorContent,
                   timestamp: new Date(),
@@ -380,6 +383,7 @@ export function ChatInterface({
             const cleanedSoFar = stripThinkTags(accumulated.fullContent);
             if (cleanedSoFar && !hasAddedMessage) {
               const assistantMessage: DisplayMessage = {
+                id: `asst-prompt-${Date.now()}`,
                 role: 'assistant',
                 content: cleanedSoFar,
                 timestamp: new Date(),
@@ -403,6 +407,7 @@ export function ChatInterface({
         setConversationId(response.conversation_id);
 
         const assistantMessage: DisplayMessage = {
+          id: `asst-${Date.now()}`,
           role: 'assistant',
           content: response.content,
           timestamp: new Date(),
@@ -419,6 +424,7 @@ export function ChatInterface({
         // Request was cancelled - add partial response if any
         if (streamingContent) {
           const partialMessage: DisplayMessage = {
+            id: `asst-partial-${Date.now()}`,
             role: 'assistant',
             content: streamingContent + '\n\n*[Response interrupted]*',
             timestamp: new Date(),
@@ -433,6 +439,7 @@ export function ChatInterface({
 
         // Add error message
         const errorMessage: DisplayMessage = {
+          id: `asst-err-${Date.now()}`,
           role: 'assistant',
           content: `❌ Error: ${error.message || 'Failed to send message'}`,
           timestamp: new Date(),
@@ -637,8 +644,8 @@ export function ChatInterface({
           <MessageList
             messages={(() => {
               // Build messages array, optionally including welcome message
-              const displayMessages = messages.map(m => ({
-                id: m.id || `msg-${Math.random()}`,
+              const displayMessages = messages.map((m, idx) => ({
+                id: m.id || `msg-${idx}`,
                 role: m.role as 'user' | 'assistant' | 'system',
                 content: m.content,
                 createdAt: m.createdAt || new Date(),

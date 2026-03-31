@@ -50,7 +50,56 @@ function CitationLink({ href, children, ...props }: React.AnchorHTMLAttributes<H
   return <a {...props} href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
 }
 
-const markdownComponents = { a: CitationLink };
+function ResponsiveTable({ children, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
+  return (
+    <div className="overflow-x-auto -mx-1 my-2">
+      <table {...props} className="min-w-full text-sm border-collapse border border-gray-200 dark:border-gray-700 rounded">
+        {children}
+      </table>
+    </div>
+  );
+}
+
+function TableHead({ children, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) {
+  return (
+    <thead {...props} className="bg-gray-50 dark:bg-gray-800">
+      {children}
+    </thead>
+  );
+}
+
+function TableHeader({ children, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) {
+  return (
+    <th {...props} className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">
+      {children}
+    </th>
+  );
+}
+
+function TableCell({ children, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
+  return (
+    <td {...props} className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-gray-700/50">
+      {children}
+    </td>
+  );
+}
+
+function TableRow({ children, ...props }: React.HTMLAttributes<HTMLTableRowElement>) {
+  return (
+    <tr {...props} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+      {children}
+    </tr>
+  );
+}
+
+const markdownComponents = {
+  a: CitationLink,
+  table: ResponsiveTable,
+  thead: TableHead,
+  th: TableHeader,
+  td: TableCell,
+  tr: TableRow,
+};
 
 interface Message {
   id: string;
