@@ -82,6 +82,8 @@ export interface AgentStatus {
   name: string;
   displayName: string;
   exists: boolean;
+  inSync?: boolean;
+  diffs?: string[];
 }
 
 export interface SyncStatus {

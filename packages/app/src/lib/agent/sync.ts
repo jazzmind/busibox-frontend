@@ -66,8 +66,46 @@ export async function syncAgentDefinitions(
   return { created, updated, failed };
 }
 
+function sortedToolNames(tools?: { names?: string[] }): string[] {
+  return [...(tools?.names || [])].sort();
+}
+
+function compareAgentFields(
+  def: AgentDefinitionInput,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  remote: Record<string, any>,
+): string[] {
+  const diffs: string[] = [];
+
+  const localTools = sortedToolNames(def.tools);
+  const remoteTools = sortedToolNames(remote.tools);
+  if (JSON.stringify(localTools) !== JSON.stringify(remoteTools)) {
+    diffs.push(`tools: [${remoteTools.join(', ')}] → [${localTools.join(', ')}]`);
+  }
+
+  if (def.model !== remote.model) {
+    diffs.push(`model: ${remote.model || '(none)'} → ${def.model}`);
+  }
+
+  const localWf = def.workflows || {};
+  const remoteWf = remote.workflows || {};
+  if (JSON.stringify(localWf) !== JSON.stringify(remoteWf)) {
+    diffs.push('workflows changed');
+  }
+
+  if ((def.display_name || '') !== (remote.display_name || '')) {
+    diffs.push(`display_name: ${remote.display_name || '(none)'} → ${def.display_name}`);
+  }
+
+  if ((def.scopes || []).sort().join(',') !== (remote.scopes || []).sort().join(',')) {
+    diffs.push('scopes changed');
+  }
+
+  return diffs;
+}
+
 /**
- * Check which agent definitions exist on the agent-api.
+ * Check which agent definitions exist on the agent-api and whether they match code.
  */
 export async function getAgentSyncStatus(
   agentApiToken: string,
@@ -83,20 +121,32 @@ export async function getAgentSyncStatus(
     });
     const data = response.ok ? await response.json() : { items: [] };
     const items = data.items || data;
-    const agentNames = Array.isArray(items)
-      ? items.map((a: { name: string }) => a.name)
-      : [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const agentMap = new Map<string, Record<string, any>>();
+    if (Array.isArray(items)) {
+      for (const item of items) {
+        if (item.name) agentMap.set(item.name, item);
+      }
+    }
 
     for (const def of definitions) {
-      agents.push({
-        name: def.name,
-        displayName: def.display_name,
-        exists: agentNames.includes(def.name),
-      });
+      const remote = agentMap.get(def.name);
+      if (!remote) {
+        agents.push({ name: def.name, displayName: def.display_name, exists: false, inSync: false, diffs: ['not registered'] });
+      } else {
+        const diffs = compareAgentFields(def, remote);
+        agents.push({
+          name: def.name,
+          displayName: def.display_name,
+          exists: true,
+          inSync: diffs.length === 0,
+          diffs,
+        });
+      }
     }
   } catch {
     for (const def of definitions) {
-      agents.push({ name: def.name, displayName: def.display_name, exists: false });
+      agents.push({ name: def.name, displayName: def.display_name, exists: false, inSync: false });
     }
   }
 

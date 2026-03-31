@@ -77,10 +77,17 @@ export function processStreamEvent(
         thoughtData.phase === 'model_reasoning';
 
       if (isPartialThinking) {
-        const existingIdx = accumulated.thoughts.findLastIndex(
-          t => t.type === 'thought' && t.source === parsed.source &&
-               (t.data?.phase === 'model_reasoning' || t.data?.data?.phase === 'model_reasoning')
-        );
+        let existingIdx = -1;
+        for (let i = accumulated.thoughts.length - 1; i >= 0; i--) {
+          const t = accumulated.thoughts[i];
+          const tData = t.data as Record<string, unknown> | undefined;
+          const nestedData = tData?.data as Record<string, unknown> | undefined;
+          if (t.type === 'thought' && t.source === parsed.source &&
+              (tData?.phase === 'model_reasoning' || nestedData?.phase === 'model_reasoning')) {
+            existingIdx = i;
+            break;
+          }
+        }
         if (existingIdx >= 0) {
           accumulated.thoughts = [...accumulated.thoughts];
           accumulated.thoughts[existingIdx] = newThought;
