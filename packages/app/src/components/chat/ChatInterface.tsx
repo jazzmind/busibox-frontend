@@ -315,12 +315,17 @@ export function ChatInterface({
               }];
               setThoughts(accumulated.thoughts);
 
-              const errIdx = accumulated.pendingTools.get(errorSource);
+              const errQueue = accumulated.pendingTools.get(errorSource) || [];
+              const errIdx = errQueue.length > 0 ? errQueue.shift() : undefined;
+              if (errQueue.length > 0) {
+                accumulated.pendingTools.set(errorSource, errQueue);
+              } else {
+                accumulated.pendingTools.delete(errorSource);
+              }
               if (errIdx !== undefined && accumulated.parts[errIdx]?.type === 'tool_call') {
                 const existing = accumulated.parts[errIdx] as Extract<MessagePart, { type: 'tool_call' }>;
                 accumulated.parts = [...accumulated.parts];
                 accumulated.parts[errIdx] = { ...existing, status: 'error', error: errorMessage, completedAt: new Date() };
-                accumulated.pendingTools.delete(errorSource);
                 setStreamingParts(accumulated.parts);
               }
             } else {

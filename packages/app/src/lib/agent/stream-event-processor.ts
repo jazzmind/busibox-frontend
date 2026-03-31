@@ -6,7 +6,7 @@ export interface StreamAccumulator {
   fullContent: string;
   thoughts: ThoughtEvent[];
   parts: MessagePart[];
-  pendingTools: Map<string, number>;
+  pendingTools: Map<string, number[]>;
   agentName?: string;
   interimMessages: string[];
 }
@@ -31,7 +31,7 @@ export function createAccumulator(): StreamAccumulator {
     fullContent: '',
     thoughts: [],
     parts: [],
-    pendingTools: new Map<string, number>(),
+    pendingTools: new Map<string, number[]>(),
     agentName: undefined,
     interimMessages: [],
   };
@@ -57,8 +57,27 @@ export function processStreamEvent(
     timestamp: new Date(),
   };
 
-  if (parsed.source && !parsed.source.includes('dispatcher')) {
-    accumulated.agentName = parsed.source;
+  const source = String(parsed.source || '');
+  const nonAgentSources = new Set([
+    'dispatcher',
+    'insights',
+    'model',
+    'tool',
+    'query_data',
+    'aggregate_data',
+    'get_facets',
+    'document_search',
+    'graph_query',
+    'graph_explore',
+  ]);
+  if (
+    source &&
+    !source.includes('dispatcher') &&
+    !nonAgentSources.has(source) &&
+    eventType !== 'tool_start' &&
+    eventType !== 'tool_result'
+  ) {
+    accumulated.agentName = source;
   }
 
   switch (eventType) {
@@ -101,7 +120,6 @@ export function processStreamEvent(
     }
 
     case 'tool_start': {
-      accumulated.thoughts = [...accumulated.thoughts, newThought];
       const toolSource = parsed.source || 'tool';
       const toolName = String(parsed.data?.tool_name || parsed.data?.display_name || toolSource);
       const toolPart: MessagePart = {
@@ -110,18 +128,25 @@ export function processStreamEvent(
         name: toolName,
         displayName: String(parsed.data?.display_name || parsed.message || toolName),
         status: 'running',
-        input: (parsed.data || undefined) as Record<string, unknown> | undefined,
+        input: (parsed.data?.input || parsed.data || undefined) as Record<string, unknown> | undefined,
         startedAt: new Date(),
       };
-      accumulated.pendingTools.set(toolSource, accumulated.parts.length);
+      const queue = accumulated.pendingTools.get(toolSource) || [];
+      queue.push(accumulated.parts.length);
+      accumulated.pendingTools.set(toolSource, queue);
       accumulated.parts = [...accumulated.parts, toolPart];
-      return { thoughts: accumulated.thoughts, parts: accumulated.parts };
+      return { parts: accumulated.parts };
     }
 
     case 'tool_result': {
-      accumulated.thoughts = [...accumulated.thoughts, newThought];
       const resultSource = parsed.source || 'tool';
-      const idx = accumulated.pendingTools.get(resultSource);
+      const queue = accumulated.pendingTools.get(resultSource) || [];
+      const idx = queue.length > 0 ? queue.shift() : undefined;
+      if (queue.length > 0) {
+        accumulated.pendingTools.set(resultSource, queue);
+      } else {
+        accumulated.pendingTools.delete(resultSource);
+      }
       if (idx !== undefined && accumulated.parts[idx]?.type === 'tool_call') {
         const existing = accumulated.parts[idx] as Extract<MessagePart, { type: 'tool_call' }>;
         accumulated.parts = [...accumulated.parts];
@@ -132,7 +157,6 @@ export function processStreamEvent(
           error: parsed.data?.success === false ? String(parsed.message || 'Failed') : undefined,
           completedAt: new Date(),
         };
-        accumulated.pendingTools.delete(resultSource);
       } else {
         const toolName = String(parsed.data?.tool_name || parsed.data?.display_name || resultSource);
         accumulated.parts = [...accumulated.parts, {
@@ -145,7 +169,7 @@ export function processStreamEvent(
           completedAt: new Date(),
         }];
       }
-      return { thoughts: accumulated.thoughts, parts: accumulated.parts };
+      return { parts: accumulated.parts };
     }
 
     case 'content': {
