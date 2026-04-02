@@ -349,15 +349,15 @@ export function MessageList({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const prevMessageCountRef = useRef(messages.length);
 
-  // Auto-scroll to bottom only when new messages arrive or streaming updates
-  // Don't scroll when messages are deleted (count decreases)
+  // Auto-scroll to bottom only when new messages arrive or streaming updates.
+  // Uses block:'end' so the sentinel aligns to the bottom of the scroll
+  // viewport, keeping the latest content visible instead of scrolling past it.
   useEffect(() => {
     const currentCount = messages.length;
     const prevCount = prevMessageCountRef.current;
     
-    // Only scroll if message count increased or streaming content changed
     if (currentCount > prevCount || streamingContent) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
     
     prevMessageCountRef.current = currentCount;

@@ -688,7 +688,7 @@ export function FullChatInterface({
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto bg-white">
+        <div className="flex-1 min-h-0 overflow-y-auto bg-white">
           {isLoadingMessages ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-gray-500">Loading messages...</div>

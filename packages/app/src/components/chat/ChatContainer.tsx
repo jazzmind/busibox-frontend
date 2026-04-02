@@ -933,7 +933,7 @@ export function ChatContainer({
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-800">
+        <div className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-gray-800">
           {isLoadingMessages ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-gray-500 dark:text-gray-400">Loading messages...</div>

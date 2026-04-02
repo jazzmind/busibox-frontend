@@ -123,7 +123,6 @@ export function ChatInterface({
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const [promptActive, setPromptActive] = useState(false);
   const [streamingParts, setStreamingParts] = useState<MessagePart[]>([]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const tokenRef = useRef(token);
@@ -132,14 +131,6 @@ export function ChatInterface({
   useEffect(() => {
     tokenRef.current = token;
   }, [token]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, streamingContent]);
 
   const loadConversationHistory = useCallback(async (convId: string) => {
     setLoadingHistory(true);
@@ -685,9 +676,6 @@ export function ChatInterface({
           />
         )}
 
-        {/* empty */}
-
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Attachments preview */}

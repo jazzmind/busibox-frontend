@@ -64,9 +64,6 @@ export { SimpleChatInterface } from './chat/SimpleChatInterface';
 export type { SimpleChatInterfaceProps } from './chat/SimpleChatInterface';
 export { StreamingToolCard } from './chat/StreamingToolCard';
 
-// Components - Chat (Legacy - deprecated, will be removed)
-/** @deprecated Use ChatInterface instead */
-export { ChatInterface as LegacyChatInterface } from './chat/LegacyChatInterface';
 /** @deprecated Use ChatInterface instead */
 export { FullChatInterface } from './chat/FullChatInterface';
 export { ConversationSidebar } from './chat/ConversationSidebar';
