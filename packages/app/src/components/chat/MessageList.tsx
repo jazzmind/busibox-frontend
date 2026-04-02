@@ -29,7 +29,8 @@ function CitationLink({ href, children, ...props }: React.AnchorHTMLAttributes<H
     const match = DOC_LINK_RE.exec(href);
     if (match) {
       const fileId = match[1];
-      const docHref = `/documents/${fileId}`;
+      const documentsBp = process.env.NEXT_PUBLIC_DOCUMENTS_BASE_PATH || '/documents';
+      const docHref = `${documentsBp}/${fileId}`;
       return (
         <a
           {...props}
@@ -662,8 +663,8 @@ export function MessageList({
                     };
 
                     const fileId = attachment.fileUrl?.match(/\/files\/([^/]+)\/download/)?.[1];
-                    const bp = process.env.NEXT_PUBLIC_BASE_PATH || '';
-                    const docUrl = fileId ? `${bp}/documents/${fileId}` : attachment.fileUrl;
+                    const documentsBp = process.env.NEXT_PUBLIC_DOCUMENTS_BASE_PATH || '/documents';
+                    const docUrl = fileId ? `${documentsBp}/${fileId}` : attachment.fileUrl;
 
                     return (
                       <div

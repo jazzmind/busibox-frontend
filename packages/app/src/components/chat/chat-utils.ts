@@ -9,9 +9,10 @@ export function CitationLink({ href, children, ...props }: React.AnchorHTMLAttri
     const match = DOC_LINK_RE.exec(href);
     if (match) {
       const fileId = match[1];
+      const documentsBp = process.env.NEXT_PUBLIC_DOCUMENTS_BASE_PATH || '/documents';
       return React.createElement('a', {
         ...props,
-        href: `/documents/${fileId}`,
+        href: `${documentsBp}/${fileId}`,
         target: '_blank',
         rel: 'noopener noreferrer',
         className: 'inline-flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 no-underline transition-colors border border-blue-200 dark:border-blue-700',
