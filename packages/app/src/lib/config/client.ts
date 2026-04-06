@@ -90,7 +90,16 @@ export async function getBranding(): Promise<BrandingConfig> {
 }
 
 export async function getPublicConfig(): Promise<Record<string, string>> {
-  const result = await configApiRequest<{ config: Record<string, string> }>(null, 'GET', '/config/public');
+  const url = `${getConfigApiUrl()}/config/public`;
+  const response = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`config-api ${response.status} GET /config/public: ${text}`);
+  }
+  const result = (await response.json()) as { config: Record<string, string> };
   return result.config;
 }
 
