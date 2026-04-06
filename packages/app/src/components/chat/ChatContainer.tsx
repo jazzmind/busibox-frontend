@@ -9,7 +9,7 @@
 
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Plus, MessageSquare, Trash2, Search, Brain, X, Sparkles, Bot, ListTodo, Settings } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, Search, Brain, X, Sparkles, Bot, ListTodo } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -96,6 +96,8 @@ export interface ChatContainerProps {
   availableTools: ToolDefinition[];
   insightStats: { total: number; by_category: Record<string, number> } | null;
   showInsights: boolean;
+  /** Platform-level insights toggle (from config-api). When false, all insight UI is hidden. */
+  insightsEnabled?: boolean;
   allowConversationManagement: boolean;
   /** Source identifier for filtering/creating conversations (e.g., 'busibox-portal', 'busibox-agents') */
   source?: string;
@@ -114,6 +116,7 @@ export function ChatContainer({
   availableTools,
   insightStats: initialInsightStats,
   showInsights,
+  insightsEnabled: insightsEnabledProp = true,
   allowConversationManagement,
   source,
   conversationQueryParam = 'conversation',
@@ -264,11 +267,8 @@ export function ChatContainer({
   const [showAgentPanel, setShowAgentPanel] = useState(false);
   const [showTasksPanel, setShowTasksPanel] = useState(false);
 
-  // Chat settings state
-  const [insightsEnabled, setInsightsEnabled] = useState(true);
-  const [showSettingsPopover, setShowSettingsPopover] = useState(false);
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const settingsPopoverRef = useRef<HTMLDivElement>(null);
+  // Insights enabled is now a platform-level prop from config-api
+  const insightsEnabled = insightsEnabledProp;
 
   const apiCall = useCallback(async (endpoint: string, options?: RequestInit) => {
     const response = await fetch(resolve('agent', `/api/agent${endpoint}`), {
@@ -286,49 +286,6 @@ export function ChatContainer({
 
     return response;
   }, [resolve]);
-
-  // Load chat settings on mount
-  useEffect(() => {
-    apiCall('/users/me/chat-settings')
-      .then(r => r.json())
-      .then((settings: any) => {
-        if (typeof settings?.insights_enabled === 'boolean') {
-          setInsightsEnabled(settings.insights_enabled);
-        }
-      })
-      .catch(() => {
-        // settings not found → keep default (enabled)
-      });
-  }, [apiCall]);
-
-  // Close settings popover when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (settingsPopoverRef.current && !settingsPopoverRef.current.contains(e.target as Node)) {
-        setShowSettingsPopover(false);
-      }
-    };
-    if (showSettingsPopover) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showSettingsPopover]);
-
-  const handleToggleInsights = useCallback(async (newValue: boolean) => {
-    setInsightsEnabled(newValue);
-    setIsSavingSettings(true);
-    try {
-      await apiCall('/users/me/chat-settings', {
-        method: 'PUT',
-        body: JSON.stringify({ insights_enabled: newValue }),
-      });
-    } catch {
-      setInsightsEnabled(!newValue);
-      toast.error('Failed to save settings');
-    } finally {
-      setIsSavingSettings(false);
-    }
-  }, [apiCall]);
 
   const handleSelectConversation = useCallback(async (conversation: Conversation) => {
     currentConversationRef.current = conversation.id;
@@ -989,50 +946,7 @@ export function ChatContainer({
                 <span className="font-medium hidden sm:inline">Tasks</span>
               </button>
 
-              {/* Chat Settings Gear */}
-              <div className="relative" ref={settingsPopoverRef}>
-                <button
-                  onClick={() => setShowSettingsPopover(v => !v)}
-                  className={`flex items-center justify-center w-9 h-9 border rounded-lg transition-colors ${
-                    showSettingsPopover
-                      ? 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 border-gray-400 dark:border-gray-500'
-                      : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
-                  }`}
-                  title="Chat settings"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
-
-                {showSettingsPopover && (
-                  <div className="absolute right-0 top-full mt-1 z-50 w-72 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg p-4">
-                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Chat Settings</h3>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-200">AI Insights &amp; Onboarding</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                          Learn from conversations to personalise responses
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleToggleInsights(!insightsEnabled)}
-                        disabled={isSavingSettings}
-                        className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
-                          insightsEnabled ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
-                        } ${isSavingSettings ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-                        role="switch"
-                        aria-checked={insightsEnabled}
-                        title={insightsEnabled ? 'Disable insights' : 'Enable insights'}
-                      >
-                        <span
-                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                            insightsEnabled ? 'translate-x-5' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              
             </div>
           </div>
         </div>

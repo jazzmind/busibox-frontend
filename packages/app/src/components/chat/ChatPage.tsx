@@ -26,6 +26,7 @@
 
 import { Suspense } from 'react';
 import { AgentClient } from '../../lib/agent/agent-service-client';
+import { getPublicConfig } from '../../lib/config/client';
 import { ChatContainer } from './ChatContainer';
 import { ChatSkeleton } from './ChatSkeleton';
 
@@ -34,6 +35,8 @@ export interface ChatPageProps {
   client: AgentClient;
   /** Show insights panel (default: true) */
   showInsights?: boolean;
+  /** Override platform insights_enabled flag (reads from config-api if not provided) */
+  insightsEnabled?: boolean;
   /** Allow conversation management (default: true) */
   allowConversationManagement?: boolean;
   /** Initial conversation ID to load */
@@ -51,6 +54,7 @@ export interface ChatPageProps {
 export async function ChatPage({
   client,
   showInsights = true,
+  insightsEnabled,
   allowConversationManagement = true,
   initialConversationId,
   source,
@@ -63,6 +67,7 @@ export async function ChatPage({
       <ChatPageContent
         client={client}
         showInsights={showInsights}
+        insightsEnabledOverride={insightsEnabled}
         allowConversationManagement={allowConversationManagement}
         initialConversationId={initialConversationId}
         source={source}
@@ -81,6 +86,7 @@ export async function ChatPage({
 async function ChatPageContent({
   client,
   showInsights,
+  insightsEnabledOverride,
   allowConversationManagement,
   initialConversationId,
   source,
@@ -90,6 +96,7 @@ async function ChatPageContent({
 }: {
   client: AgentClient;
   showInsights: boolean;
+  insightsEnabledOverride?: boolean;
   allowConversationManagement: boolean;
   initialConversationId?: string;
   source?: string;
@@ -97,6 +104,17 @@ async function ChatPageContent({
   showAgentSelector?: boolean;
   className?: string;
 }) {
+  // Resolve platform insights_enabled flag
+  let insightsEnabled = insightsEnabledOverride;
+  if (insightsEnabled === undefined) {
+    try {
+      const publicConfig = await getPublicConfig();
+      insightsEnabled = publicConfig.insights_enabled !== 'false';
+    } catch {
+      insightsEnabled = true;
+    }
+  }
+
   // Fetch initial data server-side (filter by source if provided)
   // Use individual try/catch to gracefully degrade if agent API is unreachable
   let conversations: any[] = [];
@@ -141,9 +159,9 @@ async function ChatPageContent({
     initialMessages = [];
   }
 
-  // Get insight stats if showing insights
+  // Get insight stats if showing insights and platform-enabled
   let insightStats = null;
-  if (showInsights) {
+  if (showInsights && insightsEnabled) {
     try {
       insightStats = await client.getInsightStats();
     } catch (e) {
@@ -160,6 +178,7 @@ async function ChatPageContent({
       availableTools={tools}
       insightStats={insightStats}
       showInsights={showInsights}
+      insightsEnabled={insightsEnabled}
       allowConversationManagement={allowConversationManagement}
       source={source}
       conversationQueryParam={conversationQueryParam}

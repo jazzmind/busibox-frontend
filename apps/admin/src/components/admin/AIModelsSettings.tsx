@@ -177,6 +177,11 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
   const [loadingStreamingConfig, setLoadingStreamingConfig] = useState(true);
   const [savingStreamingConfig, setSavingStreamingConfig] = useState(false);
 
+  // Insights config
+  const [insightsEnabled, setInsightsEnabled] = useState(true);
+  const [loadingInsightsConfig, setLoadingInsightsConfig] = useState(true);
+  const [savingInsightsConfig, setSavingInsightsConfig] = useState(false);
+
   // Provider key inputs
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -258,6 +263,7 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
       }),
       fetchPurposes(),
       fetchStreamingConfig(),
+      fetchInsightsConfig(),
       fetchMediaStatus(),
       fetchPlatformBackend(),
     ]);
@@ -396,6 +402,20 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
     }
   };
 
+  const fetchInsightsConfig = async () => {
+    try {
+      const res = await fetch('/api/insights-config', { headers: { 'X-Quiet-Logs': '1' } });
+      if (res.ok) {
+        const data = await res.json();
+        setInsightsEnabled(data.data?.config?.insightsEnabled ?? true);
+      }
+    } catch (e) {
+      console.error('Failed to fetch insights config:', e);
+    } finally {
+      setLoadingInsightsConfig(false);
+    }
+  };
+
   // =============================================================================
   // Handlers
   // =============================================================================
@@ -413,6 +433,22 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
       console.error('Error updating streaming config:', e);
     } finally {
       setSavingStreamingConfig(false);
+    }
+  };
+
+  const handleInsightsToggle = async (enabled: boolean) => {
+    setSavingInsightsConfig(true);
+    try {
+      const res = await fetch('/api/insights-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ insightsEnabled: enabled }),
+      });
+      if (res.ok) setInsightsEnabled(enabled);
+    } catch (e) {
+      console.error('Error updating insights config:', e);
+    } finally {
+      setSavingInsightsConfig(false);
     }
   };
 
@@ -1576,6 +1612,34 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" />
                 <span className="ms-3 text-sm font-medium text-gray-700">
                   {streamingEnabled ? 'On' : 'Off'}
+                </span>
+              </label>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-lg mt-2">
+          <div>
+            <div className="text-sm font-medium text-gray-900">AI Insights &amp; Onboarding</div>
+            <div className="text-xs text-gray-500 mt-0.5">
+              When enabled, the AI learns from conversations to personalise responses and shows onboarding prompts. Disable to focus on core chat behaviour.
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {loadingInsightsConfig ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
+            ) : (
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={insightsEnabled}
+                  onChange={e => handleInsightsToggle(e.target.checked)}
+                  disabled={savingInsightsConfig}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" />
+                <span className="ms-3 text-sm font-medium text-gray-700">
+                  {insightsEnabled ? 'On' : 'Off'}
                 </span>
               </label>
             )}
