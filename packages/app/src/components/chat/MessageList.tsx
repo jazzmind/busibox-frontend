@@ -349,15 +349,20 @@ export function MessageList({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const prevMessageCountRef = useRef(messages.length);
 
-  // Auto-scroll to bottom only when new messages arrive or streaming updates.
-  // Uses block:'end' so the sentinel aligns to the bottom of the scroll
-  // viewport, keeping the latest content visible instead of scrolling past it.
+  // Auto-scroll: set scrollTop on the nearest overflow-y ancestor instead of
+  // scrollIntoView, which can accidentally scroll the document/body.
   useEffect(() => {
     const currentCount = messages.length;
     const prevCount = prevMessageCountRef.current;
     
     if (currentCount > prevCount || streamingContent) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      const sentinel = messagesEndRef.current;
+      if (sentinel) {
+        const scroller = sentinel.closest<HTMLElement>('[class*="overflow-y"]') ?? sentinel.parentElement;
+        if (scroller) {
+          scroller.scrollTop = scroller.scrollHeight;
+        }
+      }
     }
     
     prevMessageCountRef.current = currentCount;

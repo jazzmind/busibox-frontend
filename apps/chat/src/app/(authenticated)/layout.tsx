@@ -8,7 +8,7 @@
 'use client';
 
 import { Toaster } from 'react-hot-toast';
-import { Header } from '@jazzmind/busibox-app';
+import { Header, VersionBar } from '@jazzmind/busibox-app';
 import type { NavigationItem } from '@jazzmind/busibox-app';
 import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvider';
 
@@ -42,6 +42,7 @@ export default function ChatLayout({
       </div>
       
       <Toaster position="top-right" />
+      <VersionBar />
     </div>
   );
 }

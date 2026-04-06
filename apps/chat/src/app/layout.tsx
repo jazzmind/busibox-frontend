@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { SessionProvider } from "@jazzmind/busibox-app/components/auth/SessionProvider";
 import { ThemeProvider, CustomizationProvider, BusiboxApiProvider } from "@jazzmind/busibox-app";
 import { FetchWrapper } from "@jazzmind/busibox-app";
-import { VersionBar } from "@jazzmind/busibox-app";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -41,7 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased overflow-hidden h-screen`}
       >
         <FetchWrapper skipAuthUrls={['/api/auth/session']} />
         <ThemeProvider>
@@ -55,7 +54,6 @@ export default function RootLayout({
             >
               <CustomizationProvider apiEndpoint={`${crossAppPaths.portal}/api/portal-customization`}>
                 {children}
-                <VersionBar />
               </CustomizationProvider>
             </SessionProvider>
           </BusiboxApiProvider>
