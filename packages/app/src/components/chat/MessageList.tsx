@@ -149,6 +149,8 @@ interface MessageListProps {
   onDeleteMessage?: (messageId: string) => void;
   onRetryMessage?: (messageContent: string, attachmentIds?: string[]) => void;
   onSuggestedAction?: (action: string) => void;
+  quickReplies?: string[];
+  onQuickReply?: (reply: string) => void;
 }
 
 /**
@@ -344,6 +346,8 @@ export function MessageList({
   onDeleteMessage,
   onRetryMessage,
   onSuggestedAction,
+  quickReplies,
+  onQuickReply,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -434,11 +438,31 @@ export function MessageList({
 
   return (
     <div className="p-6 space-y-6">
-      {messages.length === 0 && !isLoading && (
-        <div className="flex items-center justify-center h-full text-gray-500">
-          <div className="text-center">
-            <p className="text-lg">No messages yet</p>
-            <p className="text-sm mt-2">Start a conversation by sending a message</p>
+      {messages.length === 0 && !isLoading && !streamingContent && (
+        <div className="flex gap-4 justify-start">
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0 text-white font-semibold text-sm">
+              AI
+            </div>
+          </div>
+          <div className="max-w-3xl flex-1">
+            <div className="rounded-lg px-4 py-3 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+              <p className="text-base mb-3">
+                Hi! I&apos;m your AI assistant. Ask me anything, upload a document, or search the web.
+              </p>
+              {onSuggestedAction && (
+                <button
+                  type="button"
+                  onClick={() => onSuggestedAction('Learn about me — I\'d like to set up my profile so you can personalize my experience.')}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full border border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Learn About Me
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -841,6 +865,22 @@ export function MessageList({
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Quick-reply buttons rendered inside the message area, after the last assistant message */}
+      {quickReplies && quickReplies.length > 0 && onQuickReply && !isLoading && (
+        <div className="flex flex-wrap gap-2 pl-12 pt-1 pb-2">
+          {quickReplies.map((reply) => (
+            <button
+              key={reply}
+              type="button"
+              onClick={() => onQuickReply(reply)}
+              className="px-4 py-1.5 text-sm font-medium rounded-full border border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+            >
+              {reply}
+            </button>
+          ))}
         </div>
       )}
 

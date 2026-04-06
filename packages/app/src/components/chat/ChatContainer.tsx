@@ -402,12 +402,23 @@ export function ChatContainer({
     setMessages(prev => [...prev, tempUserMessage]);
 
     try {
+      const browserContext: Record<string, string> = {};
+      if (typeof window !== 'undefined') {
+        try {
+          browserContext.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          browserContext.locale = navigator.language;
+        } catch (_) { /* ignore */ }
+      }
+
       const result = await hookSendMessage({
         message: content,
         conversation_id: convId,
         model: 'auto',
         selected_agents: selectedAgents,
         attachment_ids: attachmentIds,
+        metadata: {
+          user_context: browserContext,
+        },
       });
 
       // Handle quick replies / prompt from final state
@@ -949,30 +960,22 @@ export function ChatContainer({
               onDeleteMessage={handleDeleteMessage}
               onRetryMessage={handleRetryMessage}
               onSuggestedAction={(action) => handleSendMessage(action)}
+              quickReplies={
+                quickReplies.length > 0
+                  ? quickReplies
+                  : streamState.promptActive
+                    ? streamState.quickReplies
+                    : undefined
+              }
+              onQuickReply={(reply) => {
+                setQuickReplies([]);
+                setPromptActive(false);
+                hookCancel();
+                setTimeout(() => handleSendMessage(reply), 50);
+              }}
             />
           )}
         </div>
-
-        {/* Quick-reply buttons */}
-        {(quickReplies.length > 0 || (streamState.quickReplies.length > 0 && streamState.promptActive)) && (
-          <div className="flex-shrink-0 px-3 pt-2 pb-1 flex flex-wrap gap-2 justify-center border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-            {(quickReplies.length > 0 ? quickReplies : streamState.quickReplies).map((reply) => (
-              <button
-                key={reply}
-                type="button"
-                onClick={() => {
-                  setQuickReplies([]);
-                  setPromptActive(false);
-                  hookCancel();
-                  setTimeout(() => handleSendMessage(reply), 50);
-                }}
-                className="px-4 py-1.5 text-sm font-medium rounded-full border border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
-              >
-                {reply}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* Message Input -- always enabled so the user can send follow-ups mid-stream */}
         <MessageInput

@@ -397,15 +397,24 @@ export async function deleteConversationInsights(
 }
 
 /**
- * Get insight statistics
+ * Get insight statistics.
+ * When conversationId is provided, thread-scoped categories (goal, context)
+ * are filtered to that conversation.
  */
 export async function getInsightStats(
-  options: ChatClientOptions = {}
+  options: ChatClientOptions & { conversationId?: string } = {}
 ): Promise<{ total: number; by_category: Record<string, number>; by_source: Record<string, number> }> {
-  const response = await chatFetch('/insights/stats/me', {
-    ...options,
-    method: 'GET',
-  });
+  const { conversationId, ...clientOptions } = options;
+  const params = new URLSearchParams();
+  if (conversationId) params.append('conversation_id', conversationId);
+
+  const response = await chatFetch(
+    `/insights/stats/me${params.toString() ? `?${params}` : ''}`,
+    {
+      ...clientOptions,
+      method: 'GET',
+    }
+  );
 
   return response.json();
 }
