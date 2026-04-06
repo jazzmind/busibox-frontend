@@ -151,6 +151,7 @@ interface MessageListProps {
   onSuggestedAction?: (action: string) => void;
   quickReplies?: string[];
   onQuickReply?: (reply: string) => void;
+  insightsEnabled?: boolean;
 }
 
 /**
@@ -348,6 +349,7 @@ export function MessageList({
   onSuggestedAction,
   quickReplies,
   onQuickReply,
+  insightsEnabled = true,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -450,7 +452,7 @@ export function MessageList({
               <p className="text-base mb-3">
                 Hi! I&apos;m your AI assistant. Ask me anything, upload a document, or search the web.
               </p>
-              {onSuggestedAction && (
+              {onSuggestedAction && insightsEnabled && (
                 <button
                   type="button"
                   onClick={() => onSuggestedAction('Learn about me — I\'d like to set up my profile so you can personalize my experience.')}

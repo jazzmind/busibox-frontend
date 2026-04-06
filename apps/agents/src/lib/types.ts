@@ -369,6 +369,7 @@ export interface ChatSettings {
   model?: string;
   temperature?: number;
   max_tokens?: number;
+  insights_enabled?: boolean;
 }
 
 // ==========================================================================

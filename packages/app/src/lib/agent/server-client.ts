@@ -526,6 +526,7 @@ export interface ChatSettings {
   model?: string;
   temperature: number;
   max_tokens: number;
+  insights_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -541,6 +542,7 @@ export async function updateChatSettings(
     model?: string;
     temperature?: number;
     max_tokens?: number;
+    insights_enabled?: boolean;
   },
   token?: string
 ) {
