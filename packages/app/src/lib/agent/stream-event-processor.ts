@@ -9,6 +9,7 @@ export interface StreamAccumulator {
   pendingTools: Map<string, number[]>;
   agentName?: string;
   interimMessages: string[];
+  interimContent?: string;
 }
 
 export interface StreamEventResult {
@@ -175,11 +176,26 @@ export function processStreamEvent(
     case 'content': {
       const contentData = parsed.data || {};
       const msgText = parsed.message || '';
+      const phase = contentData.phase;
+
+      if (phase === 'interim') {
+        accumulated.interimContent = msgText;
+        return {
+          content: msgText,
+          thoughts: accumulated.thoughts,
+        };
+      }
+
       if (contentData.streaming && contentData.partial) {
+        if (accumulated.interimContent) {
+          accumulated.fullContent = '';
+          accumulated.interimContent = undefined;
+        }
         accumulated.fullContent += msgText;
       } else if (contentData.complete) {
-        // Final marker — no content change
+        accumulated.interimContent = undefined;
       } else if (msgText) {
+        accumulated.interimContent = undefined;
         accumulated.fullContent = msgText;
       }
 
@@ -211,6 +227,10 @@ export function processStreamEvent(
     }
 
     case 'content_chunk': {
+      if (accumulated.interimContent) {
+        accumulated.fullContent = '';
+        accumulated.interimContent = undefined;
+      }
       accumulated.fullContent += parsed.chunk || parsed.content || '';
 
       const thinkTexts = extractThinkContent(accumulated.fullContent);

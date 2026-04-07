@@ -14,11 +14,10 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import toast from 'react-hot-toast';
-import { ThinkingToggle, ThoughtEvent } from './ThinkingToggle';
+import type { ThoughtEvent } from './ThinkingToggle';
 import { ThinkingStream } from './ThinkingStream';
 import { StepTimeline } from './StepTimeline';
-import { StreamingToolCard } from './StreamingToolCard';
-import { RawContentToggle } from './RawContentToggle';
+
 import { stripThinkTags, extractThinkContent } from './chat-utils';
 import type { MessagePart } from '../../types/chat';
 
@@ -520,9 +519,9 @@ export function MessageList({
                     <>
                       {/* Debug Options - using separate components for maintainability */}
                       <div className="flex flex-wrap gap-2 mb-2 text-xs">
-                        {/* Thinking/Reasoning toggle */}
+                        {/* Step timeline (same component used during streaming and after completion) */}
                         {allThoughts.length > 0 && (
-                          <ThinkingToggle thoughts={allThoughts} />
+                          <StepTimeline thoughts={allThoughts} parts={message.parts || []} isActive={false} />
                         )}
                         
                         {/* Request Debug */}
@@ -591,12 +590,12 @@ export function MessageList({
                           </details>
                         )}
                         
-                        {/* Raw Content toggle */}
-                        <RawContentToggle content={cleanContent} />
                       </div>
 
-                      {/* Tool-call cards from message parts */}
-                      <MessagePartsRenderer parts={message.parts} content={cleanContent} />
+                      {/* Tool-call cards from message parts (skip when StepTimeline already shows tool events) */}
+                      {allThoughts.length === 0 && (
+                        <MessagePartsRenderer parts={message.parts} content={cleanContent} />
+                      )}
                       
                       {(() => {
                         const actions = extractBracketActions(cleanContent);
@@ -829,17 +828,6 @@ export function MessageList({
               {/* Live thinking stream from model reasoning */}
               {streamingThoughts && streamingThoughts.length > 0 && (
                 <ThinkingStream thoughts={streamingThoughts} isActive={!!isLoading && !streamingContent} />
-              )}
-
-              {/* Live tool-call cards */}
-              {streamingParts && streamingParts.filter(p => p.type === 'tool_call').length > 0 && (
-                <div className="mb-2">
-                  {streamingParts
-                    .filter((p): p is Extract<MessagePart, { type: 'tool_call' }> => p.type === 'tool_call')
-                    .map((part) => (
-                      <StreamingToolCard key={part.id} part={part} />
-                    ))}
-                </div>
               )}
 
               {/* Streaming content or "Thinking..." indicator */}
