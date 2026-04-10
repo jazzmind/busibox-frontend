@@ -316,19 +316,68 @@ function ToolCallCard({ part }: { part: Extract<MessagePart, { type: 'tool_call'
 }
 
 /**
+ * Inline prompt card rendered inside an assistant message bubble.
+ * Shows confirm (Yes/No), choice (option pills), or open (text hint).
+ */
+function PromptCard({
+  part,
+  onReply,
+}: {
+  part: Extract<MessagePart, { type: 'prompt' }>;
+  onReply?: (reply: string) => void;
+}) {
+  const { options, promptType } = part;
+
+  if (promptType === 'open' || !options || options.length === 0) {
+    return (
+      <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 italic">
+        Type your answer below...
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-1.5">
+      {options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onReply?.(option)}
+          className="px-3 py-1 text-xs font-medium rounded-full border border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors cursor-pointer"
+        >
+          {option}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Renders the parts array of a message. Falls back to plain content if no parts.
  */
-function MessagePartsRenderer({ parts, content }: { parts?: MessagePart[]; content: string }) {
+function MessagePartsRenderer({
+  parts,
+  content,
+  onPromptReply,
+}: {
+  parts?: MessagePart[];
+  content: string;
+  onPromptReply?: (reply: string) => void;
+}) {
   if (!parts || parts.length === 0) return null;
 
   const toolParts = parts.filter((p): p is Extract<MessagePart, { type: 'tool_call' }> => p.type === 'tool_call');
+  const promptParts = parts.filter((p): p is Extract<MessagePart, { type: 'prompt' }> => p.type === 'prompt');
 
-  if (toolParts.length === 0) return null;
+  if (toolParts.length === 0 && promptParts.length === 0) return null;
 
   return (
     <div className="mb-2">
       {toolParts.map((part) => (
         <ToolCallCard key={part.id} part={part} />
+      ))}
+      {promptParts.map((part, idx) => (
+        <PromptCard key={`prompt-${idx}`} part={part} onReply={onPromptReply} />
       ))}
     </div>
   );
@@ -594,7 +643,17 @@ export function MessageList({
 
                       {/* Tool-call cards from message parts (skip when StepTimeline already shows tool events) */}
                       {allThoughts.length === 0 && (
-                        <MessagePartsRenderer parts={message.parts} content={cleanContent} />
+                        <MessagePartsRenderer parts={message.parts} content={cleanContent} onPromptReply={onQuickReply} />
+                      )}
+                      {/* Prompt parts always render even when StepTimeline handles tool display */}
+                      {allThoughts.length > 0 && message.parts?.some(p => p.type === 'prompt') && (
+                        <div className="mb-2">
+                          {message.parts
+                            .filter((p): p is Extract<MessagePart, { type: 'prompt' }> => p.type === 'prompt')
+                            .map((part, idx) => (
+                              <PromptCard key={`prompt-${idx}`} part={part} onReply={onQuickReply} />
+                            ))}
+                        </div>
                       )}
                       
                       {(() => {
