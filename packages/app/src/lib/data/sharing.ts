@@ -442,17 +442,15 @@ export function resolveVisibilityMode(
  *
  * - `private`: Sets `visibility: 'personal'`, removes all roles.
  * - `shared`: Sets `visibility: 'authenticated'`, keeps existing roles.
- * - `team`: Ensures team role exists, sets `visibility: 'shared'`, adds team role.
- *
- * For `team` mode, pass `callerRoleIds` (from `extractRoleIdsFromToken`) so the
- * caller's own roles are preserved alongside the team role.
+ * - `team`: Sets `visibility: 'shared'` with only the specified team role.
+ *   Any previous roles are replaced — the document is scoped to exactly
+ *   the team role provided.
  */
 export async function setDocumentVisibility(
   dataToken: string,
   documentIds: string[],
   mode: VisibilityMode,
   roleId?: string,
-  callerRoleIds?: string[],
 ): Promise<void> {
   const normalized = normalizeVisibilityMode(mode);
   switch (normalized) {
@@ -479,10 +477,9 @@ export async function setDocumentVisibility(
       if (!roleId) {
         throw new Error('roleId is required for team visibility mode');
       }
-      const allRoleIds = [...new Set([...(callerRoleIds ?? []), roleId])];
       await Promise.all(
         documentIds.map((docId) =>
-          updateDocumentRoles(dataToken, docId, allRoleIds, 'shared'),
+          updateDocumentRoles(dataToken, docId, [roleId], 'shared'),
         ),
       );
       break;
