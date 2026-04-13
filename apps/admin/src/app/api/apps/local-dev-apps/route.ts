@@ -46,7 +46,9 @@ export interface LocalDevApp {
     description?: string;
     icon?: string;
     defaultPath: string;
-    defaultPort: number;
+    defaultPort?: number;
+    appMode?: 'frontend' | 'prisma' | 'custom';
+    services?: Array<{ name: string; port: number; path: string }>;
   };
 }
 

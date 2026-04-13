@@ -4,7 +4,7 @@
  * Fetches and validates busibox.json manifests from GitHub repositories.
  */
 
-import type { BusiboxManifest } from './manifest-schema';
+import { validateManifest, type BusiboxManifest } from './manifest-schema';
 
 interface GitHubUrlParts {
   owner: string;
@@ -193,17 +193,19 @@ export async function fetchAndValidateManifest(
     // Fetch manifest
     const manifest = await fetchManifestFromGitHub(repoUrl, token);
     
-    // Basic validation
-    if (!manifest.name || !manifest.id || !manifest.defaultPath || !manifest.defaultPort) {
+    // Validate against the full Zod schema (handles frontend/prisma vs custom differences)
+    const validation = validateManifest(manifest);
+    if (!validation.success) {
+      const errorDetails = validation.errors?.map(e => `${e.path}: ${e.message}`).join('; ') || 'Unknown validation error';
       return {
         valid: false,
-        error: 'Invalid manifest: missing required fields (name, id, defaultPath, defaultPort)',
+        error: `Invalid manifest: ${errorDetails}`,
       };
     }
     
     return {
       valid: true,
-      manifest,
+      manifest: validation.manifest,
     };
   } catch (error) {
     return {

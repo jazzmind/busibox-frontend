@@ -104,12 +104,15 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
   const backApp = searchParams.get('app');
   const backSort = searchParams.get('sort');
   const backDir = searchParams.get('dir');
+  const backSourceApp = searchParams.get('sourceApp');
   if (backTab) backParams.set('tab', backTab);
   if (backQuery) backParams.set('q', backQuery);
   if (backApp) backParams.set('app', backApp);
   if (backSort) backParams.set('sort', backSort);
   if (backDir) backParams.set('dir', backDir);
+  if (backSourceApp) backParams.set('sourceApp', backSourceApp);
   const backHref = backParams.toString() ? `/data?${backParams.toString()}` : '/data';
+  const backLabel = backSourceApp ? `Back to ${backSourceApp}` : 'Back to Data Management';
 
   const fallbackDocument: AppDataDocument = {
     id: resolvedParams.id,
@@ -503,7 +506,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
             className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-700 mb-6"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to Data Management
+            {backLabel}
           </Link>
           
           <div className="text-center py-12">
@@ -530,7 +533,7 @@ export default function AppDataDetailPage({ params }: { params: Promise<{ id: st
             className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-700 mb-4"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to Data Management
+            {backLabel}
           </Link>
           
           <div className="flex items-start justify-between gap-4">

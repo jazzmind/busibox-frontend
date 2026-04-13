@@ -194,10 +194,17 @@ export function CustomAppInstaller({ onClose, onInstall }: CustomAppInstallerPro
                       <span className="font-medium text-green-900 dark:text-green-200">Path:</span>
                       <span className="ml-2 text-green-800 dark:text-green-300">{manifest.defaultPath}</span>
                     </div>
-                    <div>
-                      <span className="font-medium text-green-900 dark:text-green-200">Port:</span>
-                      <span className="ml-2 text-green-800 dark:text-green-300">{manifest.defaultPort}</span>
-                    </div>
+                    {manifest.appMode === 'custom' ? (
+                      <div>
+                        <span className="font-medium text-green-900 dark:text-green-200">Services:</span>
+                        <span className="ml-2 text-green-800 dark:text-green-300">{manifest.services?.map(s => `${s.name}:${s.port}`).join(', ') || 'none'}</span>
+                      </div>
+                    ) : (
+                      <div>
+                        <span className="font-medium text-green-900 dark:text-green-200">Port:</span>
+                        <span className="ml-2 text-green-800 dark:text-green-300">{manifest.defaultPort}</span>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="text-sm">

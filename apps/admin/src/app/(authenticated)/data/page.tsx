@@ -130,7 +130,7 @@ export default function DataManagementPage() {
   const [databaseStats, setDatabaseStats] = useState<DatabaseStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'user-libraries' | 'app-libraries' | 'tags' | 'all-docs'>(initialTab);
-  const [selectedApp, setSelectedApp] = useState<string | null>(null);
+  const [selectedApp, setSelectedApp] = useState<string | null>(searchParams.get('sourceApp') || null);
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [appFilter, setAppFilter] = useState(searchParams.get('app') || 'all');
   const [sortField, setSortField] = useState<'sourceApp' | 'displayName' | 'recordCount'>(initialSortField);
@@ -192,6 +192,8 @@ export default function DataManagementPage() {
 
     if (sortDirection !== 'asc') nextParams.set('dir', sortDirection);
     else nextParams.delete('dir');
+
+    nextParams.delete('sourceApp');
 
     const current = searchParams.toString();
     const next = nextParams.toString();
@@ -607,7 +609,7 @@ export default function DataManagementPage() {
                               <Database className="w-5 h-5 text-green-600" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <h3 className="font-medium text-gray-900 truncate">
+                              <h3 className="font-medium text-gray-900 text-sm line-clamp-2" title={doc.displayName || doc.name}>
                                 {doc.displayName || doc.name}
                               </h3>
                               <p className="text-sm text-gray-500 mt-1">
