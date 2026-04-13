@@ -61,10 +61,13 @@ const getRpId = () => {
   const url = getAppUrl();
   try {
     const hostname = new URL(url).hostname;
-    // If the hostname has dots or is localhost, it's usable as an RP ID.
-    // Otherwise it's likely an internal Docker/container service name
-    // (e.g. "portal", "core-apps") and we need to find the real domain.
-    if (hostname.includes('.') || hostname === 'localhost') {
+    // If the hostname has dots, is localhost, or looks like a real machine
+    // hostname (contains hyphens or is multi-word — e.g. Tailscale MagicDNS
+    // names like "my-mac-studio"), it's usable as an RP ID.
+    // Only skip short single-word names that look like Docker service names
+    // (e.g. "portal", "core-apps" with exactly one word).
+    const looksLikeRealHost = hostname.includes('.') || hostname === 'localhost' || hostname.includes('-') || hostname.length > 12;
+    if (looksLikeRealHost) {
       console.log(`[PASSKEY] getRpId: using hostname "${hostname}" from url="${url}"`);
       return hostname;
     }
@@ -103,18 +106,9 @@ const getOrigin = (): string | string[] => {
 
   if (rpId === 'localhost') {
     primaryOrigin = 'http://localhost:3000';
-  } else if (rpId.includes('.')) {
-    // Real domain — always https
-    primaryOrigin = `https://${rpId}`;
   } else {
-    // Internal hostname fallback — shouldn't happen after getRpId() improvements
-    const url = getAppUrl();
-    try {
-      const parsed = new URL(url);
-      primaryOrigin = `${parsed.protocol}//${parsed.hostname}${parsed.port ? ':' + parsed.port : ''}`;
-    } catch {
-      primaryOrigin = 'http://localhost:3000';
-    }
+    // Real domain or Tailscale hostname — always https
+    primaryOrigin = `https://${rpId}`;
   }
 
   const origins: string[] = [primaryOrigin];
