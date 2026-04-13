@@ -55,6 +55,8 @@ export interface ToolDefinition {
   scopes?: string[];
 }
 
+export type AgentVisibility = "builtin" | "application" | "shared" | "personal";
+
 export interface AgentDefinitionInput {
   name: string;
   display_name: string;
@@ -68,7 +70,15 @@ export interface AgentDefinitionInput {
     max_iterations?: number;
   };
   allow_frontier_fallback?: boolean;
+  /**
+   * @deprecated Use `visibility` instead. Kept for backward compat.
+   * is_builtin=true without visibility maps to visibility='application' on the server.
+   */
   is_builtin?: boolean;
+  /** Agent visibility category. Preferred over is_builtin. */
+  visibility?: AgentVisibility;
+  /** Application ID — required when visibility='application'. */
+  app_id?: string;
   scopes?: string[];
 }
 
