@@ -874,7 +874,7 @@ export default function DataManagementPage() {
                                 <Database className="w-5 h-5 text-green-600" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h3 className="font-medium text-gray-900 truncate">
+                                <h3 className="font-medium text-gray-900 text-sm line-clamp-2" title={doc.displayName || doc.name}>
                                   {doc.displayName || doc.name}
                                 </h3>
                                 {doc.itemLabel && (
@@ -1029,11 +1029,11 @@ export default function DataManagementPage() {
                             <tr key={doc.id} className="hover:bg-gray-50">
                               <td className="px-4 py-3">
                                 <div>
-                                  <p className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
+                                  <p className="text-sm font-medium text-gray-900 max-w-[300px] break-words" title={doc.displayName || doc.name}>
                                     {doc.displayName || doc.name}
                                   </p>
                                   {doc.displayName && doc.name !== doc.displayName && (
-                                    <p className="text-xs text-gray-400 truncate max-w-[200px]">{doc.name}</p>
+                                    <p className="text-xs text-gray-400 max-w-[300px] break-words">{doc.name}</p>
                                   )}
                                 </div>
                               </td>
