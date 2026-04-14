@@ -106,7 +106,25 @@ export function ModelLibrary({ backend }: ModelLibraryProps) {
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {error && (
+        <div className="mb-3 bg-red-50 border border-red-200 rounded-lg p-3">
+          <p className="text-sm text-red-800">{error}</p>
+          <p className="text-xs text-red-600 mt-1">
+            This usually means the deploy-api service is unreachable or <span className="font-mono">VLLM_HOST</span> is not configured for SSH access to the GPU server.
+          </p>
+        </div>
+      )}
+
+      {!error && !loading && filteredModels.length === 0 && (
+        <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <p className="text-sm text-amber-800">No {isMLX ? 'MLX' : 'vLLM'} models found in the model registry.</p>
+          <p className="text-xs text-amber-600 mt-1">
+            {models.length > 0
+              ? `${models.length} model(s) loaded but none match the "${providerFilter}" provider filter. Check model_config.yml provider settings.`
+              : 'The model registry is empty. Ensure the deploy-api can access the model configuration and that VLLM_HOST is set for SSH-based cache detection.'}
+          </p>
+        </div>
+      )}
 
       <div className="space-y-2">
         {filteredModels.map((m) => (

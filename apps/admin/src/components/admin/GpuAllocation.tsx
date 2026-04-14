@@ -104,7 +104,23 @@ export function GpuAllocation() {
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {error && (
+        <div className="mb-3 bg-red-50 border border-red-200 rounded-lg p-3">
+          <p className="text-sm text-red-800">{error}</p>
+          <p className="text-xs text-red-600 mt-1">
+            Ensure <span className="font-mono">VLLM_HOST</span> is configured in deploy-api and SSH access to the vLLM container is working.
+          </p>
+        </div>
+      )}
+
+      {!error && !loading && gpus.length === 0 && (
+        <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <p className="text-sm text-amber-800">No GPUs detected.</p>
+          <p className="text-xs text-amber-600 mt-1">
+            GPU detection requires SSH access from deploy-api to the vLLM host and <span className="font-mono">nvidia-smi</span> installed on the GPU server.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
         {gpus.map((g) => (

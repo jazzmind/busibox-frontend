@@ -213,6 +213,10 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
   const [editingPurpose, setEditingPurpose] = useState<string | null>(null);
   const [purposeModelSelect, setPurposeModelSelect] = useState<string>('');
   const [savingPurpose, setSavingPurpose] = useState(false);
+  const [purposeError, setPurposeError] = useState<string | null>(null);
+
+  // Cloud model registration errors
+  const [registerError, setRegisterError] = useState<string | null>(null);
 
   // Media server status (for passing running state to playgrounds)
   const [mediaStatus, setMediaStatus] = useState<Record<string, { running: boolean; healthy: boolean }>>({});
@@ -223,6 +227,7 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
 
   // Platform backend type (mlx, vllm, cloud)
   const [platformBackend, setPlatformBackend] = useState<string | null>(null);
+  const [platformError, setPlatformError] = useState<string | null>(null);
 
   // Media playground tab
   const [mediaTab, setMediaTab] = useState<'stt' | 'tts' | 'image'>('stt');
@@ -323,9 +328,15 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
         const data = await res.json();
         const backend = data.data?.backend ?? data.backend ?? 'cloud';
         setPlatformBackend(backend);
+        setPlatformError(null);
+      } else {
+        const text = await res.text().catch(() => res.statusText);
+        console.error('[Platform] Detection failed:', res.status, text);
+        setPlatformError(`Platform detection failed (${res.status}). LLM backend sections may not appear correctly.`);
       }
-    } catch {
-      // Default to showing all sections if platform detection fails
+    } catch (e) {
+      console.error('[Platform] Detection error:', e);
+      setPlatformError('Could not reach deploy-api for platform detection. Check that the deploy service is running.');
     }
   };
 
@@ -560,6 +571,7 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
     if (!modelIds.length) return;
     setRegisteringModels(true);
     setRegisterSuccess(null);
+    setRegisterError(null);
 
     try {
       const res = await fetch('/api/llm-cloud-models', {
@@ -573,9 +585,12 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
         setRegisterSuccess(`Registered ${data.data?.registered || 0} model(s)`);
         await Promise.all([fetchModels(), fetchCloudModels(provider), fetchPurposes()]);
         setTimeout(() => setRegisterSuccess(null), 5000);
+      } else {
+        const data = await res.json().catch(() => ({ error: res.statusText }));
+        setRegisterError(data.error || `Failed to register models (${res.status})`);
       }
     } catch (e) {
-      console.error('Failed to register models:', e);
+      setRegisterError(e instanceof Error ? e.message : 'Failed to register models');
     } finally {
       setRegisteringModels(false);
     }
@@ -647,6 +662,7 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
 
   const handleSavePurpose = async (purpose: string, modelName: string) => {
     setSavingPurpose(true);
+    setPurposeError(null);
     try {
       const res = await fetch('/api/llm-purposes', {
         method: 'POST',
@@ -659,11 +675,11 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
         setEditingPurpose(null);
         setPurposeModelSelect('');
       } else {
-        const data = await res.json();
-        console.error('Failed to update purpose:', data.error);
+        const data = await res.json().catch(() => ({ error: res.statusText }));
+        setPurposeError(data.error || `Failed to update purpose mapping (${res.status})`);
       }
     } catch (e) {
-      console.error('Error updating purpose:', e);
+      setPurposeError(e instanceof Error ? e.message : 'Error updating purpose mapping');
     } finally {
       setSavingPurpose(false);
     }
@@ -761,6 +777,23 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
         </div>
       </div>
 
+      {/* Platform detection warning */}
+      {platformError && (
+        <div className="rounded-xl p-4 border bg-amber-50 border-amber-200">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600" />
+            <div>
+              <h3 className="text-sm font-semibold text-amber-800">Platform Detection Issue</h3>
+              <p className="text-sm text-amber-700">{platformError}</p>
+              <p className="text-xs text-amber-600 mt-1">
+                Detected backend: <span className="font-mono">{platformBackend ?? 'unknown'}</span>.
+                If this is a Proxmox/vLLM deployment, ensure <span className="font-mono">LLM_BACKEND=vllm</span> and <span className="font-mono">VLLM_HOST</span> are set in the deploy-api environment.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* LLM Core Servers (MLX only) */}
       {platformBackend === 'mlx' && llmServers.length > 0 && (
       <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -851,8 +884,8 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
       </div>
       )}
 
-      {/* vLLM GPU Servers Status (Proxmox only) */}
-      {platformBackend === 'vllm' && (
+      {/* vLLM GPU Servers Status (Proxmox or unknown backend) */}
+      {(platformBackend === 'vllm' || platformBackend === null) && (
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 rounded-lg bg-emerald-50">
@@ -883,6 +916,16 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
             <p className="text-sm text-gray-500">Map purposes to specific models. Changing a purpose affects all services using it.</p>
           </div>
         </div>
+
+        {purposeError && (
+          <div className="mb-3 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+            <p className="text-sm text-red-800">{purposeError}</p>
+            <button onClick={() => setPurposeError(null)} className="ml-auto">
+              <X className="w-4 h-4 text-red-400 hover:text-red-600" />
+            </button>
+          </div>
+        )}
 
         {purposes ? (
           <div className="space-y-2">
@@ -956,7 +999,7 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
 
       <ModelLibrary backend={platformBackend} />
 
-      {platformBackend === 'vllm' && <GpuAllocation />}
+      {(platformBackend === 'vllm' || platformBackend === null) && <GpuAllocation />}
 
       {/* Section 2: Registered Models */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -1060,6 +1103,15 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
           <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
             <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
             <p className="text-sm text-green-800">{registerSuccess}</p>
+          </div>
+        )}
+        {registerError && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+            <p className="text-sm text-red-800">{registerError}</p>
+            <button onClick={() => setRegisterError(null)} className="ml-auto">
+              <X className="w-4 h-4 text-red-400 hover:text-red-600" />
+            </button>
           </div>
         )}
 
@@ -1482,6 +1534,15 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
               <div className="mb-3 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
                 <p className="text-sm text-green-800">{registerSuccess}</p>
+              </div>
+            )}
+            {registerError && (
+              <div className="mb-3 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                <p className="text-sm text-red-800">{registerError}</p>
+                <button onClick={() => setRegisterError(null)} className="ml-auto">
+                  <X className="w-4 h-4 text-red-400 hover:text-red-600" />
+                </button>
               </div>
             )}
             {(() => {

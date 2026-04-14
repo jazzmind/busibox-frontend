@@ -38,11 +38,13 @@ interface VLLMGpuInfo {
 
 interface VLLMStatusData {
   available: boolean;
+  ssh_reachable?: boolean;
   vllm_host?: string;
   models?: VLLMModelInfo[];
   media?: VLLMMediaInfo[];
   gpus?: VLLMGpuInfo[];
   message?: string;
+  errors?: string[];
 }
 
 interface Props {
@@ -144,9 +146,29 @@ export function VLLMServerStatus({ primaryColor = '#6366f1' }: Props) {
 
   if (!status?.available) {
     return (
-      <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg text-sm text-gray-500">
-        <AlertCircle className="w-4 h-4 text-gray-400" />
-        {status?.message || 'vLLM status not available (no VLLM_HOST configured)'}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+          <div>
+            <p className="font-medium">{status?.message || 'vLLM status not available'}</p>
+            {status?.vllm_host && (
+              <p className="text-xs text-amber-600 mt-1">Host: <span className="font-mono">{status.vllm_host}</span></p>
+            )}
+            {status?.ssh_reachable === false && status?.vllm_host && (
+              <p className="text-xs text-amber-600 mt-1">SSH connection to the vLLM host failed. Check that SSH keys are configured and the host is reachable from the deploy-api container.</p>
+            )}
+            {!status?.vllm_host && (
+              <p className="text-xs text-amber-600 mt-1">Set the <span className="font-mono">VLLM_HOST</span> environment variable in the deploy-api service to enable GPU server monitoring.</p>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={fetchStatus}
+          className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <RefreshCw className="w-3 h-3" />
+          Retry
+        </button>
       </div>
     );
   }
@@ -340,6 +362,15 @@ export function VLLMServerStatus({ primaryColor = '#6366f1' }: Props) {
           Refresh
         </button>
       </div>
+
+      {status.errors && status.errors.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-2">
+          <p className="text-xs font-medium text-amber-800 mb-1">Partial errors:</p>
+          {status.errors.map((e, i) => (
+            <p key={i} className="text-xs text-amber-700">{e}</p>
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className="text-xs text-red-500 flex items-center gap-1">
