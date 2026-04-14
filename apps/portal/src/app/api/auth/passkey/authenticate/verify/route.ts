@@ -29,9 +29,8 @@ export async function POST(request: NextRequest) {
 
     const { response } = body;
 
-    // verifyPasskeyAuthentication calls authz's authenticateWithPasskey endpoint
-    // which handles user activation, last_login update, and session creation
-    const { passkey, user, session } = await verifyPasskeyAuthentication(response);
+    const requestOrigin = request.headers.get('origin') || undefined;
+    const { passkey, user, session } = await verifyPasskeyAuthentication(response, requestOrigin);
     
     const userId = user.id || passkey.user_id;
     

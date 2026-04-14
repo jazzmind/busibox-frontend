@@ -46,13 +46,48 @@ console.log('[PASSKEY] Module loaded (v2). WEBAUTHN_RP_ID=%s, APP_URL=%s, NEXT_P
 );
 
 /**
- * Extract a valid public hostname from available environment variables.
- * Priority: WEBAUTHN_RP_ID > APP_URL > NEXT_PUBLIC_APP_URL > NEXT_PUBLIC_BUSIBOX_PORTAL_URL.
- * If the hostname derived from APP_URL looks like an internal name (no dots,
- * not localhost), fall back to NEXT_PUBLIC_BUSIBOX_PORTAL_URL which is always
- * set to the public-facing URL.
+ * Build the set of hostnames this instance accepts for WebAuthn operations.
+ * Sources: localhost (always) + WEBAUTHN_RP_ID + hostnames extracted from
+ * WEBAUTHN_ADDITIONAL_ORIGINS.
  */
-const getRpId = () => {
+const getAllowedHosts = (): Set<string> => {
+  const hosts = new Set(['localhost']);
+  if (process.env.WEBAUTHN_RP_ID) {
+    hosts.add(process.env.WEBAUTHN_RP_ID);
+  }
+  const additional = process.env.WEBAUTHN_ADDITIONAL_ORIGINS;
+  if (additional) {
+    for (const entry of additional.split(',').map(s => s.trim()).filter(Boolean)) {
+      try { hosts.add(new URL(entry).hostname); } catch { /* bare hostname won't parse — skip */ }
+    }
+  }
+  return hosts;
+};
+
+/**
+ * Derive the RP ID for a WebAuthn operation.
+ *
+ * When requestOrigin is provided, its hostname is used — but only if it
+ * appears in the allowlist (localhost + WEBAUTHN_RP_ID). This lets passkeys
+ * work from multiple hostnames (e.g. localhost and a Tailscale name) while
+ * refusing to cooperate with unknown origins.
+ *
+ * Fallback: WEBAUTHN_RP_ID > APP_URL > PORTAL_URL > localhost.
+ */
+const getRpId = (requestOrigin?: string) => {
+  if (requestOrigin) {
+    try {
+      const hostname = new URL(requestOrigin).hostname;
+      if (getAllowedHosts().has(hostname)) {
+        console.log(`[PASSKEY] getRpId: using allowed request origin "${hostname}"`);
+        return hostname;
+      }
+      console.log(`[PASSKEY] getRpId: origin "${hostname}" not in allowlist, ignoring`);
+    } catch {
+      console.log(`[PASSKEY] getRpId: failed to parse requestOrigin="${requestOrigin}"`);
+    }
+  }
+
   if (process.env.WEBAUTHN_RP_ID) {
     console.log(`[PASSKEY] getRpId: using WEBAUTHN_RP_ID="${process.env.WEBAUTHN_RP_ID}"`);
     return process.env.WEBAUTHN_RP_ID;
@@ -61,11 +96,6 @@ const getRpId = () => {
   const url = getAppUrl();
   try {
     const hostname = new URL(url).hostname;
-    // If the hostname has dots, is localhost, or looks like a real machine
-    // hostname (contains hyphens or is multi-word — e.g. Tailscale MagicDNS
-    // names like "my-mac-studio"), it's usable as an RP ID.
-    // Only skip short single-word names that look like Docker service names
-    // (e.g. "portal", "core-apps" with exactly one word).
     const looksLikeRealHost = hostname.includes('.') || hostname === 'localhost' || hostname.includes('-') || hostname.length > 12;
     if (looksLikeRealHost) {
       console.log(`[PASSKEY] getRpId: using hostname "${hostname}" from url="${url}"`);
@@ -76,7 +106,6 @@ const getRpId = () => {
     console.log(`[PASSKEY] getRpId: failed to parse url="${url}"`);
   }
 
-  // Fallback: derive from the portal URL which is always the public domain
   const portalUrl = process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL;
   if (portalUrl) {
     try {
@@ -96,39 +125,32 @@ const getRpName = () => process.env.APP_NAME || 'Busibox Portal';
 
 /**
  * Returns the expected origin(s) for WebAuthn verification.
- * Supports multiple origins for SSH tunnel access (e.g., https://localhost:4443).
- * When rpId is localhost, automatically includes common tunnel ports (443, 4443, 3000).
- * Use WEBAUTHN_ADDITIONAL_ORIGINS (comma-separated) for extra origins.
+ *
+ * Builds origins from ALL allowed hosts so the server accepts credentials
+ * registered on any permitted hostname. The requestOrigin is used to select
+ * the RP ID (via getRpId) but the origin list is always comprehensive.
  */
-const getOrigin = (): string | string[] => {
-  const rpId = getRpId();
-  let primaryOrigin: string;
+const getOrigin = (requestOrigin?: string): string | string[] => {
+  const origins: string[] = [];
 
-  if (rpId === 'localhost') {
-    primaryOrigin = 'http://localhost:3000';
-  } else {
-    // Real domain or Tailscale hostname — always https
-    primaryOrigin = `https://${rpId}`;
-  }
-
-  const origins: string[] = [primaryOrigin];
-
-  // For localhost, also accept common tunnel ports (e.g., SSH tunnel on 4443)
-  if (rpId === 'localhost') {
-    const localPorts = ['443', '4443', '3000'];
-    for (const port of localPorts) {
-      const candidate = `https://localhost:${port}`;
-      if (!origins.includes(candidate)) {
-        origins.push(candidate);
+  for (const host of getAllowedHosts()) {
+    if (host === 'localhost') {
+      for (const candidate of [
+        'http://localhost:3000',
+        'https://localhost:443',
+        'https://localhost:4443',
+        'https://localhost:3000',
+        'https://localhost',
+      ]) {
+        if (!origins.includes(candidate)) origins.push(candidate);
       }
-    }
-    // Also accept https://localhost without port (port 443 is implicit)
-    if (!origins.includes('https://localhost')) {
-      origins.push('https://localhost');
+    } else {
+      const httpsOrigin = `https://${host}`;
+      if (!origins.includes(httpsOrigin)) origins.push(httpsOrigin);
     }
   }
 
-  // Support additional origins via environment variable
+  // Include any explicitly-configured additional origins verbatim
   const additionalOrigins = process.env.WEBAUTHN_ADDITIONAL_ORIGINS;
   if (additionalOrigins) {
     for (const origin of additionalOrigins.split(',').map(o => o.trim()).filter(Boolean)) {
@@ -138,7 +160,6 @@ const getOrigin = (): string | string[] => {
     }
   }
 
-  // Return single string if only one origin, otherwise array
   return origins.length === 1 ? origins[0] : origins;
 };
 
@@ -151,8 +172,9 @@ const getOrigin = (): string | string[] => {
  * @param userId - User ID
  * @param userEmail - User email
  * @param sessionJwt - Session JWT for authentication with authz service
+ * @param requestOrigin - Origin from the incoming request (e.g. "https://clymates-mac-studio")
  */
-export async function generatePasskeyRegistrationOptions(userId: string, userEmail: string, sessionJwt: string) {
+export async function generatePasskeyRegistrationOptions(userId: string, userEmail: string, sessionJwt: string, requestOrigin?: string) {
   // Use session JWT directly for self-service auth (no token exchange needed)
   // The authz passkey endpoints support session JWT for users managing their own passkeys
   const options = {
@@ -172,7 +194,7 @@ export async function generatePasskeyRegistrationOptions(userId: string, userEma
 
   const registrationOptions = await generateRegistrationOptions({
     rpName: getRpName(),
-    rpID: getRpId(),
+    rpID: getRpId(requestOrigin),
     userID: new TextEncoder().encode(userId),
     userName: userEmail,
     userDisplayName: userEmail.split('@')[0],
@@ -207,7 +229,8 @@ export async function verifyPasskeyRegistration(
   userId: string,
   response: RegistrationResponseJSON,
   deviceName: string,
-  sessionJwt: string
+  sessionJwt: string,
+  requestOrigin?: string,
 ) {
   // Use session JWT directly for self-service auth (no token exchange needed)
   // The authz passkey endpoints support session JWT for users managing their own passkeys
@@ -228,12 +251,11 @@ export async function verifyPasskeyRegistration(
   );
   const expectedChallenge = clientDataJSON.challenge;
 
-  // Verify the registration response
   const verification = await verifyRegistrationResponse({
     response,
     expectedChallenge,
-    expectedOrigin: getOrigin(),
-    expectedRPID: getRpId(),
+    expectedOrigin: getOrigin(requestOrigin),
+    expectedRPID: getRpId(requestOrigin),
     requireUserVerification: false,
   });
 
@@ -271,15 +293,11 @@ export async function verifyPasskeyRegistration(
  * 2. Modern browsers support "discoverable credentials" which auto-select the right passkey
  * 3. Allowing any passkey is actually the correct UX for passkey authentication
  */
-export async function generatePasskeyAuthenticationOptions(_email?: string) {
+export async function generatePasskeyAuthenticationOptions(_email?: string, requestOrigin?: string) {
   const options = getAuthzOptions();
-  
-  // We don't restrict to specific credentials - the browser will show
-  // all available passkeys for this RP (discoverable credentials)
-  // This is the correct behavior for passkey authentication
 
   const authOptions = await generateAuthenticationOptions({
-    rpID: getRpId(),
+    rpID: getRpId(requestOrigin),
     timeout: 300000,
     userVerification: 'preferred',
     // undefined means allow any passkey (discoverable credential)
@@ -295,7 +313,7 @@ export async function generatePasskeyAuthenticationOptions(_email?: string) {
 /**
  * Verify an authentication response and return the user and session
  */
-export async function verifyPasskeyAuthentication(response: AuthenticationResponseJSON): Promise<{
+export async function verifyPasskeyAuthentication(response: AuthenticationResponseJSON, requestOrigin?: string): Promise<{
   passkey: Passkey & { user_id: string };
   user: AuthzUser;
   session: { token: string; expires_at: string };
@@ -365,12 +383,11 @@ export async function verifyPasskeyAuthentication(response: AuthenticationRespon
     credential_id: passkey.credential_id?.substring(0, 20) + '...',
   });
 
-  // Verify the authentication response
   const verification = await verifyAuthenticationResponse({
     response,
     expectedChallenge,
-    expectedOrigin: getOrigin(),
-    expectedRPID: getRpId(),
+    expectedOrigin: getOrigin(requestOrigin),
+    expectedRPID: getRpId(requestOrigin),
     credential: {
       id: passkey.credential_id,
       publicKey: base64UrlToBuffer(passkey.credential_public_key) as any,

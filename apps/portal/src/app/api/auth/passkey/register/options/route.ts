@@ -23,7 +23,8 @@ export async function POST(request: NextRequest) {
       return apiError('Session token required', 401);
     }
 
-    const options = await generatePasskeyRegistrationOptions(user.id, user.email, sessionJwt);
+    const requestOrigin = request.headers.get('origin') || undefined;
+    const options = await generatePasskeyRegistrationOptions(user.id, user.email, sessionJwt, requestOrigin);
 
     return apiSuccess({
       options,

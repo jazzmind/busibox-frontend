@@ -16,7 +16,9 @@ export async function POST(request: NextRequest) {
     // Email is optional - if provided, only allow that user's passkeys
     const email = body?.email;
 
-    const options = await generatePasskeyAuthenticationOptions(email);
+    // Extract the origin so the RP ID matches the hostname the browser is on
+    const requestOrigin = request.headers.get('origin') || undefined;
+    const options = await generatePasskeyAuthenticationOptions(email, requestOrigin);
 
     return apiSuccess({
       options,

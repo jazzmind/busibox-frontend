@@ -31,7 +31,8 @@ export async function POST(request: NextRequest) {
 
     const { response, deviceName = 'My Device' } = body;
 
-    const passkey = await verifyPasskeyRegistration(user.id, response, deviceName, sessionJwt);
+    const requestOrigin = request.headers.get('origin') || undefined;
+    const passkey = await verifyPasskeyRegistration(user.id, response, deviceName, sessionJwt, requestOrigin);
 
     // Log the registration
     await logPasskeyRegistered(user.id, passkey.passkey_id, deviceName);
