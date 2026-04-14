@@ -46,19 +46,32 @@ console.log('[PASSKEY] Module loaded (v2). WEBAUTHN_RP_ID=%s, APP_URL=%s, NEXT_P
 );
 
 /**
+ * WebAuthn RP ID must be `localhost` or a proper domain with a TLD (eTLD+1).
+ * Bare hostnames like `clymates-mac-studio` are rejected by browsers and
+ * the simplewebauthn library.
+ */
+const isValidRpId = (hostname: string): boolean =>
+  hostname === 'localhost' || hostname.includes('.');
+
+/**
  * Build the set of hostnames this instance accepts for WebAuthn operations.
  * Sources: localhost (always) + WEBAUTHN_RP_ID + hostnames extracted from
  * WEBAUTHN_ADDITIONAL_ORIGINS.
+ *
+ * Only hostnames that are valid WebAuthn RP IDs are included.
  */
 const getAllowedHosts = (): Set<string> => {
   const hosts = new Set(['localhost']);
-  if (process.env.WEBAUTHN_RP_ID) {
+  if (process.env.WEBAUTHN_RP_ID && isValidRpId(process.env.WEBAUTHN_RP_ID)) {
     hosts.add(process.env.WEBAUTHN_RP_ID);
   }
   const additional = process.env.WEBAUTHN_ADDITIONAL_ORIGINS;
   if (additional) {
     for (const entry of additional.split(',').map(s => s.trim()).filter(Boolean)) {
-      try { hosts.add(new URL(entry).hostname); } catch { /* bare hostname won't parse — skip */ }
+      try {
+        const h = new URL(entry).hostname;
+        if (isValidRpId(h)) hosts.add(h);
+      } catch { /* bare hostname won't parse — skip */ }
     }
   }
   return hosts;
@@ -68,9 +81,8 @@ const getAllowedHosts = (): Set<string> => {
  * Derive the RP ID for a WebAuthn operation.
  *
  * When requestOrigin is provided, its hostname is used — but only if it
- * appears in the allowlist (localhost + WEBAUTHN_RP_ID). This lets passkeys
- * work from multiple hostnames (e.g. localhost and a Tailscale name) while
- * refusing to cooperate with unknown origins.
+ * appears in the allowlist AND is a valid RP ID (has a TLD or is localhost).
+ * Bare Tailscale hostnames (no TLD) are silently skipped.
  *
  * Fallback: WEBAUTHN_RP_ID > APP_URL > PORTAL_URL > localhost.
  */
@@ -78,11 +90,14 @@ const getRpId = (requestOrigin?: string) => {
   if (requestOrigin) {
     try {
       const hostname = new URL(requestOrigin).hostname;
-      if (getAllowedHosts().has(hostname)) {
+      if (!isValidRpId(hostname)) {
+        console.log(`[PASSKEY] getRpId: "${hostname}" is not a valid RP ID (no TLD), falling back`);
+      } else if (getAllowedHosts().has(hostname)) {
         console.log(`[PASSKEY] getRpId: using allowed request origin "${hostname}"`);
         return hostname;
+      } else {
+        console.log(`[PASSKEY] getRpId: origin "${hostname}" not in allowlist, ignoring`);
       }
-      console.log(`[PASSKEY] getRpId: origin "${hostname}" not in allowlist, ignoring`);
     } catch {
       console.log(`[PASSKEY] getRpId: failed to parse requestOrigin="${requestOrigin}"`);
     }
