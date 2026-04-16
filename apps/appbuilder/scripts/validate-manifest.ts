@@ -28,30 +28,9 @@ interface BusiboxManifest {
   busiboxAppVersion?: string;
 }
 
-// Valid icon names (subset of lucide-react icons commonly used)
-const VALID_ICONS = [
-  'Boxes', 'Calculator', 'Chart', 'Document', 'Bot', 'Building',
-  'BarChart', 'Lightbulb', 'FileText', 'Settings', 'Users', 'Database',
-  'Code', 'Terminal', 'Folder', 'Search', 'Globe', 'Lock', 'Key',
-  'Mail', 'Bell', 'Calendar', 'Clock', 'Image', 'Video', 'Music',
-  'Upload', 'Download', 'Share', 'Link', 'ExternalLink', 'Home',
-  'Activity', 'AlertCircle', 'Archive', 'Bookmark', 'Camera', 'Check',
-  'ChevronDown', 'ChevronRight', 'Clipboard', 'Cloud', 'Coffee',
-  'Command', 'Compass', 'Copy', 'CreditCard', 'Crosshair', 'Edit',
-  'Eye', 'File', 'Filter', 'Flag', 'Gift', 'Grid', 'Hash', 'Heart',
-  'HelpCircle', 'Inbox', 'Info', 'Layers', 'Layout', 'List', 'Map',
-  'Menu', 'MessageCircle', 'MessageSquare', 'Mic', 'Monitor', 'Moon',
-  'MoreHorizontal', 'MoreVertical', 'Move', 'Package', 'Paperclip',
-  'Pause', 'Percent', 'Phone', 'PieChart', 'Play', 'Plus', 'Power',
-  'Printer', 'Radio', 'RefreshCw', 'Repeat', 'RotateCcw', 'Save',
-  'Scissors', 'Server', 'Shield', 'ShoppingBag', 'ShoppingCart',
-  'Shuffle', 'Sidebar', 'Slash', 'Sliders', 'Smartphone', 'Speaker',
-  'Square', 'Star', 'Sun', 'Tablet', 'Tag', 'Target', 'ThumbsDown',
-  'ThumbsUp', 'Tool', 'Trash', 'TrendingDown', 'TrendingUp', 'Truck',
-  'Tv', 'Type', 'Umbrella', 'Underline', 'Unlock', 'User', 'UserCheck',
-  'UserMinus', 'UserPlus', 'UserX', 'Volume', 'Watch', 'Wifi', 'Wind',
-  'X', 'Zap', 'ZoomIn', 'ZoomOut'
-];
+// Validate icon names against all available lucide-react icons
+import { icons as lucideIcons } from 'lucide-react';
+const VALID_ICONS = Object.keys(lucideIcons);
 
 interface ValidationError {
   field: string;

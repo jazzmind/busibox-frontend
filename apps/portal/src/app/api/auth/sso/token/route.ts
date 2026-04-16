@@ -56,10 +56,14 @@ export async function POST(request: NextRequest) {
       sessionJwt,
     }, appId);
 
-    // Build redirect URL with token
-    const redirectUrl = result.appUrl 
-      ? `${result.appUrl}?token=${encodeURIComponent(result.token)}`
-      : null;
+    // Build redirect URL with token and optional app theme colors
+    let redirectUrl: string | null = null;
+    if (result.appUrl) {
+      const params = new URLSearchParams({ token: result.token });
+      if (result.primaryColor) params.set('themeColor', result.primaryColor);
+      if (result.secondaryColor) params.set('themeSecondary', result.secondaryColor);
+      redirectUrl = `${result.appUrl}?${params.toString()}`;
+    }
 
     return apiSuccess({
       token: result.token,

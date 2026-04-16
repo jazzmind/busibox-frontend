@@ -101,6 +101,8 @@ export async function getUserApps(userId: string, accessToken?: string) {
         isActive: app.isActive,
         lastDeploymentStatus: app.lastDeploymentStatus ?? null,
         deployedPath: app.deployedPath ?? null,
+        primaryColor: app.primaryColor ?? null,
+        secondaryColor: app.secondaryColor ?? null,
       }));
   } catch (error) {
     console.error('[APP-PERMISSIONS] Error getting user apps:', error);

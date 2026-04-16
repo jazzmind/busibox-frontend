@@ -87,6 +87,8 @@ export async function generateSSOToken(userInfo: SSOUserInfo, appIdentifier: str
   token: string;
   expiresAt: Date;
   appUrl: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
 }> {
   // Verify app exists and is active
   const context = await getAppConfigStoreContextForUser(userInfo.id, userInfo.sessionJwt);
@@ -187,6 +189,8 @@ export async function generateSSOToken(userInfo: SSOUserInfo, appIdentifier: str
       token: result.accessToken,
       expiresAt,
       appUrl,
+      primaryColor: app.primaryColor ?? null,
+      secondaryColor: app.secondaryColor ?? null,
     };
   } catch (error: any) {
     // Map authz errors to user-friendly messages

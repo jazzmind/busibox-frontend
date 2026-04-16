@@ -225,6 +225,8 @@ export type DashboardApp = {
   isActive: boolean;
   lastDeploymentStatus: string | null;
   deployedPath: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
 };
 
 export type UserProfile = {

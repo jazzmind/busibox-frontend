@@ -220,6 +220,22 @@ export function createSSOGetHandler<T extends ResponseInstance>(
         path: config.basePath || '/',
       });
 
+      // Store app theme colors (readable by client JS for CustomizationProvider)
+      const themeColor = searchParams.get('themeColor');
+      const themeSecondary = searchParams.get('themeSecondary');
+      if (themeColor || themeSecondary) {
+        const theme: Record<string, string> = {};
+        if (themeColor) theme.primaryColor = themeColor;
+        if (themeSecondary) theme.secondaryColor = themeSecondary;
+        response.cookies.set('busibox-app-theme', JSON.stringify(theme), {
+          httpOnly: false,
+          secure: config.isProduction,
+          sameSite: 'lax',
+          maxAge: 60 * 60 * 24 * 30,
+          path: config.basePath || '/',
+        });
+      }
+
       return response;
     } catch (error) {
       console.error('[SSO] GET Error:', error);

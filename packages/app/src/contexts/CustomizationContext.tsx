@@ -57,6 +57,25 @@ const defaultCustomization: PortalCustomization = {
   customCss: null,
 };
 
+/**
+ * Read per-app theme overrides from the busibox-app-theme cookie.
+ * This cookie is set during SSO redirect when an app has custom colors configured.
+ */
+function getAppThemeFromCookie(): { primaryColor?: string; secondaryColor?: string } {
+  if (typeof document === 'undefined') return {};
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)busibox-app-theme=([^;]*)/);
+    if (!match) return {};
+    const parsed = JSON.parse(decodeURIComponent(match[1]));
+    return {
+      primaryColor: parsed.primaryColor || undefined,
+      secondaryColor: parsed.secondaryColor || undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
 const CustomizationContext = createContext<CustomizationContextType>({
   customization: defaultCustomization,
   isLoading: false,
@@ -113,14 +132,24 @@ export function CustomizationProvider({
 
       const data = await response.json();
 
+      let merged: PortalCustomization | null = null;
       if (data.branding) {
         // config-api format: { branding: { companyName, siteName, ... } }
-        setCustomization({ ...defaultCustomization, ...data.branding });
+        merged = { ...defaultCustomization, ...data.branding };
       } else if (data.success && data.data?.customization) {
         // Legacy portal API format: { success: true, data: { customization: {...} } }
-        setCustomization(data.data.customization);
+        merged = data.data.customization;
       } else {
         setError(data.error || 'Failed to load customization');
+      }
+
+      if (merged) {
+        // Apply per-app color overrides from the busibox-app-theme cookie
+        // (set during SSO redirect when the app has custom colors)
+        const appTheme = getAppThemeFromCookie();
+        if (appTheme.primaryColor) merged.primaryColor = appTheme.primaryColor;
+        if (appTheme.secondaryColor) merged.secondaryColor = appTheme.secondaryColor;
+        setCustomization(merged);
       }
     } catch (err) {
       console.error('Failed to fetch customization:', err);

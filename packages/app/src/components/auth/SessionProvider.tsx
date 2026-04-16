@@ -334,11 +334,23 @@ export function SessionProvider({
     console.log('[SessionProvider] Token found in URL, starting exchange...');
     setIsReady(false);
 
-    // Remove token from URL IMMEDIATELY (synchronously) to prevent infinite
-    // reload loops when HMR/Fast Refresh re-mounts the component before the
-    // async exchange completes.
+    // Store app theme colors from SSO redirect in a cookie for CustomizationProvider
+    const themeColor = searchParams.get('themeColor');
+    const themeSecondary = searchParams.get('themeSecondary');
+    if (themeColor || themeSecondary) {
+      const theme: Record<string, string> = {};
+      if (themeColor) theme.primaryColor = themeColor;
+      if (themeSecondary) theme.secondaryColor = themeSecondary;
+      document.cookie = `busibox-app-theme=${encodeURIComponent(JSON.stringify(theme))};path=${basePath || '/'};max-age=${60 * 60 * 24 * 30};samesite=lax`;
+    }
+
+    // Remove token and theme params from URL IMMEDIATELY (synchronously) to
+    // prevent infinite reload loops when HMR/Fast Refresh re-mounts the
+    // component before the async exchange completes.
     const cleanUrl = new URL(window.location.href);
     cleanUrl.searchParams.delete('token');
+    cleanUrl.searchParams.delete('themeColor');
+    cleanUrl.searchParams.delete('themeSecondary');
     window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search);
 
     exchangeToken(token, `${basePath}${exchangeEndpoint}`)

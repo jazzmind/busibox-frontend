@@ -11,7 +11,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { DashboardApp } from '@/types';
 import { AppIcon } from '@jazzmind/busibox-app';
 
@@ -66,6 +66,16 @@ export function AppCard({ app }: AppCardProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [errorCode, setErrorCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setLoading(false);
+      }
+    };
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, []);
 
   const deployBadge = getDeploymentBadge(app);
   const isNotDeployed = !!deployBadge;
@@ -167,6 +177,7 @@ export function AppCard({ app }: AppCardProps) {
             iconName={app.selectedIcon}
             iconUrl={app.iconUrl}
             size="lg"
+            color={app.primaryColor}
           />
         </div>
 
