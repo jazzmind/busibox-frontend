@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { CollapsibleServiceHealth } from './CollapsibleServiceHealth';
 import { ModelMemoryCard } from './ModelMemoryCard';
+import { GraphStatCard } from './graph/GraphStatCard';
 import { useCustomization } from '@jazzmind/busibox-app';
 
 type ActivityEvent = {
@@ -471,6 +472,16 @@ export function LiveDashboard() {
 
       {/* Model Memory Card */}
       <ModelMemoryCard />
+
+      {/* Infrastructure row */}
+      <div>
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+          Infrastructure
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <GraphStatCard />
+        </div>
+      </div>
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

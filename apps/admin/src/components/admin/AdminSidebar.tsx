@@ -28,6 +28,7 @@ import {
   Home,
   BookOpen,
   Fingerprint,
+  Network,
 } from 'lucide-react';
 
 // Gate the test runner to non-production environments only.
@@ -79,6 +80,13 @@ const navItems: NavItem[] = [
     href: '/data',
     icon: <Database className="w-5 h-5" />,
     description: 'Libraries, collections, tags, storage',
+  },
+  {
+    id: 'graph',
+    label: 'Graph DB',
+    href: '/graph',
+    icon: <Network className="w-5 h-5" />,
+    description: 'Neo4j health & explorer',
   },
 
   {
