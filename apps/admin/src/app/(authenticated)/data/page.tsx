@@ -19,21 +19,21 @@ import {
   FolderOpen, 
   Tag, 
   HardDrive, 
-  FileText, 
   RefreshCw,
   Plus,
   Search,
   ExternalLink,
   TrendingUp,
   Layers,
-  Pencil,
   Trash2,
   Loader2,
   Shield,
   AlertTriangle,
+  ChevronRight,
 } from 'lucide-react';
 import { CreateLibraryModal } from '@/components/admin/CreateLibraryModal';
 import { LibraryDeleteModal } from '@jazzmind/busibox-app/components/documents/LibraryDeleteModal';
+import { FileStorageTab } from '@/components/admin/FileStorageTab';
 
 type Library = {
   id: string;
@@ -72,13 +72,6 @@ type StorageStats = {
   bucketCount: number;
 };
 
-type DatabaseStats = {
-  totalRecords: number;
-  tableCount: number;
-  vectorCount: number;
-  indexSize: number;
-};
-
 type AdminDocument = {
   id: string;
   name: string;
@@ -111,10 +104,13 @@ export default function DataManagementPage() {
   const searchParams = useSearchParams();
 
   const paramTab = searchParams.get('tab');
-  const initialTab =
-    paramTab === 'overview' || paramTab === 'user-libraries' || paramTab === 'app-libraries' || paramTab === 'tags' || paramTab === 'all-docs'
-      ? paramTab
-      : 'overview';
+  const validTabs = ['user-libraries', 'app-libraries', 'tags', 'file-storage', 'all-docs'] as const;
+  type TabId = typeof validTabs[number];
+  const initialTab: TabId =
+    paramTab && (validTabs as readonly string[]).includes(paramTab)
+      ? (paramTab as TabId)
+      // Legacy 'overview' and 'shared' redirect to user-libraries
+      : 'user-libraries';
   const paramSortField = searchParams.get('sort');
   const initialSortField =
     paramSortField === 'sourceApp' || paramSortField === 'displayName' || paramSortField === 'recordCount'
@@ -127,9 +123,8 @@ export default function DataManagementPage() {
   const [appDataLibraries, setAppDataLibraries] = useState<AppDataDocument[]>([]);
   const [tags, setTags] = useState<TagInfo[]>([]);
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
-  const [databaseStats, setDatabaseStats] = useState<DatabaseStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'user-libraries' | 'app-libraries' | 'tags' | 'all-docs'>(initialTab);
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [selectedApp, setSelectedApp] = useState<string | null>(searchParams.get('sourceApp') || null);
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [appFilter, setAppFilter] = useState(searchParams.get('app') || 'all');
@@ -175,7 +170,7 @@ export default function DataManagementPage() {
 
   useEffect(() => {
     const nextParams = new URLSearchParams(searchParams.toString());
-    if (activeTab === 'overview') {
+    if (activeTab === 'user-libraries') {
       nextParams.delete('tab');
     } else {
       nextParams.set('tab', activeTab);
@@ -234,13 +229,19 @@ export default function DataManagementPage() {
         }
       }
 
-      // Fetch database stats
-      const dbResponse = await fetch('/api/database/stats');
-      if (dbResponse.ok) {
-        const dbData = await dbResponse.json();
-        if (dbData.success) {
-          setDatabaseStats(dbData.data);
+      // Pre-fetch total admin document count so the All Documents stat card
+      // has a number before the user clicks into the tab.
+      try {
+        const allDocsResponse = await fetch('/api/data/admin/documents?limit=1');
+        if (allDocsResponse.ok) {
+          const result = await allDocsResponse.json();
+          const docsData = result.success ? result.data : result;
+          if (typeof docsData?.total === 'number') {
+            setAllDocsTotal(docsData.total);
+          }
         }
+      } catch (err) {
+        console.warn('Failed to pre-fetch admin documents total:', err);
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
@@ -407,12 +408,21 @@ export default function DataManagementPage() {
         </div>
       </div>
 
-      {/* Stats Overview Cards */}
+      {/* Stats / Tab Selector Cards */}
       <section className="pb-8">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {/* Shared Libraries Card */}
-            <div className="bg-gradient-to-br from-purple-50 to-white border border-purple-100 rounded-xl p-5">
+            {/* User Libraries Card */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('user-libraries')}
+              aria-pressed={activeTab === 'user-libraries'}
+              className={`text-left bg-gradient-to-br from-purple-50 to-white border rounded-xl p-5 transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+                activeTab === 'user-libraries'
+                  ? 'border-purple-500 ring-2 ring-purple-300 shadow-sm'
+                  : 'border-purple-100 hover:border-purple-300'
+              }`}
+            >
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 bg-purple-100 rounded-lg">
                   <FolderOpen className="w-5 h-5 text-purple-600" />
@@ -421,10 +431,19 @@ export default function DataManagementPage() {
               </div>
               <p className="text-3xl font-bold text-gray-900">{sharedLibraries.length}</p>
               <p className="text-sm text-gray-500 mt-1">{formatNumber(totalSharedDocuments)} documents</p>
-            </div>
+            </button>
 
             {/* App Libraries Card */}
-            <div className="bg-gradient-to-br from-green-50 to-white border border-green-100 rounded-xl p-5">
+            <button
+              type="button"
+              onClick={() => setActiveTab('app-libraries')}
+              aria-pressed={activeTab === 'app-libraries'}
+              className={`text-left bg-gradient-to-br from-green-50 to-white border rounded-xl p-5 transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400 ${
+                activeTab === 'app-libraries'
+                  ? 'border-green-500 ring-2 ring-green-300 shadow-sm'
+                  : 'border-green-100 hover:border-green-300'
+              }`}
+            >
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 bg-green-100 rounded-lg">
                   <Database className="w-5 h-5 text-green-600" />
@@ -433,10 +452,19 @@ export default function DataManagementPage() {
               </div>
               <p className="text-3xl font-bold text-gray-900">{safeAppDataLibraries.length}</p>
               <p className="text-sm text-gray-500 mt-1">{formatNumber(totalAppDataRecords)} records</p>
-            </div>
+            </button>
 
             {/* Tags Card */}
-            <div className="bg-gradient-to-br from-blue-50 to-white border border-blue-100 rounded-xl p-5">
+            <button
+              type="button"
+              onClick={() => setActiveTab('tags')}
+              aria-pressed={activeTab === 'tags'}
+              className={`text-left bg-gradient-to-br from-blue-50 to-white border rounded-xl p-5 transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
+                activeTab === 'tags'
+                  ? 'border-blue-500 ring-2 ring-blue-300 shadow-sm'
+                  : 'border-blue-100 hover:border-blue-300'
+              }`}
+            >
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <Tag className="w-5 h-5 text-blue-600" />
@@ -447,10 +475,19 @@ export default function DataManagementPage() {
               <p className="text-sm text-gray-500 mt-1">
                 {formatNumber(safeTags.reduce((sum, t) => sum + (t.count || 0), 0))} tagged items
               </p>
-            </div>
+            </button>
 
-            {/* Storage Card */}
-            <div className="bg-gradient-to-br from-cyan-50 to-white border border-cyan-100 rounded-xl p-5">
+            {/* File Storage Card */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('file-storage')}
+              aria-pressed={activeTab === 'file-storage'}
+              className={`text-left bg-gradient-to-br from-cyan-50 to-white border rounded-xl p-5 transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+                activeTab === 'file-storage'
+                  ? 'border-cyan-500 ring-2 ring-cyan-300 shadow-sm'
+                  : 'border-cyan-100 hover:border-cyan-300'
+              }`}
+            >
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 bg-cyan-100 rounded-lg">
                   <HardDrive className="w-5 h-5 text-cyan-600" />
@@ -463,40 +500,47 @@ export default function DataManagementPage() {
               <p className="text-sm text-gray-500 mt-1">
                 {storageStats ? formatNumber(storageStats.fileCount) : '--'} files
               </p>
-            </div>
+            </button>
 
-            {/* Database Card */}
-            <div className="bg-gradient-to-br from-orange-50 to-white border border-orange-100 rounded-xl p-5">
+            {/* All Documents Card (replaces Vector DB — that moves to the Search page) */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('all-docs')}
+              aria-pressed={activeTab === 'all-docs'}
+              className={`text-left bg-gradient-to-br from-amber-50 to-white border rounded-xl p-5 transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
+                activeTab === 'all-docs'
+                  ? 'border-amber-500 ring-2 ring-amber-300 shadow-sm'
+                  : 'border-amber-100 hover:border-amber-300'
+              }`}
+            >
               <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <Database className="w-5 h-5 text-orange-600" />
+                <div className="p-2 bg-amber-100 rounded-lg">
+                  <Shield className="w-5 h-5 text-amber-600" />
                 </div>
-                <span className="text-sm font-medium text-orange-600">Vector DB</span>
+                <span className="text-sm font-medium text-amber-600">All Documents</span>
               </div>
-              <p className="text-3xl font-bold text-gray-900">
-                {databaseStats ? formatNumber(databaseStats.vectorCount) : '--'}
-              </p>
-              <p className="text-sm text-gray-500 mt-1">embeddings indexed</p>
-            </div>
+              <p className="text-3xl font-bold text-gray-900">{formatNumber(allDocsTotal)}</p>
+              <p className="text-sm text-gray-500 mt-1">admin view across users</p>
+            </button>
           </div>
         </div>
       </section>
 
-      {/* Tabs */}
+      {/* Tabs (secondary text navigation, stays in sync with the stat cards) */}
       <section className="border-b border-gray-200 bg-white sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-6">
-          <nav className="flex gap-8">
+          <nav className="flex gap-8 overflow-x-auto">
             {[
-              { id: 'overview', label: 'Overview', icon: <Layers className="w-4 h-4" /> },
               { id: 'user-libraries', label: 'User Libraries', icon: <FolderOpen className="w-4 h-4" /> },
               { id: 'app-libraries', label: 'App Libraries', icon: <Database className="w-4 h-4" /> },
               { id: 'tags', label: 'Tags', icon: <Tag className="w-4 h-4" /> },
+              { id: 'file-storage', label: 'File Storage', icon: <HardDrive className="w-4 h-4" /> },
               { id: 'all-docs', label: 'All Documents', icon: <Shield className="w-4 h-4" /> },
             ].map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                className={`flex items-center gap-2 py-4 border-b-2 font-medium text-sm transition-colors ${
+                onClick={() => setActiveTab(tab.id as TabId)}
+                className={`flex items-center gap-2 py-4 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-current'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -521,7 +565,7 @@ export default function DataManagementPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder={`Search ${activeTab}...`}
+                  placeholder={`Search ${activeTab.replace('-', ' ')}...`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
@@ -536,178 +580,6 @@ export default function DataManagementPage() {
             </div>
           ) : (
             <>
-              {/* Overview Tab */}
-              {activeTab === 'overview' && (
-                <div className="space-y-8">
-                  {/* User Libraries */}
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-semibold text-gray-900">User Libraries</h2>
-                      <button
-                        onClick={() => setActiveTab('user-libraries')}
-                        className="text-sm text-purple-600 hover:text-purple-700 hover:underline"
-                      >
-                        View all
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {sharedLibraries.slice(0, 6).map(lib => (
-                        <Link
-                          key={lib.id}
-                          href={`/libraries/${lib.id}`}
-                          className="block bg-white border border-gray-200 rounded-xl p-5 hover:border-purple-300 hover:shadow-md transition-all group"
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100 transition-colors">
-                              <FolderOpen className="w-5 h-5 text-purple-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-medium text-gray-900 truncate">{lib.name}</h3>
-                              <p className="text-sm text-gray-500 mt-1 line-clamp-2">
-                                {lib.description || 'No description'}
-                              </p>
-                              <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
-                                <span className="flex items-center gap-1">
-                                  <FileText className="w-3 h-3" />
-                                  {lib.documentCount || 0} docs
-                                </span>
-                                <span>{formatBytes(lib.totalSize || 0)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
-                      ))}
-                      {sharedLibraries.length === 0 && (
-                        <div className="col-span-3 text-center py-8">
-                          <FolderOpen className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                          <p className="text-gray-500 text-sm">No user libraries yet</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* App Libraries */}
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-semibold text-gray-900">App Libraries</h2>
-                      <button
-                        onClick={() => setActiveTab('app-libraries')}
-                        className="text-sm text-green-600 hover:text-green-700 hover:underline"
-                      >
-                        View all
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {safeAppDataLibraries.slice(0, 6).map(doc => (
-                        <Link
-                          key={doc.id}
-                          href={`/data/${doc.id}`}
-                          className="block cursor-pointer bg-white border border-gray-200 rounded-xl p-5 hover:border-green-300 hover:shadow-md transition-all group"
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="p-2 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
-                              <Database className="w-5 h-5 text-green-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-medium text-gray-900 text-sm line-clamp-2" title={doc.displayName || doc.name}>
-                                {doc.displayName || doc.name}
-                              </h3>
-                              <p className="text-sm text-gray-500 mt-1">
-                                <span className="font-medium text-green-600">{doc.sourceApp}</span>
-                                {doc.itemLabel && <span className="text-gray-400"> • {doc.itemLabel}s</span>}
-                              </p>
-                              <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
-                                <span className="flex items-center gap-1">
-                                  <Layers className="w-3 h-3" />
-                                  {doc.recordCount || 0} records
-                                </span>
-                                <span className="capitalize">{doc.visibility || 'private'}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
-                      ))}
-                      {safeAppDataLibraries.length === 0 && (
-                        <div className="col-span-3 text-center py-8">
-                          <Database className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                          <p className="text-gray-500 text-sm">No app libraries yet</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Popular Tags */}
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Popular Tags</h2>
-                    <div className="flex flex-wrap gap-2">
-                      {safeTags.slice(0, 20).map(tag => (
-                        <span
-                          key={tag.id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm hover:bg-blue-100 transition-colors cursor-pointer"
-                        >
-                          <Tag className="w-3 h-3" />
-                          {tag.name}
-                          <span className="text-blue-400 text-xs">({tag.count})</span>
-                        </span>
-                      ))}
-                      {safeTags.length === 0 && (
-                        <p className="text-gray-500 text-sm">No tags yet</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Storage Overview */}
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Storage Usage</h2>
-                    <div className="bg-gray-50 rounded-xl p-6">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                        <div>
-                          <p className="text-sm text-gray-500 mb-1">Total Storage</p>
-                          <p className="text-2xl font-bold text-gray-900">
-                            {storageStats ? formatBytes(storageStats.totalSize) : '--'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500 mb-1">Used</p>
-                          <p className="text-2xl font-bold text-gray-900">
-                            {storageStats ? formatBytes(storageStats.usedSize) : '--'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500 mb-1">Files</p>
-                          <p className="text-2xl font-bold text-gray-900">
-                            {storageStats ? formatNumber(storageStats.fileCount) : '--'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500 mb-1">Buckets</p>
-                          <p className="text-2xl font-bold text-gray-900">
-                            {storageStats ? formatNumber(storageStats.bucketCount) : '--'}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      {storageStats && storageStats.totalSize > 0 && (
-                        <div className="mt-6">
-                          <div className="flex items-center justify-between text-sm mb-2">
-                            <span className="text-gray-500">Usage</span>
-                            <span className="font-medium text-gray-700">
-                              {Math.round((storageStats.usedSize / storageStats.totalSize) * 100)}%
-                            </span>
-                          </div>
-                          <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all"
-                              style={{ width: `${(storageStats.usedSize / storageStats.totalSize) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* User Libraries Tab */}
               {activeTab === 'user-libraries' && (
                 <div>
@@ -728,40 +600,41 @@ export default function DataManagementPage() {
                     {filteredSharedLibraries.map(lib => (
                       <div
                         key={lib.id}
-                        className="flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all"
+                        className="group relative flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all"
                       >
-                        <div className="p-3 bg-purple-50 rounded-xl">
+                        {/* The whole row links to the detail page; delete button sits above it */}
+                        <Link
+                          href={`/libraries/${lib.id}?tab=user-libraries`}
+                          className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                          aria-label={`Open ${lib.name}`}
+                        />
+                        <div className="relative p-3 bg-purple-50 rounded-xl group-hover:bg-purple-100 transition-colors">
                           <FolderOpen className="w-6 h-6 text-purple-600" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-gray-900">{lib.name}</h3>
+                        <div className="relative flex-1 min-w-0">
+                          <h3 className="font-medium text-gray-900 truncate">{lib.name}</h3>
                           <p className="text-sm text-gray-500 truncate">
                             {lib.description || 'No description'}
                           </p>
                         </div>
-                        <div className="text-right">
+                        <div className="relative text-right">
                           <p className="font-medium text-gray-900">{lib.documentCount || 0}</p>
                           <p className="text-xs text-gray-500">documents</p>
                         </div>
-                        <div className="text-right">
+                        <div className="relative text-right">
                           <p className="font-medium text-gray-900">{formatBytes(lib.totalSize || 0)}</p>
                           <p className="text-xs text-gray-500">size</p>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Link
-                            href={`/libraries/${lib.id}`}
-                            className="p-2 hover:bg-purple-50 rounded-lg transition-colors"
-                            title="Edit library"
-                          >
-                            <Pencil className="w-4 h-4 text-purple-600" />
-                          </Link>
+                        <div className="relative flex items-center gap-1">
                           <button
-                            onClick={(e) => { e.stopPropagation(); setDeletingLibrary(lib); }}
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeletingLibrary(lib); }}
                             className="p-2 hover:bg-red-50 rounded-lg transition-colors"
                             title="Delete library"
                           >
                             <Trash2 className="w-4 h-4 text-red-400 hover:text-red-600" />
                           </button>
+                          <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-purple-500 transition-colors" />
                         </div>
                       </div>
                     ))}
@@ -782,6 +655,11 @@ export default function DataManagementPage() {
                     )}
                   </div>
                 </div>
+              )}
+
+              {/* File Storage Tab */}
+              {activeTab === 'file-storage' && (
+                <FileStorageTab storageStats={storageStats} />
               )}
 
               {/* App Libraries Tab */}

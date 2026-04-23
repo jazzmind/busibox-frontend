@@ -18,6 +18,7 @@ import {
   FileText,
   AlertCircle,
   Settings2,
+  RefreshCw,
 } from 'lucide-react';
 
 interface Role {
@@ -53,8 +54,30 @@ interface Library {
   updatedAt?: string;
 }
 
+interface LibraryDocument {
+  id: string;
+  name: string;
+  originalFilename?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  chunkCount?: number;
+  vectorCount?: number;
+  visibility?: string;
+}
+
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+function formatBytes(bytes: number): string {
+  if (!bytes) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
 export default function LibraryDetailPage({ params }: PageProps) {
@@ -82,6 +105,11 @@ export default function LibraryDetailPage({ params }: PageProps) {
   const [showAddRule, setShowAddRule] = useState(false);
   // 'simple' = keywords + guidance, 'advanced' = classification rules
   const [classificationMode, setClassificationMode] = useState<'simple' | 'advanced'>('simple');
+
+  // Documents in this library
+  const [documents, setDocuments] = useState<LibraryDocument[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [documentsError, setDocumentsError] = useState<string | null>(null);
 
   useEffect(() => {
     params.then(p => setLibraryId(p.id));
@@ -130,6 +158,30 @@ export default function LibraryDetailPage({ params }: PageProps) {
   useEffect(() => {
     fetchLibrary();
   }, [fetchLibrary]);
+
+  const fetchDocuments = useCallback(async () => {
+    if (!libraryId) return;
+    setDocumentsLoading(true);
+    setDocumentsError(null);
+    try {
+      const response = await fetch(`/api/libraries/${libraryId}/documents`);
+      if (!response.ok) {
+        throw new Error(`Request failed: ${response.status}`);
+      }
+      const result = await response.json();
+      const payload = result.success ? result.data : result;
+      setDocuments(payload.documents || []);
+    } catch (err) {
+      console.error('Failed to load library documents:', err);
+      setDocumentsError(err instanceof Error ? err.message : 'Failed to load documents');
+    } finally {
+      setDocumentsLoading(false);
+    }
+  }, [libraryId]);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
 
   const handleSave = async () => {
     if (!libraryId) return;
@@ -182,7 +234,7 @@ export default function LibraryDetailPage({ params }: PageProps) {
       }
       const response = await fetch(`/api/libraries/${libraryId}?${params}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Failed to delete');
-      router.push('/data?tab=shared');
+      router.push('/data?tab=user-libraries');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete');
     } finally {
@@ -236,7 +288,7 @@ export default function LibraryDetailPage({ params }: PageProps) {
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Library Not Found</h2>
           <p className="text-gray-500 mb-6">{error}</p>
           <button
-            onClick={() => router.push('/data?tab=shared')}
+            onClick={() => router.push('/data?tab=user-libraries')}
             className="text-purple-600 hover:underline"
           >
             Back to Libraries
@@ -254,7 +306,7 @@ export default function LibraryDetailPage({ params }: PageProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => router.push('/data?tab=shared')}
+                onClick={() => router.push('/data?tab=user-libraries')}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <ArrowLeft className="w-5 h-5 text-gray-500" />
@@ -316,6 +368,101 @@ export default function LibraryDetailPage({ params }: PageProps) {
 
       {/* Content */}
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+        {/* Documents */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-gray-400" />
+              Documents
+              {!documentsLoading && (
+                <span className="text-sm font-normal text-gray-500">
+                  ({documents.length})
+                </span>
+              )}
+            </h2>
+            <button
+              onClick={fetchDocuments}
+              disabled={documentsLoading}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 ${documentsLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+
+          {documentsError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              {documentsError}
+            </div>
+          )}
+
+          {documentsLoading && documents.length === 0 ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 text-purple-500 animate-spin" />
+            </div>
+          ) : documents.length === 0 ? (
+            <div className="text-center py-10 border border-dashed border-gray-200 rounded-lg">
+              <FileText className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-500">No documents in this library yet</p>
+            </div>
+          ) : (
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Size
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Uploaded
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {documents.map(doc => (
+                    <tr key={doc.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                          <span
+                            className="text-sm text-gray-900 truncate max-w-[260px]"
+                            title={doc.originalFilename || doc.name}
+                          >
+                            {doc.originalFilename || doc.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-xs text-gray-500">
+                        {doc.mimeType || '—'}
+                      </td>
+                      <td className="px-4 py-2 text-right text-xs text-gray-700">
+                        {formatBytes(doc.sizeBytes || 0)}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-gray-500">
+                        {doc.status || '—'}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-gray-500">
+                        {doc.createdAt
+                          ? new Date(doc.createdAt).toLocaleDateString()
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
         {/* Basic Info */}
         <section>
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">

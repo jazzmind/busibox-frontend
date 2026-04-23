@@ -15,7 +15,6 @@ import Link from 'next/link';
 import { useCustomization } from '@jazzmind/busibox-app';
 import { 
   Users, 
-  Shield, 
   LayoutGrid, 
   Database, 
   Settings, 
@@ -27,8 +26,7 @@ import {
   ChevronRight,
   Home,
   BookOpen,
-  Fingerprint,
-  Network,
+  Search,
 } from 'lucide-react';
 
 // Gate the test runner to non-production environments only.
@@ -58,14 +56,7 @@ const navItems: NavItem[] = [
     label: 'Users',
     href: '/users',
     icon: <Users className="w-5 h-5" />,
-    description: 'Manage user accounts',
-  },
-  {
-    id: 'roles',
-    label: 'Roles',
-    href: '/roles',
-    icon: <Shield className="w-5 h-5" />,
-    description: 'Permission groups',
+    description: 'Users, roles and identity providers',
   },
   {
     id: 'apps',
@@ -83,10 +74,10 @@ const navItems: NavItem[] = [
   },
   {
     id: 'graph',
-    label: 'Graph DB',
+    label: 'Search',
     href: '/graph',
-    icon: <Network className="w-5 h-5" />,
-    description: 'Neo4j health & explorer',
+    icon: <Search className="w-5 h-5" />,
+    description: 'Vector & graph search insights',
   },
 
   {
@@ -102,13 +93,6 @@ const navItems: NavItem[] = [
     href: '/system',
     icon: <Server className="w-5 h-5" />,
     description: 'Service health & control',
-  },
-  {
-    id: 'identity-providers',
-    label: 'Identity',
-    href: '/identity-providers',
-    icon: <Fingerprint className="w-5 h-5" />,
-    description: 'Sign-in providers (SSO)',
   },
   {
     id: 'settings',

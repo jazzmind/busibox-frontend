@@ -22,10 +22,9 @@ import { Menu, X } from 'lucide-react';
 const adminNavigation: NavigationItem[] = [
   { href: '/admin', label: 'Admin Dashboard' },
   { href: '/admin/users', label: 'Users' },
-  { href: '/admin/roles', label: 'Roles' },
   { href: '/admin/apps', label: 'Apps' },
   { href: '/admin/data', label: 'Data' },
-  { href: '/admin/graph', label: 'Graph DB' },
+  { href: '/admin/graph', label: 'Search' },
   { href: '/admin/system', label: 'System' },
 ];
 

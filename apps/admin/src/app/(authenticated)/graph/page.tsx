@@ -1,10 +1,11 @@
 /**
- * Graph DB admin page.
+ * Search admin page (Vector DB + Graph DB).
  *
- * Tabbed layout for managing Neo4j:
+ * Tabbed layout for managing the search infrastructure:
  *  - Overview: connection health, recent errors, quick actions
- *  - Stats: label/rel-type counts, orphan summary
- *  - Explorer: browse nodes by label with a side drawer
+ *  - Vector DB: Milvus collections, embedding counts, index info
+ *  - Stats: Neo4j label/rel-type counts, orphan summary
+ *  - Explorer: browse Neo4j nodes by label with a side drawer
  *  - Cypher: ad-hoc query console (read by default, write gated)
  *  - Diagnostics: 7-step reachability check
  *  - Admin Ops: reconnect, rebuild indexes, purge orphans
@@ -23,6 +24,7 @@ import {
   Settings,
   Users,
   RefreshCw,
+  Layers,
 } from 'lucide-react';
 import { GraphConnectionPanel } from '@/components/admin/graph/GraphConnectionPanel';
 import { GraphStatsPanel } from '@/components/admin/graph/GraphStatsPanel';
@@ -34,6 +36,7 @@ import {
 } from '@/components/admin/graph/GraphDiagnostics';
 import { GraphAdminOps } from '@/components/admin/graph/GraphAdminOps';
 import { GraphPermissionsPanel } from '@/components/admin/graph/GraphPermissionsPanel';
+import { VectorDbPanel } from '@/components/admin/search/VectorDbPanel';
 import type {
   GraphConnection,
   GraphStats,
@@ -42,6 +45,7 @@ import type {
 
 type TabId =
   | 'overview'
+  | 'vector'
   | 'stats'
   | 'explorer'
   | 'cypher'
@@ -51,8 +55,9 @@ type TabId =
 
 const TABS: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
   { id: 'overview', label: 'Overview', icon: <Activity className="w-4 h-4" /> },
-  { id: 'stats', label: 'Stats', icon: <BarChart2 className="w-4 h-4" /> },
-  { id: 'explorer', label: 'Explorer', icon: <Compass className="w-4 h-4" /> },
+  { id: 'vector', label: 'Vector DB', icon: <Layers className="w-4 h-4" /> },
+  { id: 'stats', label: 'Graph Stats', icon: <BarChart2 className="w-4 h-4" /> },
+  { id: 'explorer', label: 'Graph Explorer', icon: <Compass className="w-4 h-4" /> },
   { id: 'cypher', label: 'Cypher', icon: <Terminal className="w-4 h-4" /> },
   { id: 'diagnostics', label: 'Diagnostics', icon: <ShieldAlert className="w-4 h-4" /> },
   { id: 'permissions', label: 'Permissions', icon: <Users className="w-4 h-4" /> },
@@ -138,10 +143,10 @@ export default function GraphAdminPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-                Graph DB
+                Search
               </h1>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
-                Neo4j health, explorer, Cypher console, and maintenance.
+                Vector (Milvus) and graph (Neo4j) search infrastructure.
               </p>
             </div>
             <HeaderBadge connection={connection} loading={loadingConn} />
@@ -178,6 +183,7 @@ export default function GraphAdminPage() {
             onRunDiagnostics={runDiagnostics}
           />
         )}
+        {tab === 'vector' && <VectorDbPanel />}
         {tab === 'stats' && (
           <GraphStatsPanel
             stats={stats}

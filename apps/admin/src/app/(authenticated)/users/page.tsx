@@ -1,7 +1,7 @@
 /**
  * Admin Users Management Page
- * 
- * Page for managing users with tabs for Users and Roles views.
+ *
+ * Page for managing users with tabs for Users, Roles, and Identity Providers.
  */
 
 'use client';
@@ -10,18 +10,19 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { UserList } from '@/components/admin/UserList';
 import { RoleList } from '@/components/admin/RoleList';
+import { PermissionMatrix } from '@/components/admin/PermissionMatrix';
+import { IdentityProvidersTab } from '@/components/admin/IdentityProvidersTab';
 import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvider';
 import { useCustomization } from '@jazzmind/busibox-app';
-import { Users, Shield, Plus } from 'lucide-react';
+import { Users, Shield, Fingerprint, Plus } from 'lucide-react';
 
-type Tab = 'users' | 'roles';
+type Tab = 'users' | 'roles' | 'identity';
 
 export default function AdminUsersPage() {
   const { user } = useSession();
   const { customization } = useCustomization();
   const [activeTab, setActiveTab] = useState<Tab>('users');
 
-  // Check if user is admin
   if (!user) {
     window.location.href = '/portal/login';
     return null;
@@ -40,9 +41,9 @@ export default function AdminUsersPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">User Management</h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">Manage users, roles, and permissions</p>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">Manage users, roles, and identity providers</p>
             </div>
-            
+
             <div className="flex gap-3">
               {activeTab === 'users' && (
                 <Link
@@ -54,7 +55,7 @@ export default function AdminUsersPage() {
                   Add User
                 </Link>
               )}
-              
+
               {activeTab === 'roles' && (
                 <Link
                   href="/roles/new"
@@ -98,16 +99,49 @@ export default function AdminUsersPage() {
               <Shield className="w-4 h-4" />
               Roles
             </button>
+            <button
+              onClick={() => setActiveTab('identity')}
+              className={`flex items-center gap-2 py-4 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'identity'
+                  ? 'border-current'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+              }`}
+              style={activeTab === 'identity' ? { color: customization.primaryColor, borderColor: customization.primaryColor } : undefined}
+            >
+              <Fingerprint className="w-4 h-4" />
+              Identity Providers
+            </button>
           </nav>
         </div>
       </div>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-          {activeTab === 'users' && <UserList />}
-          {activeTab === 'roles' && <RoleList />}
-        </div>
+        {activeTab === 'users' && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <UserList />
+          </div>
+        )}
+        {activeTab === 'roles' && (
+          <div className="space-y-8">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">All Roles</h2>
+              <RoleList />
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Permission Matrix</h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-4 text-sm">
+                Quick overview of which roles have access to which applications
+              </p>
+              <PermissionMatrix />
+            </div>
+          </div>
+        )}
+        {activeTab === 'identity' && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <IdentityProvidersTab />
+          </div>
+        )}
       </main>
     </div>
   );
