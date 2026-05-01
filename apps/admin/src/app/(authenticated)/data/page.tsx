@@ -598,45 +598,30 @@ export default function DataManagementPage() {
                   
                   <div className="space-y-3">
                     {filteredSharedLibraries.map(lib => (
-                      <div
+                      <Link
                         key={lib.id}
-                        className="group relative flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all"
+                        href={`/libraries/${lib.id}?tab=user-libraries`}
+                        className="group flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                       >
-                        {/* The whole row links to the detail page; delete button sits above it */}
-                        <Link
-                          href={`/libraries/${lib.id}?tab=user-libraries`}
-                          className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                          aria-label={`Open ${lib.name}`}
-                        />
-                        <div className="relative p-3 bg-purple-50 rounded-xl group-hover:bg-purple-100 transition-colors">
+                        <div className="p-3 bg-purple-50 rounded-xl group-hover:bg-purple-100 transition-colors flex-shrink-0">
                           <FolderOpen className="w-6 h-6 text-purple-600" />
                         </div>
-                        <div className="relative flex-1 min-w-0">
+                        <div className="flex-1 min-w-0">
                           <h3 className="font-medium text-gray-900 truncate">{lib.name}</h3>
                           <p className="text-sm text-gray-500 truncate">
                             {lib.description || 'No description'}
                           </p>
                         </div>
-                        <div className="relative text-right">
+                        <div className="text-right">
                           <p className="font-medium text-gray-900">{lib.documentCount || 0}</p>
                           <p className="text-xs text-gray-500">documents</p>
                         </div>
-                        <div className="relative text-right">
+                        <div className="text-right">
                           <p className="font-medium text-gray-900">{formatBytes(lib.totalSize || 0)}</p>
                           <p className="text-xs text-gray-500">size</p>
                         </div>
-                        <div className="relative flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeletingLibrary(lib); }}
-                            className="p-2 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete library"
-                          >
-                            <Trash2 className="w-4 h-4 text-red-400 hover:text-red-600" />
-                          </button>
-                          <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-purple-500 transition-colors" />
-                        </div>
-                      </div>
+                        <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-purple-500 transition-colors flex-shrink-0" />
+                      </Link>
                     ))}
                     
                     {filteredSharedLibraries.length === 0 && (

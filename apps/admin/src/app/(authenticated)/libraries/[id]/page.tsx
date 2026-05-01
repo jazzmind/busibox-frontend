@@ -110,6 +110,7 @@ export default function LibraryDetailPage({ params }: PageProps) {
   const [documents, setDocuments] = useState<LibraryDocument[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
   useEffect(() => {
     params.then(p => setLibraryId(p.id));
@@ -240,6 +241,23 @@ export default function LibraryDetailPage({ params }: PageProps) {
     } finally {
       setIsDeleting(false);
       setShowDeleteModal(false);
+    }
+  };
+
+  const handleDeleteDocument = async (doc: LibraryDocument) => {
+    if (!confirm(`Delete "${doc.originalFilename || doc.name}"? This cannot be undone.`)) return;
+    setDeletingDocId(doc.id);
+    try {
+      const response = await fetch(`/api/data/admin/files/${doc.id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to delete (${response.status})`);
+      }
+      setDocuments(prev => prev.filter(d => d.id !== doc.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete document');
+    } finally {
+      setDeletingDocId(null);
     }
   };
 
@@ -425,6 +443,7 @@ export default function LibraryDetailPage({ params }: PageProps) {
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Uploaded
                     </th>
+                    <th className="px-4 py-2 w-10" />
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -454,6 +473,19 @@ export default function LibraryDetailPage({ params }: PageProps) {
                         {doc.createdAt
                           ? new Date(doc.createdAt).toLocaleDateString()
                           : '—'}
+                      </td>
+                      <td className="px-4 py-2">
+                        <button
+                          onClick={() => handleDeleteDocument(doc)}
+                          disabled={deletingDocId === doc.id}
+                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                          title="Delete document"
+                        >
+                          {deletingDocId === doc.id
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <Trash2 className="w-4 h-4" />
+                          }
+                        </button>
                       </td>
                     </tr>
                   ))}

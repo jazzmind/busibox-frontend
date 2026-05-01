@@ -74,14 +74,15 @@ export default function AnalyticsPage() {
       ]);
 
       const [usageData, feedbackData, chatData] = await Promise.all([
-        usageRes.ok ? usageRes.json() : { apps: [] },
-        feedbackRes.ok ? feedbackRes.json() : { feedback: [] },
-        chatRes.ok ? chatRes.json() : { apps: [] },
+        usageRes.ok ? usageRes.json() : { data: { apps: [] } },
+        feedbackRes.ok ? feedbackRes.json() : { data: { feedback: [] } },
+        chatRes.ok ? chatRes.json() : { data: { apps: [] } },
       ]);
 
-      setAppUsage(usageData.apps || []);
-      setFeedback(feedbackData.feedback || []);
-      setChatUsage(chatData.apps || []);
+      // apiSuccess wraps responses in { success, data: { ... } }
+      setAppUsage((usageData.data ?? usageData).apps || []);
+      setFeedback((feedbackData.data ?? feedbackData).feedback || []);
+      setChatUsage((chatData.data ?? chatData).apps || []);
     } catch (err) {
       console.error('Failed to load analytics', err);
     } finally {
