@@ -30,7 +30,6 @@ import {
   MapPin,
   Phone,
   SlidersHorizontal,
-  BarChart2,
   Scissors,
   Timer,
   Activity,
@@ -45,7 +44,7 @@ type Tab = 'ai-models' | 'branding' | 'bridge' | 'data';
 type AISubTab = 'status' | 'mapping' | 'models' | 'playgrounds';
 type BrandingSubTab = 'identity' | 'colors' | 'location' | 'contact' | 'advanced';
 type BridgeSubTab = 'status' | 'email' | 'signal' | 'telegram' | 'discord' | 'whatsapp';
-type DataSubTab = 'features' | 'strategies' | 'chunking' | 'timeouts';
+type DataSubTab = 'options' | 'chunking' | 'timeouts';
 
 const AI_SUBTABS: { id: AISubTab; icon: React.ElementType; label: string }[] = [
   { id: 'status', icon: Activity, label: 'Status' },
@@ -72,8 +71,7 @@ const BRIDGE_SUBTABS: { id: BridgeSubTab; icon: React.ElementType; label: string
 ];
 
 const DATA_SUBTABS: { id: DataSubTab; icon: React.ElementType; label: string }[] = [
-  { id: 'features', icon: Layers, label: 'Features' },
-  { id: 'strategies', icon: BarChart2, label: 'Strategies' },
+  { id: 'options', icon: Layers, label: 'Options' },
   { id: 'chunking', icon: Scissors, label: 'Chunking' },
   { id: 'timeouts', icon: Timer, label: 'Timeouts' },
 ];
@@ -120,7 +118,7 @@ export default function AdminSettingsPage() {
     }
     return 'status';
   });
-  const [dataSubTab, setDataSubTab] = useState<DataSubTab>('features');
+  const [dataSubTab, setDataSubTab] = useState<DataSubTab>('options');
 
   // ── URL sync helpers ─────────────────────────────────────────────────────────
   const syncUrl = (tab: Tab, section?: string) => {
@@ -432,11 +430,8 @@ export default function AdminSettingsPage() {
             {/* ── Data Processing ────────────────────────────────────────────────── */}
             {activeTab === 'data' && (
               <div>
-                {dataSubTab === 'features' && (
-                  <SectionBanner title="Processing Features" desc="Enable or disable extraction and processing capabilities." />
-                )}
-                {dataSubTab === 'strategies' && (
-                  <SectionBanner title="Processing Strategies" desc="Choose between Simple, Marker, ColPali, or multi-flow strategies." />
+                {dataSubTab === 'options' && (
+                  <SectionBanner title="Processing Options" desc="Configure text extraction, visual embeddings, and graph enrichment capabilities." />
                 )}
                 {dataSubTab === 'chunking' && (
                   <SectionBanner title="Chunking Configuration" desc="Control how documents are split for embedding and retrieval." />
@@ -444,11 +439,11 @@ export default function AdminSettingsPage() {
                 {dataSubTab === 'timeouts' && (
                   <SectionBanner title="Processing Timeouts" desc="Set timeouts for each processing stage to prevent stalls." />
                 )}
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className={dataSubTab === 'options' ? '' : 'bg-white rounded-xl border border-gray-200 p-6'}>
                   {dataSettings ? (
                     <DataSettingsForm settings={dataSettings} section={dataSubTab} />
                   ) : (
-                    <div className="text-center py-8">
+                    <div className="bg-white rounded-xl border border-gray-200 p-6 text-center py-8">
                       <p className="text-gray-600">Loading data settings...</p>
                     </div>
                   )}

@@ -121,7 +121,16 @@ export function ModelLibrary({ backend }: ModelLibraryProps) {
           <p className="text-xs text-amber-600 mt-1">
             {models.length > 0
               ? `${models.length} model(s) loaded but none match the "${providerFilter}" provider filter. Check model_config.yml provider settings.`
-              : 'The model registry is empty. Ensure the deploy-api can access the model configuration and that VLLM_HOST is set for SSH-based cache detection.'}
+              : 'The model registry file is not accessible to deploy-api. Running models are shown above if detected. To populate the registry, ensure BUSIBOX_HOST_PATH points to the busibox repo and restart deploy-api.'}
+          </p>
+        </div>
+      )}
+
+      {!error && !loading && filteredModels.some((m) => m.description?.includes('not in registry')) && (
+        <div className="mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <p className="text-sm text-blue-800">Showing models detected from running processes — registry file not accessible.</p>
+          <p className="text-xs text-blue-600 mt-1">
+            To manage models fully, ensure <span className="font-mono">BUSIBOX_HOST_PATH</span> is set correctly and restart deploy-api.
           </p>
         </div>
       )}

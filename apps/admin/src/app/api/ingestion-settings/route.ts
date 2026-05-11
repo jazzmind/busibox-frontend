@@ -95,6 +95,7 @@ export async function PATCH(request: NextRequest) {
       maxParallelStrategies: body.maxParallelStrategies,
       markerEnabled: body.markerEnabled,
       colpaliEnabled: body.colpaliEnabled,
+      entityExtractionEnabled: body.entityExtractionEnabled,
       chunkSizeMin: body.chunkSizeMin,
       chunkSizeMax: body.chunkSizeMax,
       chunkOverlapPct: body.chunkOverlapPct,

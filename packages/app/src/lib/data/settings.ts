@@ -81,27 +81,30 @@ async function findDocumentId(token: string): Promise<string | null> {
 async function ensureDocument(token: string, roleIds: string[]): Promise<string> {
   const existingId = await findDocumentId(token);
   if (existingId) return existingId;
-  if (!roleIds.length) {
-    throw new Error('Cannot create shared data-settings document without role IDs');
+
+  // Create as a shared admin document. role_ids are optional — if none are
+  // resolved the data-api will still create the document accessible to admins.
+  const body: Record<string, unknown> = {
+    name: DOCUMENT_NAME,
+    visibility: 'shared',
+    sourceApp: 'busibox-portal',
+    enableCache: false,
+    schema: {
+      displayName: 'Data Processing Settings',
+      itemLabel: 'Setting',
+      sourceApp: 'busibox-portal',
+      visibility: 'shared',
+      allowSharing: true,
+    },
+  };
+  if (roleIds.length) {
+    body.role_ids = roleIds;
+    body.roleIds = roleIds;
   }
 
   const created = await dataApiRequest<{ id: string }>(token, '/data', {
     method: 'POST',
-    body: JSON.stringify({
-      name: DOCUMENT_NAME,
-      visibility: 'shared',
-      role_ids: roleIds,
-      roleIds: roleIds,
-      sourceApp: 'busibox-portal',
-      enableCache: false,
-      schema: {
-        displayName: 'Data Processing Settings',
-        itemLabel: 'Setting',
-        sourceApp: 'busibox-portal',
-        visibility: 'shared',
-        allowSharing: true,
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
   return created.id;

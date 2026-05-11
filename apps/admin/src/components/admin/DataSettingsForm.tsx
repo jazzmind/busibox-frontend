@@ -5,12 +5,12 @@ import { RefreshCw, Check } from 'lucide-react';
 import type { DataSettingsRecord as DataSettings } from '@jazzmind/busibox-app/lib/data/settings';
 import { useAutosave } from '@jazzmind/busibox-app';
 
-type DataSection = 'features' | 'strategies' | 'chunking' | 'timeouts';
+type DataSection = 'options' | 'chunking' | 'timeouts';
 
 interface DataSettingsFormProps {
   settings: DataSettings;
   onSuccess?: () => void;
-  section?: DataSection;
+  section?: DataSection | 'features' | 'strategies';
 }
 
 export function DataSettingsForm({ settings, section }: DataSettingsFormProps) {
@@ -63,128 +63,100 @@ export function DataSettingsForm({ settings, section }: DataSettingsFormProps) {
     triggerBlurSave(e.target);
   };
 
-  const show = (s: DataSection) => !section || section === s;
+  // 'options' shows both features and strategies; legacy values map to options too
+  const show = (s: 'options' | 'chunking' | 'timeouts') => {
+    if (!section) return true;
+    if (s === 'options') return section === 'options' || section === 'features' || section === 'strategies';
+    return section === s;
+  };
 
   return (
     <div className="space-y-8">
-      {/* Processing Features */}
-      {show('features') && <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Processing Features</h3>
-        <div className="space-y-4">
-          <div className="flex items-start">
-            <div className="flex items-center h-5">
-              <input
-                id="llmCleanupEnabled"
-                type="checkbox"
-                checked={formData.llmCleanupEnabled}
-                onChange={(e) => updateImmediate('llmCleanupEnabled', e.target.checked, e.target)}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
+      {/* Processing Options (features + strategies combined) */}
+      {show('options') && <div className="space-y-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">Text Processing</h3>
+          <p className="text-sm text-gray-500 mb-4">Options that apply during document text extraction and cleanup.</p>
+          <div className="space-y-4">
+            <div className="flex items-start">
+              <div className="flex items-center h-5">
+                <input
+                  id="llmCleanupEnabled"
+                  type="checkbox"
+                  checked={formData.llmCleanupEnabled}
+                  onChange={(e) => updateImmediate('llmCleanupEnabled', e.target.checked, e.target)}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+              </div>
+              <div className="ml-3">
+                <label htmlFor="llmCleanupEnabled" className="font-medium text-gray-900">LLM Text Cleanup</label>
+                <p className="text-sm text-gray-500 mt-1">
+                  Use AI to clean and normalize extracted text — removes artifacts, fixes spacing, and improves chunk quality. Active in both progressive PDF and linear pipelines.
+                </p>
+              </div>
             </div>
-            <div className="ml-3">
-              <label htmlFor="llmCleanupEnabled" className="font-medium text-gray-900">LLM Text Cleanup</label>
-              <p className="text-sm text-gray-500 mt-1">
-                Use AI to clean and normalize extracted text (removes artifacts, fixes spacing, etc.)
-              </p>
+
+            <div className="flex items-start">
+              <div className="flex items-center h-5">
+                <input
+                  id="markerEnabled"
+                  type="checkbox"
+                  checked={formData.markerEnabled}
+                  onChange={(e) => updateImmediate('markerEnabled', e.target.checked, e.target)}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+              </div>
+              <div className="ml-3">
+                <label htmlFor="markerEnabled" className="font-medium text-gray-900">Marker PDF Processing</label>
+                <p className="text-sm text-gray-500 mt-1">
+                  Enhanced PDF extraction with better table, formula, and structure handling. Used for non-standard PDFs and manual reprocessing; standard PDFs use the progressive pipeline.
+                </p>
+                <p className="text-xs text-amber-600 mt-1">Requires additional memory (~2GB per document)</p>
+              </div>
             </div>
           </div>
-
-          <div className="flex items-start">
-            <div className="flex items-center h-5">
-              <input
-                id="multiFlowEnabled"
-                type="checkbox"
-                checked={formData.multiFlowEnabled}
-                onChange={(e) => updateImmediate('multiFlowEnabled', e.target.checked, e.target)}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-            </div>
-            <div className="ml-3">
-              <label htmlFor="multiFlowEnabled" className="font-medium text-gray-900">Multi-Flow Processing</label>
-              <p className="text-sm text-gray-500 mt-1">
-                Process documents using multiple strategies in parallel to compare results
-              </p>
-            </div>
-          </div>
-
-          {formData.multiFlowEnabled && (
-            <div className="ml-7 pl-4 border-l-2 border-gray-200">
-              <label htmlFor="maxParallelStrategies" className="block text-sm font-medium text-gray-700 mb-1">
-                Max Parallel Strategies
-              </label>
-              <input
-                id="maxParallelStrategies"
-                type="number"
-                min="1"
-                max="3"
-                value={formData.maxParallelStrategies}
-                onChange={(e) => updateText('maxParallelStrategies', parseInt(e.target.value) || 3)}
-                onBlur={handleBlur}
-                className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              />
-              <p className="text-xs text-gray-500 mt-1">Number of strategies to run concurrently (1-3)</p>
-            </div>
-          )}
         </div>
-      </div>}
 
-      {/* Processing Strategies */}
-      {show('strategies') && <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Processing Strategies</h3>
-        <div className="space-y-4">
-          <div className="flex items-start">
-            <div className="flex items-center h-5">
-              <input
-                id="markerEnabled"
-                type="checkbox"
-                checked={formData.markerEnabled}
-                onChange={(e) => updateImmediate('markerEnabled', e.target.checked, e.target)}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">Visual &amp; Graph Processing</h3>
+          <p className="text-sm text-gray-500 mb-4">Optional enrichment that requires additional GPU or infrastructure resources.</p>
+          <div className="space-y-4">
+            <div className="flex items-start">
+              <div className="flex items-center h-5">
+                <input
+                  id="colpaliEnabled"
+                  type="checkbox"
+                  checked={formData.colpaliEnabled}
+                  onChange={(e) => updateImmediate('colpaliEnabled', e.target.checked, e.target)}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+              </div>
+              <div className="ml-3">
+                <label htmlFor="colpaliEnabled" className="font-medium text-gray-900">ColPali Visual Embeddings</label>
+                <p className="text-sm text-gray-500 mt-1">
+                  Generate visual embeddings for semantic image search on PDFs and images. Applies when documents are reprocessed or uploaded via non-standard ingest paths.
+                </p>
+                <p className="text-xs text-amber-600 mt-1">Requires GPU and ~4GB VRAM</p>
+              </div>
             </div>
-            <div className="ml-3">
-              <label htmlFor="markerEnabled" className="font-medium text-gray-900">Marker PDF Processing</label>
-              <p className="text-sm text-gray-500 mt-1">
-                Enhanced PDF extraction with better table, formula, and structure handling
-              </p>
-              <p className="text-xs text-amber-600 mt-1">Warning: Requires additional memory (~2GB per document)</p>
-            </div>
-          </div>
 
-          <div className="flex items-start">
-            <div className="flex items-center h-5">
-              <input
-                id="colpaliEnabled"
-                type="checkbox"
-                checked={formData.colpaliEnabled}
-                onChange={(e) => updateImmediate('colpaliEnabled', e.target.checked, e.target)}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-            </div>
-            <div className="ml-3">
-              <label htmlFor="colpaliEnabled" className="font-medium text-gray-900">ColPali Visual Embeddings</label>
-              <p className="text-sm text-gray-500 mt-1">
-                Generate visual embeddings for semantic image search (PDFs and images)
-              </p>
-              <p className="text-xs text-amber-600 mt-1">Warning: Requires GPU and ~4GB VRAM</p>
-            </div>
-          </div>
-
-          <div className="flex items-start">
-            <div className="flex items-center h-5">
-              <input
-                id="entityExtractionEnabled"
-                type="checkbox"
-                checked={formData.entityExtractionEnabled}
-                onChange={(e) => updateImmediate('entityExtractionEnabled', e.target.checked, e.target)}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-            </div>
-            <div className="ml-3">
-              <label htmlFor="entityExtractionEnabled" className="font-medium text-gray-900">Entity & Keyword Extraction</label>
-              <p className="text-sm text-gray-500 mt-1">
-                Extract entities and keywords for the knowledge graph (requires Neo4j)
-              </p>
+            <div className="flex items-start">
+              <div className="flex items-center h-5">
+                <input
+                  id="entityExtractionEnabled"
+                  type="checkbox"
+                  checked={formData.entityExtractionEnabled}
+                  onChange={(e) => updateImmediate('entityExtractionEnabled', e.target.checked, e.target)}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+              </div>
+              <div className="ml-3">
+                <label htmlFor="entityExtractionEnabled" className="font-medium text-gray-900">Entity &amp; Keyword Extraction</label>
+                <p className="text-sm text-gray-500 mt-1">
+                  Extract entities and keywords for the knowledge graph via targeted reprocessing. Does not run automatically during standard ingest.
+                </p>
+                <p className="text-xs text-amber-600 mt-1">Requires Neo4j</p>
+              </div>
             </div>
           </div>
         </div>
