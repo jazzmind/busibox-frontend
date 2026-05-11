@@ -73,7 +73,13 @@ async function dataApiRequest<T>(token: string, path: string, init: RequestInit 
 }
 
 async function findDocumentId(token: string): Promise<string | null> {
-  const list = await dataApiRequest<{ documents: DocumentListItem[] }>(token, '/data');
+  // Filter by sourceApp so we get a focused list even when many documents exist.
+  // The data-api unique constraint is on (filename, metadata->>'sourceApp'), so
+  // our document is guaranteed to appear in this filtered view.
+  const list = await dataApiRequest<{ documents: DocumentListItem[] }>(
+    token,
+    '/data?sourceApp=busibox-portal&limit=100'
+  );
   const existing = (list.documents || []).find((d) => d.name === DOCUMENT_NAME);
   return existing?.id || null;
 }
