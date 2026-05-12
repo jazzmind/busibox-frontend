@@ -26,6 +26,7 @@ export function GpuAllocation() {
   const [gpuIdsInput, setGpuIdsInput] = useState('0');
   const [port, setPort] = useState<number | ''>('');
   const [tp, setTp] = useState<number | ''>('');
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +102,22 @@ export function GpuAllocation() {
     }
   };
 
+  const prefillEdit = (a: Assignment) => {
+    setModelKey(a.model_key ?? '');
+    setGpuIdsInput(a.gpu ?? '0');
+    setPort(a.port ?? '');
+    setTp(a.tensor_parallel ?? '');
+    setEditingKey(a.model_key ?? null);
+  };
+
+  const cancelEdit = () => {
+    setModelKey('');
+    setGpuIdsInput('0');
+    setPort('');
+    setTp('');
+    setEditingKey(null);
+  };
+
   const submitManualAssign = async () => {
     if (!modelKey.trim()) return;
     const gpu_ids = gpuIdsInput
@@ -113,6 +130,7 @@ export function GpuAllocation() {
       port: port === '' ? null : Number(port),
       tensor_parallel: tp === '' ? null : Number(tp),
     });
+    cancelEdit();
   };
 
   return (
@@ -179,8 +197,10 @@ export function GpuAllocation() {
         </button>
       </div>
 
-      <div className="border border-gray-200 rounded p-3 mb-4">
-        <p className="text-sm font-medium text-gray-900 mb-2">Manual Assignment</p>
+      <div className={`border rounded p-3 mb-4 ${editingKey ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}>
+        <p className="text-sm font-medium text-gray-900 mb-2">
+          {editingKey ? `Editing: ${editingKey}` : 'Manual Assignment'}
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
           <input
             value={modelKey}
@@ -191,7 +211,7 @@ export function GpuAllocation() {
           <input
             value={gpuIdsInput}
             onChange={(e) => setGpuIdsInput(e.target.value)}
-            placeholder="GPU IDs (e.g. 2,3)"
+            placeholder="GPU IDs (e.g. 0 or 1,2)"
             className="border border-gray-300 rounded px-2 py-1 text-sm"
           />
           <input
@@ -207,33 +227,64 @@ export function GpuAllocation() {
             className="border border-gray-300 rounded px-2 py-1 text-sm"
           />
         </div>
-        <button
-          onClick={submitManualAssign}
-          disabled={busy || !modelKey.trim()}
-          className="mt-2 px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50"
-        >
-          Save Assignment
-        </button>
+        <div className="mt-2 flex gap-2">
+          <button
+            onClick={submitManualAssign}
+            disabled={busy || !modelKey.trim()}
+            className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50"
+          >
+            {editingKey ? 'Update Assignment' : 'Save Assignment'}
+          </button>
+          {editingKey && (
+            <button
+              onClick={cancelEdit}
+              className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2">
         {assignments.map((a) => (
-          <div key={a.model_name} className="border border-gray-200 rounded p-2 flex items-center justify-between">
+          <div
+            key={a.model_name}
+            className={`border rounded p-2 flex items-center justify-between ${
+              editingKey === a.model_key ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
+            }`}
+          >
             <div>
               <p className="text-sm font-medium text-gray-900">{a.model_key ?? a.model_name}</p>
+              {a.model_key && a.model_key !== a.model_name && (
+                <p className="text-xs text-gray-400">{a.model_name}</p>
+              )}
               <p className="text-xs text-gray-500">
-                {a.assigned ? `GPU ${a.gpu} :${a.port} (TP=${a.tensor_parallel ?? 1})` : 'Unassigned'}
+                {a.assigned
+                  ? `GPU ${a.gpu ?? '?'} :${a.port ?? '?'} (TP=${a.tensor_parallel ?? 1})`
+                  : 'Unassigned'}
               </p>
             </div>
-            {a.model_key && (
-              <button
-                onClick={() => post(`/api/vllm/assignments/${encodeURIComponent(a.model_key!)}`, undefined, 'DELETE')}
-                disabled={busy}
-                className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
-              >
-                Unassign
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {a.model_key && (
+                <button
+                  onClick={() => prefillEdit(a)}
+                  disabled={busy}
+                  className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                >
+                  Edit
+                </button>
+              )}
+              {a.model_key && (
+                <button
+                  onClick={() => post(`/api/vllm/assignments/${encodeURIComponent(a.model_key!)}`, undefined, 'DELETE')}
+                  disabled={busy}
+                  className="px-2 py-1 text-xs border border-red-200 text-red-600 rounded hover:bg-red-50"
+                >
+                  Unassign
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>

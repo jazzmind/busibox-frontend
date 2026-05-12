@@ -53,20 +53,36 @@ export function ModelLibrary({ backend }: ModelLibraryProps) {
         const activeData = await activeRes.json();
         const activeModels: ActiveModel[] = activeData.data?.models ?? activeData.models ?? [];
         setActive(activeModels);
-        // Pre-populate port selector with each model's detected running port
-        setPortByModel((prev) => {
-          const detected: Record<string, number> = {};
-          for (const m of activeModels) {
-            if (m.running && m.model && m.port) {
-              // Match by slug: last segment of the model name, lowercased
-              const slug = m.model.split('/').pop()?.toLowerCase() ?? m.model.toLowerCase();
-              detected[slug] = m.port;
-              // Also map by the full model name in case browse uses it as key
-              detected[m.model] = m.port;
+
+        // Build a comprehensive lookup: active model name → detected port.
+        // We key by every reasonable variant so that browse model_key/model_name
+        // can find the right port regardless of casing, slashes, or dot-vs-dash.
+        const activePortByName: Record<string, number> = {};
+        for (const m of activeModels) {
+          if (m.running && m.model && m.port) {
+            const full = m.model;
+            const slug = full.split('/').pop() ?? full;
+            for (const key of [full, full.toLowerCase(), slug, slug.toLowerCase()]) {
+              if (key) activePortByName[key] = m.port;
             }
           }
-          return { ...detected, ...prev };
-        });
+        }
+
+        // For each browse model try multiple keys to find its running port.
+        const browseModels: BrowseModel[] = browseData.data?.models ?? browseData.models ?? [];
+        const detected: Record<string, number> = {};
+        for (const bm of browseModels) {
+          const port =
+            activePortByName[bm.model_name] ??
+            activePortByName[bm.model_name.toLowerCase()] ??
+            activePortByName[bm.model_key] ??
+            activePortByName[bm.model_key.toLowerCase()];
+          if (port !== undefined) detected[bm.model_key] = port;
+        }
+
+        // Fresh detections override stale values; manual user selections made
+        // during this session that aren't in `detected` are preserved via prev.
+        setPortByModel((prev) => ({ ...prev, ...detected }));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load model library');
