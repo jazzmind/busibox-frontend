@@ -157,6 +157,38 @@ const PURPOSE_LABELS: Record<string, { label: string; description: string }> = {
   voice: { label: 'Voice', description: 'Text-to-speech (e.g. Kokoro, OpenAI TTS)' },
 };
 
+/** LiteLLM DB ciphertext when params cannot be decrypted (base64url blob). */
+function looksLikeEncryptedModelId(value: string): boolean {
+  if (!value || value.length < 40) return false;
+  if (value.includes('/') || (value.match(/\./g) || []).length >= 2) return false;
+  return /^[A-Za-z0-9_-]+=*$/.test(value);
+}
+
+/** Resolve purpose mapping value to a human-readable model name for display. */
+function resolvePurposeModelDisplay(
+  rawValue: string,
+  availableModels: PurposesData['available_models'],
+  configurablePurposes: string[],
+): string {
+  if (!rawValue || rawValue === '(not configured)') return rawValue;
+  if (!looksLikeEncryptedModelId(rawValue)) return rawValue;
+
+  const purposeSet = new Set(configurablePurposes);
+  const match = availableModels.find(
+    m =>
+      m.model_name &&
+      !purposeSet.has(m.model_name) &&
+      m.actual_model &&
+      !looksLikeEncryptedModelId(m.actual_model) &&
+      (m.actual_model === rawValue ||
+        m.actual_model.endsWith(`/${rawValue}`) ||
+        m.actual_model.split('/').pop() === rawValue),
+  );
+  if (match) return match.model_name;
+
+  return 'Configured (use Change to view)';
+}
+
 // =============================================================================
 // Component
 // =============================================================================
@@ -930,7 +962,14 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
         {purposes ? (
           <div className="space-y-2">
             {(purposes.configurable_purposes || []).map(purpose => {
-              const currentModel = purposes.purposes[purpose] || '(not configured)';
+              const rawModel = purposes.purposes[purpose] || '';
+              const currentModel = rawModel
+                ? resolvePurposeModelDisplay(
+                    rawModel,
+                    allAvailableModels,
+                    purposes.configurable_purposes || [],
+                  )
+                : '(not configured)';
               const info = PURPOSE_LABELS[purpose] || { label: purpose, description: '' };
               const isEditing = editingPurpose === purpose;
 
