@@ -99,13 +99,13 @@ export function createSessionRouteHandlers(appNameDefault: string) {
 
   async function GET(request: NextRequest) {
     try {
-      const ssoSession = getSessionFromRequest(request);
+      const ssoSession = getSessionFromRequest(request, APP_NAME);
       const user = extractUserFromSession(ssoSession);
       if (user) {
         return NextResponse.json({ success: true, data: { user } });
       }
 
-      const token = getTokenFromRequest(request);
+      const token = getTokenFromRequest(request, APP_NAME);
       if (!token || isTokenExpired(token)) {
         return NextResponse.json({ success: false, data: { user: null } });
       }
