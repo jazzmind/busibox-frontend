@@ -102,7 +102,8 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
         const list: unknown[] = Array.isArray(raw) ? raw : (Array.isArray(raw?.agents) ? raw.agents : []);
         setAgentOptions(
           list
-            .map((a: Record<string, unknown>) => {
+            .map((item: unknown) => {
+              const a = item as Record<string, unknown>;
               const slug = String(a.name ?? '').trim();
               const display = String(a.display_name ?? a.name ?? slug).trim();
               return slug ? { id: slug, name: display } : null;

@@ -116,7 +116,8 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
         const list: unknown[] = Array.isArray(raw) ? raw : (Array.isArray(raw?.agents) ? raw.agents : (Array.isArray(result.agents) ? result.agents : []));
         if (!Array.isArray(list)) return;
         const mapped = list
-          .map((agent: Record<string, unknown>) => {
+          .map((item: unknown) => {
+            const agent = item as Record<string, unknown>;
             // Use name slug as the id (what bridge config stores), display_name for display
             const slug = String(agent.name ?? '').trim();
             const displayName = String(agent.display_name ?? agent.name ?? slug).trim();
