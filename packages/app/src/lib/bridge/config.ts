@@ -1,17 +1,17 @@
 /**
  * Bridge Configuration Store
  *
- * Persists Bridge channel/integration settings in deploy-api's config store.
- * These settings are applied to bridge runtime env via deploy-api config apply.
+ * Persists Bridge channel/integration settings in config-api's config store
+ * (category: bridge). Email/SMTP settings use a separate email-config module.
  */
 
 import {
-  getDeployApiToken,
+  getConfigApiToken,
   bulkSetConfigs,
   listConfigs,
   getConfigRaw,
   type ConfigSetRequest,
-} from '../deploy/client';
+} from '../config/client';
 import { maskValue } from './masking';
 
 export { isMaskedValue } from './masking';
@@ -43,6 +43,10 @@ export type BridgeConfig = {
 
   channelUserBindings: string | null;
   defaultAgentId: string | null;
+  telegramAgentId: string | null;
+  signalAgentId: string | null;
+  discordAgentId: string | null;
+  whatsappAgentId: string | null;
 
   emailInboundEnabled: boolean;
   imapHost: string | null;
@@ -80,6 +84,10 @@ const DEFAULT_CONFIG: BridgeConfig = {
 
   channelUserBindings: null,
   defaultAgentId: 'chat-agent',
+  telegramAgentId: null,
+  signalAgentId: null,
+  discordAgentId: null,
+  whatsappAgentId: null,
 
   emailInboundEnabled: false,
   imapHost: null,
@@ -117,6 +125,10 @@ const FIELD_TO_KEY: Record<keyof BridgeConfig, string> = {
 
   channelUserBindings: 'CHANNEL_USER_BINDINGS',
   defaultAgentId: 'DEFAULT_AGENT_ID',
+  telegramAgentId: 'TELEGRAM_AGENT_ID',
+  signalAgentId: 'SIGNAL_AGENT_ID',
+  discordAgentId: 'DISCORD_AGENT_ID',
+  whatsappAgentId: 'WHATSAPP_AGENT_ID',
 
   emailInboundEnabled: 'EMAIL_INBOUND_ENABLED',
   imapHost: 'IMAP_HOST',
@@ -161,7 +173,7 @@ export function maskBridgeConfig(config: BridgeConfig): BridgeConfig {
 }
 
 export async function getBridgeConfigToken(userId: string, sessionJwt: string): Promise<string> {
-  return getDeployApiToken(userId, sessionJwt);
+  return getConfigApiToken(userId, sessionJwt);
 }
 
 export async function getBridgeConfigFromDeployApi(
@@ -192,7 +204,7 @@ export async function getBridgeConfigFromDeployApi(
 
     return configValuesToBridgeConfig(values);
   } catch (error) {
-    console.warn('[BRIDGE-CONFIG] Failed to read bridge config from deploy-api:', error);
+    console.warn('[BRIDGE-CONFIG] Failed to read bridge config from config-api:', error);
     return { ...DEFAULT_CONFIG };
   }
 }

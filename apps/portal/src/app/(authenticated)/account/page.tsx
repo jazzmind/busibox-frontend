@@ -194,11 +194,11 @@ export default function AccountPage() {
               </span>
             </div>
             
-            {user.roles && user.roles.length > 0 && (
+            {user.roles && user.roles.filter((r: string) => !r.startsWith('app:')).length > 0 && (
               <div className="flex items-center justify-between py-2">
                 <span className="text-gray-600">Roles</span>
                 <div className="flex gap-2">
-                  {user.roles.map((role: string) => (
+                  {user.roles.filter((r: string) => !r.startsWith('app:')).map((role: string) => (
                     <span
                       key={role}
                       className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"

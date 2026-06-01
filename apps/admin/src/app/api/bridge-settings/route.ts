@@ -15,6 +15,46 @@ import {
 } from '@jazzmind/busibox-app/lib/bridge/config';
 import { getBridgeApiUrl } from '@jazzmind/busibox-app/lib/next/api-url';
 
+function buildBridgeReloadPayload(config: BridgeConfig): Record<string, string> {
+  const payload: Record<string, string> = {};
+  const add = (key: string, val: string | number | boolean | null | undefined) => {
+    if (val !== null && val !== undefined) payload[key] = String(val);
+  };
+  add('SIGNAL_ENABLED', config.signalEnabled);
+  add('SIGNAL_PHONE_NUMBER', config.signalPhoneNumber);
+  add('ALLOWED_PHONE_NUMBERS', config.allowedPhoneNumbers);
+  add('TELEGRAM_ENABLED', config.telegramEnabled);
+  add('TELEGRAM_BOT_TOKEN', config.telegramBotToken);
+  add('TELEGRAM_POLL_INTERVAL', config.telegramPollInterval);
+  add('TELEGRAM_POLL_TIMEOUT', config.telegramPollTimeout);
+  add('TELEGRAM_ALLOWED_CHAT_IDS', config.telegramAllowedChatIds);
+  add('DISCORD_ENABLED', config.discordEnabled);
+  add('DISCORD_BOT_TOKEN', config.discordBotToken);
+  add('DISCORD_POLL_INTERVAL', config.discordPollInterval);
+  add('DISCORD_CHANNEL_IDS', config.discordChannelIds);
+  add('WHATSAPP_ENABLED', config.whatsappEnabled);
+  add('WHATSAPP_VERIFY_TOKEN', config.whatsappVerifyToken);
+  add('WHATSAPP_ACCESS_TOKEN', config.whatsappAccessToken);
+  add('WHATSAPP_PHONE_NUMBER_ID', config.whatsappPhoneNumberId);
+  add('WHATSAPP_API_VERSION', config.whatsappApiVersion);
+  add('WHATSAPP_ALLOWED_PHONE_NUMBERS', config.whatsappAllowedPhoneNumbers);
+  add('EMAIL_INBOUND_ENABLED', config.emailInboundEnabled);
+  add('IMAP_HOST', config.imapHost);
+  add('IMAP_PORT', config.imapPort);
+  add('IMAP_USER', config.imapUser);
+  add('IMAP_PASSWORD', config.imapPassword);
+  add('IMAP_USE_SSL', config.imapUseSsl);
+  add('IMAP_FOLDER', config.imapFolder);
+  add('EMAIL_INBOUND_POLL_INTERVAL', config.emailInboundPollInterval);
+  add('EMAIL_ALLOWED_SENDERS', config.emailAllowedSenders);
+  add('DEFAULT_AGENT_ID', config.defaultAgentId);
+  add('TELEGRAM_AGENT_ID', config.telegramAgentId);
+  add('SIGNAL_AGENT_ID', config.signalAgentId);
+  add('DISCORD_AGENT_ID', config.discordAgentId);
+  add('WHATSAPP_AGENT_ID', config.whatsappAgentId);
+  return payload;
+}
+
 function asNullableString(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const str = String(value).trim();
@@ -114,6 +154,10 @@ export async function PATCH(request: NextRequest) {
 
     if ('channelUserBindings' in body) updates.channelUserBindings = asNullableString(body.channelUserBindings);
     if ('defaultAgentId' in body) updates.defaultAgentId = asNullableString(body.defaultAgentId);
+    if ('telegramAgentId' in body) updates.telegramAgentId = asNullableString(body.telegramAgentId);
+    if ('signalAgentId' in body) updates.signalAgentId = asNullableString(body.signalAgentId);
+    if ('discordAgentId' in body) updates.discordAgentId = asNullableString(body.discordAgentId);
+    if ('whatsappAgentId' in body) updates.whatsappAgentId = asNullableString(body.whatsappAgentId);
 
     if ('emailInboundEnabled' in body) updates.emailInboundEnabled = asBool(body.emailInboundEnabled);
     if ('imapHost' in body) updates.imapHost = asNullableString(body.imapHost);
@@ -134,11 +178,25 @@ export async function PATCH(request: NextRequest) {
     const token = await getBridgeConfigToken(user.id, sessionJwt);
     const saved = await saveBridgeConfigToDeployApi(token, updates);
 
-    const restartMessage = 'Settings saved. Bridge picks up new config automatically (no restart needed).';
+    // Push the updated config to bridge so channel polling picks it up
+    // within the next supervision cycle (no restart required).
+    let reloadedLive = false;
+    const bridgeUrl = getBridgeApiUrl();
+    try {
+      const reloadPayload = buildBridgeReloadPayload(saved);
+      const reloadRes = await fetch(`${bridgeUrl}/api/v1/config/reload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reloadPayload),
+      });
+      reloadedLive = reloadRes.ok;
+    } catch {
+      // Bridge unreachable — settings are saved in config-api, will apply on next start
+      reloadedLive = false;
+    }
 
     let bridgeHealth: Record<string, unknown> | null = null;
     try {
-      const bridgeUrl = getBridgeApiUrl();
       const healthRes = await fetch(`${bridgeUrl}/health`, { cache: 'no-store' });
       if (healthRes.ok) {
         bridgeHealth = await healthRes.json();
@@ -147,10 +205,14 @@ export async function PATCH(request: NextRequest) {
       bridgeHealth = null;
     }
 
+    const liveMessage = reloadedLive
+      ? 'Settings saved and applied to bridge (changes take effect within 5 seconds).'
+      : 'Settings saved. Bridge will pick them up on next restart.';
+
     return apiSuccess({
       config: maskBridgeConfig(saved),
       bridgeHealth,
-      message: `Bridge settings updated successfully. ${restartMessage}`,
+      message: `Bridge settings updated successfully. ${liveMessage}`,
     });
   } catch (error) {
     console.error('[API] Update bridge settings error:', error);

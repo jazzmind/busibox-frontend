@@ -29,6 +29,10 @@ export interface BridgeSettingsData {
 
   channelUserBindings: string | null;
   defaultAgentId: string | null;
+  telegramAgentId: string | null;
+  signalAgentId: string | null;
+  discordAgentId: string | null;
+  whatsappAgentId: string | null;
 
   emailInboundEnabled: boolean;
   imapHost: string | null;
@@ -233,6 +237,16 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
     triggerSave(next, el);
   };
 
+  const handleChannelAgentChange = async (
+    field: 'telegramAgentId' | 'signalAgentId' | 'discordAgentId' | 'whatsappAgentId',
+    value: string | null,
+    el?: HTMLElement | null,
+  ) => {
+    const next = { ...formData, [field]: value || null };
+    setFormData(next);
+    triggerSave(next, el);
+  };
+
   const resetForm = () => {
     setFormData(settings);
     setLiveBridgeHealth(bridgeHealth);
@@ -327,17 +341,9 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
     </a>
   );
 
-  const isChannelActive = (key: 'signal' | 'telegram' | 'discord' | 'whatsapp' | 'email'): boolean => {
-    const flagMap: Record<string, string> = {
-      signal: 'signal_enabled',
-      telegram: 'telegram_enabled',
-      discord: 'discord_enabled',
-      whatsapp: 'whatsapp_enabled',
-    };
+  // "Configured" state: what is saved in config-api (form data is the source of truth)
+  const isChannelConfigured = (key: 'signal' | 'telegram' | 'discord' | 'whatsapp' | 'email'): boolean => {
     if (key === 'email') return formData.emailInboundEnabled;
-    const healthKey = flagMap[key];
-    const fromHealth = liveBridgeHealth?.[healthKey];
-    if (fromHealth !== undefined) return Boolean(fromHealth);
     if (key === 'signal') return formData.signalEnabled;
     if (key === 'telegram') return formData.telegramEnabled;
     if (key === 'discord') return formData.discordEnabled;
@@ -345,12 +351,64 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
     return false;
   };
 
+  // "Runtime" state: what the live bridge process currently reports (may lag behind config)
+  const isChannelRuntime = (key: 'signal' | 'telegram' | 'discord' | 'whatsapp' | 'email'): boolean | null => {
+    const flagMap: Record<string, string> = {
+      signal: 'signal_enabled',
+      telegram: 'telegram_enabled',
+      discord: 'discord_enabled',
+      whatsapp: 'whatsapp_enabled',
+      email: 'email_enabled',
+    };
+    const healthKey = flagMap[key];
+    const fromHealth = liveBridgeHealth?.[healthKey];
+    if (fromHealth === undefined || fromHealth === null) return null;
+    return Boolean(fromHealth);
+  };
+
+  // Primary active check uses configured state (form data)
+  const isChannelActive = (key: 'signal' | 'telegram' | 'discord' | 'whatsapp' | 'email'): boolean =>
+    isChannelConfigured(key);
+
+  // True when config and runtime differ (runtime may still be starting or hasn't reloaded)
+  const isChannelMismatched = (key: 'signal' | 'telegram' | 'discord' | 'whatsapp' | 'email'): boolean => {
+    const runtime = isChannelRuntime(key);
+    if (runtime === null) return false;
+    return isChannelConfigured(key) !== runtime;
+  };
+
   const channelFlags = [
-    { key: 'signal_enabled', label: 'Signal', enabled: isChannelActive('signal') },
-    { key: 'telegram_enabled', label: 'Telegram', enabled: isChannelActive('telegram') },
-    { key: 'discord_enabled', label: 'Discord', enabled: isChannelActive('discord') },
-    { key: 'whatsapp_enabled', label: 'WhatsApp', enabled: isChannelActive('whatsapp') },
+    { key: 'signal_enabled', label: 'Signal', enabled: isChannelActive('signal'), mismatch: isChannelMismatched('signal') },
+    { key: 'telegram_enabled', label: 'Telegram', enabled: isChannelActive('telegram'), mismatch: isChannelMismatched('telegram') },
+    { key: 'discord_enabled', label: 'Discord', enabled: isChannelActive('discord'), mismatch: isChannelMismatched('discord') },
+    { key: 'whatsapp_enabled', label: 'WhatsApp', enabled: isChannelActive('whatsapp'), mismatch: isChannelMismatched('whatsapp') },
   ];
+
+  const renderChannelAgentSelect = (
+    field: 'telegramAgentId' | 'signalAgentId' | 'discordAgentId' | 'whatsappAgentId',
+  ) => {
+    const currentVal = (formData[field] || '').trim();
+    const selected = visibleAgentOptions.some((a) => a.id === currentVal) ? currentVal : '';
+    return (
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Channel Agent</label>
+        <select
+          value={selected}
+          onChange={(e) => void handleChannelAgentChange(field, e.target.value || null, e.target)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm"
+          disabled={loadingAgents || saving}
+        >
+          <option value="">Use default agent</option>
+          {visibleAgentOptions.map((agent) => (
+            <option key={agent.id} value={agent.id}>
+              {isChatAgentName(agent.name) ? 'Chat Agent' : agent.name}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-gray-500">Override the default agent for this channel only.</p>
+      </div>
+    );
+  };
 
   const isStoredValue = (value: string | null): boolean =>
     Boolean(value && (value.includes('****') || value.trim().length > 0));
@@ -430,13 +488,19 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
           {channelFlags.map((flag) => (
             <span
               key={flag.key}
-              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
                 flag.enabled
                   ? 'bg-green-100 text-green-800'
                   : 'bg-gray-200 text-gray-700'
               }`}
+              title={flag.mismatch ? 'Runtime state differs from configured state — bridge may still be applying changes' : undefined}
             >
               {flag.label}: {flag.enabled ? 'enabled' : 'disabled'}
+              {flag.mismatch && (
+                <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+                  applying…
+                </span>
+              )}
             </span>
           ))}
         </div>
@@ -532,6 +596,7 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
+          {renderChannelAgentSelect('signalAgentId')}
         </div>
       </div>}
 
@@ -625,6 +690,9 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
             />
           </div>
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {renderChannelAgentSelect('telegramAgentId')}
+        </div>
         {renderInlineTest('telegram')}
       </div>}
 
@@ -707,6 +775,9 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {renderChannelAgentSelect('discordAgentId')}
         </div>
         {renderInlineTest('discord')}
       </div>}
@@ -824,6 +895,9 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {renderChannelAgentSelect('whatsappAgentId')}
         </div>
         {renderInlineTest('whatsapp')}
       </div>}
