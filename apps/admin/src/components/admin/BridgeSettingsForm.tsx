@@ -108,17 +108,20 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
     const loadAgents = async () => {
       setLoadingAgents(true);
       try {
-        const response = await fetch('/admin/api/agents?limit=200', { credentials: 'include' });
+        const response = await fetch('/api/agents?limit=200', { credentials: 'include' });
         if (!response.ok) return;
         const result = await response.json();
-        const list = result.data?.agents ?? result.agents ?? [];
+        // API returns { success: true, data: [...agents] } where data is the array directly
+        const raw = result.data;
+        const list: unknown[] = Array.isArray(raw) ? raw : (Array.isArray(raw?.agents) ? raw.agents : (Array.isArray(result.agents) ? result.agents : []));
         if (!Array.isArray(list)) return;
         const mapped = list
           .map((agent: Record<string, unknown>) => {
-            const id = String(agent.id ?? '').trim();
-            const name = String(agent.name ?? agent.title ?? id).trim();
-            if (!id) return null;
-            return { id, name };
+            // Use name slug as the id (what bridge config stores), display_name for display
+            const slug = String(agent.name ?? '').trim();
+            const displayName = String(agent.display_name ?? agent.name ?? slug).trim();
+            if (!slug) return null;
+            return { id: slug, name: displayName };
           })
           .filter((v: AgentOption | null): v is AgentOption => Boolean(v));
         setAgentOptions(mapped);
@@ -136,10 +139,11 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
 
     const currentId = (formData.defaultAgentId || '').trim();
     const currentExists = currentId.length > 0 && agentOptions.some((agent) => agent.id === currentId);
-    const chatLike = agentOptions.find((agent) => isChatAgentName(agent.name))
-      ?? agentOptions.find((agent) => agent.id.toLowerCase() === 'chat-agent');
+    // agent.id is now the slug, so check for chat-like by slug or display name
+    const chatLike = agentOptions.find((agent) => agent.id.toLowerCase().includes('chat'))
+      ?? agentOptions.find((agent) => isChatAgentName(agent.name));
 
-    if (!currentExists || currentId === 'chat-agent') {
+    if (!currentExists) {
       const fallback = chatLike ?? agentOptions[0];
       if (fallback?.id && fallback.id !== currentId) {
         setFormData((prev) => ({ ...prev, defaultAgentId: fallback.id }));
@@ -401,7 +405,7 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
           <option value="">Use default agent</option>
           {visibleAgentOptions.map((agent) => (
             <option key={agent.id} value={agent.id}>
-              {isChatAgentName(agent.name) ? 'Chat Agent' : agent.name}
+              {agent.name}
             </option>
           ))}
         </select>
@@ -518,7 +522,7 @@ export function BridgeSettingsForm({ settings, bridgeHealth, onSuccess, section 
               ) : null}
               {visibleAgentOptions.map((agent) => (
                 <option key={agent.id} value={agent.id}>
-                  {isChatAgentName(agent.name) ? 'Chat Agent' : agent.name}
+                  {agent.name}
                 </option>
               ))}
             </select>

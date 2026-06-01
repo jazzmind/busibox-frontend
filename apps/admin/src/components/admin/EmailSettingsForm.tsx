@@ -8,7 +8,7 @@
 
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Eye, EyeOff, Send, RefreshCw, Check } from 'lucide-react';
 import { useAutosave } from '@jazzmind/busibox-app';
 
@@ -66,6 +66,26 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
     emailInboundPollInterval: null,
     emailAllowedSenders: null,
   });
+
+  // Re-sync when parent reloads settings (e.g. navigating back to this tab)
+  useEffect(() => {
+    setFormData({
+      smtpEnabled: settings.smtpEnabled ?? false,
+      smtpHost: settings.smtpHost ?? null,
+      smtpPort: settings.smtpPort ?? null,
+      smtpUser: settings.smtpUser ?? null,
+      smtpPassword: settings.smtpPassword ?? null,
+      smtpSecure: settings.smtpSecure ?? false,
+      resendEnabled: settings.resendEnabled ?? false,
+      emailFrom: settings.emailFrom ?? null,
+      resendApiKey: settings.resendApiKey ?? null,
+    });
+  }, [settings]);
+
+  useEffect(() => {
+    if (!imapSettings) return;
+    setImapData(imapSettings);
+  }, [imapSettings]);
 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
