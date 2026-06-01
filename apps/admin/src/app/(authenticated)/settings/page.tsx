@@ -387,6 +387,7 @@ export default function AdminSettingsPage() {
                       activeProvider={emailActiveProvider}
                       imapSettings={bridgeSettings ? {
                         emailInboundEnabled: (bridgeSettings as any).emailInboundEnabled ?? false,
+                        emailInboundProtocol: (bridgeSettings as any).emailInboundProtocol ?? 'imap',
                         imapHost: (bridgeSettings as any).imapHost ?? null,
                         imapPort: (bridgeSettings as any).imapPort ?? null,
                         imapUser: (bridgeSettings as any).imapUser ?? null,

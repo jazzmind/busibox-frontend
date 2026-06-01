@@ -50,6 +50,7 @@ export type BridgeConfig = {
   emailAgentId: string | null;
 
   emailInboundEnabled: boolean;
+  emailInboundProtocol: 'imap' | 'pop3' | null;
   imapHost: string | null;
   imapPort: number | null;
   imapUser: string | null;
@@ -92,6 +93,7 @@ const DEFAULT_CONFIG: BridgeConfig = {
   emailAgentId: null,
 
   emailInboundEnabled: false,
+  emailInboundProtocol: 'imap',
   imapHost: null,
   imapPort: 993,
   imapUser: null,
@@ -134,6 +136,7 @@ const FIELD_TO_KEY: Record<keyof BridgeConfig, string> = {
   emailAgentId: 'EMAIL_AGENT_ID',
 
   emailInboundEnabled: 'EMAIL_INBOUND_ENABLED',
+  emailInboundProtocol: 'EMAIL_INBOUND_PROTOCOL',
   imapHost: 'IMAP_HOST',
   imapPort: 'IMAP_PORT',
   imapUser: 'IMAP_USER',

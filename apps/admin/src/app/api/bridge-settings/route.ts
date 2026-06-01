@@ -39,6 +39,7 @@ function buildBridgeReloadPayload(config: BridgeConfig): Record<string, string> 
   add('WHATSAPP_API_VERSION', config.whatsappApiVersion);
   add('WHATSAPP_ALLOWED_PHONE_NUMBERS', config.whatsappAllowedPhoneNumbers);
   add('EMAIL_INBOUND_ENABLED', config.emailInboundEnabled);
+  add('EMAIL_INBOUND_PROTOCOL', config.emailInboundProtocol);
   add('IMAP_HOST', config.imapHost);
   add('IMAP_PORT', config.imapPort);
   add('IMAP_USER', config.imapUser);
@@ -162,6 +163,7 @@ export async function PATCH(request: NextRequest) {
     if ('emailAgentId' in body) updates.emailAgentId = asNullableString(body.emailAgentId);
 
     if ('emailInboundEnabled' in body) updates.emailInboundEnabled = asBool(body.emailInboundEnabled);
+    if ('emailInboundProtocol' in body) updates.emailInboundProtocol = asNullableString(body.emailInboundProtocol) as 'imap' | 'pop3' | null;
     if ('imapHost' in body) updates.imapHost = asNullableString(body.imapHost);
     if ('imapPort' in body) updates.imapPort = asNullableInt(body.imapPort);
     if ('imapUser' in body) updates.imapUser = asNullableString(body.imapUser);

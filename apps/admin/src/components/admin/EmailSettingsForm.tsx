@@ -26,6 +26,7 @@ export interface EmailSettingsData {
 
 export interface ImapSettingsData {
   emailInboundEnabled: boolean;
+  emailInboundProtocol?: 'imap' | 'pop3' | null;
   imapHost: string | null;
   imapPort: number | null;
   imapUser: string | null;
@@ -58,6 +59,7 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
   });
   const [imapData, setImapData] = useState<ImapSettingsData>(imapSettings ?? {
     emailInboundEnabled: false,
+    emailInboundProtocol: 'imap',
     imapHost: null,
     imapPort: null,
     imapUser: null,
@@ -513,9 +515,9 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
       {/* Inbound Email (IMAP) */}
       <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">Inbound Email (IMAP)</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">Inbound Email</h3>
           <p className="text-sm text-gray-500">
-            Configure IMAP polling for inbound email processing via the bridge service.
+            Configure email polling for inbound email processing via the bridge service. Supports IMAP and POP3.
           </p>
         </div>
         <div className="flex items-start">
@@ -530,41 +532,81 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
             Enable inbound email polling
           </label>
         </div>
+        {/* Protocol selector */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Protocol</label>
+          <div className="flex gap-4">
+            {(['imap', 'pop3'] as const).map((proto) => (
+              <label key={proto} className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="radio"
+                  name="emailInboundProtocol"
+                  value={proto}
+                  checked={(imapData.emailInboundProtocol ?? 'imap') === proto}
+                  onChange={() => {
+                    const defaultPort = proto === 'pop3' ? 995 : 993;
+                    const next: ImapSettingsData = {
+                      ...imapData,
+                      emailInboundProtocol: proto,
+                      imapPort: imapData.imapPort === 993 || imapData.imapPort === 995 || !imapData.imapPort
+                        ? defaultPort
+                        : imapData.imapPort,
+                    };
+                    setImapData(next);
+                    imap.triggerSave(next);
+                  }}
+                  className="h-4 w-4 text-blue-600"
+                />
+                {proto.toUpperCase()}
+              </label>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            {(imapData.emailInboundProtocol ?? 'imap') === 'pop3'
+              ? 'POP3: messages are never deleted from the server; only new messages are processed.'
+              : 'IMAP: uses server-side unseen flag for new message detection.'}
+          </p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">IMAP Host</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Server Host</label>
             <input
               type="text"
               value={imapData.imapHost || ''}
               onChange={(e) => updateImapText('imapHost', e.target.value || null)}
               onBlur={handleImapBlur}
+              placeholder={(imapData.emailInboundProtocol ?? 'imap') === 'pop3' ? 'outlook.office365.com' : 'mail.example.com'}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">IMAP Port</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Port</label>
             <input
               type="number"
               value={imapData.imapPort ?? ''}
               onChange={(e) => updateImapText('imapPort', e.target.value ? parseInt(e.target.value, 10) : null)}
               onBlur={handleImapBlur}
+              placeholder={(imapData.emailInboundProtocol ?? 'imap') === 'pop3' ? '995' : '993'}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">IMAP Folder</label>
-            <input
-              type="text"
-              value={imapData.imapFolder || ''}
-              onChange={(e) => updateImapText('imapFolder', e.target.value || null)}
-              onBlur={handleImapBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            />
-          </div>
+          {(imapData.emailInboundProtocol ?? 'imap') === 'imap' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Folder</label>
+              <input
+                type="text"
+                value={imapData.imapFolder || ''}
+                onChange={(e) => updateImapText('imapFolder', e.target.value || null)}
+                onBlur={handleImapBlur}
+                placeholder="INBOX"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              />
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">IMAP User</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Username / Email</label>
             <input
               type="text"
               value={imapData.imapUser || ''}
@@ -574,7 +616,7 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">IMAP Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
             <div className="relative">
               <input
                 type={showPasswords.has('imapPassword') ? 'text' : 'password'}
@@ -647,7 +689,7 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
           </select>
           <p className="mt-1 text-xs text-gray-500">Agent to handle inbound emails. Defaults to the global default agent.</p>
         </div>
-        {/* IMAP test buttons */}
+        {/* Inbound test buttons */}
         <div className="pt-4 flex flex-col gap-2">
           <div className="flex flex-wrap gap-2">
             <button
@@ -657,13 +699,13 @@ export function EmailSettingsForm({ settings, activeProvider, imapSettings, onSu
               className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {imapTesting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              {imapTesting ? 'Testing...' : 'Test IMAP Connection'}
+              {imapTesting ? 'Testing...' : 'Test Connection'}
             </button>
             <button
               type="button"
               onClick={handleSendToSelf}
               disabled={sendToSelfTesting || saving || !imapData.emailInboundEnabled}
-              title="Send a test email via outbound SMTP to the IMAP inbound address to verify the full loop"
+              title="Send a test email via outbound SMTP to the inbound address to verify the full loop"
               className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {sendToSelfTesting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
