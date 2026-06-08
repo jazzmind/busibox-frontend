@@ -19,7 +19,7 @@ import { ThinkingStream } from './ThinkingStream';
 import { StepTimeline } from './StepTimeline';
 
 import { stripThinkTags, extractThinkContent } from './chat-utils';
-import type { MessagePart } from '../../types/chat';
+import type { MessagePart, MessageCitation } from '../../types/chat';
 import { useCitation } from './CitationContext';
 
 // Matches doc:fileId or doc:fileId:pageNumber
@@ -72,6 +72,64 @@ function CitationLink({ href, children, ...props }: React.AnchorHTMLAttributes<H
     }
   }
   return <a {...props} href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
+}
+
+/**
+ * Renders a row of clickable document citation chips from structured search results.
+ * Each chip opens the DocumentPreviewPanel sidebar via CitationContext (if available),
+ * or falls back to opening the document in a new tab.
+ */
+function CitationChips({ citations }: { citations: MessageCitation[] }) {
+  const citation = useCitation();
+  const documentsBp = process.env.NEXT_PUBLIC_DOCUMENTS_BASE_PATH || '/documents';
+
+  if (!citations || citations.length === 0) return null;
+
+  return (
+    <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+      <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Sources</div>
+      <div className="flex flex-wrap gap-1.5">
+        {citations.map((c) => {
+          const label = c.page ? `${c.filename}, p.${c.page}` : c.filename;
+          const commonClass =
+            'inline-flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300 ' +
+            'bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-700 ' +
+            'hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors cursor-pointer';
+          if (citation) {
+            return (
+              <button
+                key={c.fileId}
+                type="button"
+                onClick={() => citation.openCitation(c.fileId, c.page)}
+                className={commonClass}
+                title="View source document"
+              >
+                <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                {label}
+              </button>
+            );
+          }
+          return (
+            <a
+              key={c.fileId}
+              href={`${documentsBp}/${c.fileId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={commonClass + ' no-underline'}
+              title="Open source document"
+            >
+              <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              {label}
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function ResponsiveTable({ children, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
@@ -155,6 +213,7 @@ interface Message {
     url?: string;
     score: number;
   }>;
+  citations?: MessageCitation[];
 }
 
 interface MessageListProps {
@@ -163,6 +222,7 @@ interface MessageListProps {
   streamingAgentName?: string;
   streamingThoughts?: ThoughtEvent[];
   streamingParts?: MessagePart[];
+  streamingCitations?: MessageCitation[];
   isLoading?: boolean;
   conversationOwner?: {
     id: string;
@@ -413,6 +473,7 @@ export function MessageList({
   streamingAgentName,
   streamingThoughts,
   streamingParts,
+  streamingCitations,
   isLoading,
   conversationOwner,
   currentUserId,
@@ -731,6 +792,11 @@ export function MessageList({
                 </div>
               )}
 
+              {/* Deterministic citation chips from structured document_search results */}
+              {message.role === 'assistant' && message.citations && message.citations.length > 0 && (
+                <CitationChips citations={message.citations} />
+              )}
+
               {/* Search Results (for assistant messages) */}
               {(message.webSearchResults || message.docSearchResults) && message.role === 'assistant' && (
                 <div className="mt-3 space-y-2 border-t pt-2 border-opacity-20">
@@ -941,6 +1007,11 @@ export function MessageList({
                     <span className="text-sm">Thinking...</span>
                   </div>
                 )
+              )}
+
+              {/* Live citation chips — appear as soon as document_search results arrive */}
+              {streamingCitations && streamingCitations.length > 0 && (
+                <CitationChips citations={streamingCitations} />
               )}
             </div>
           </div>

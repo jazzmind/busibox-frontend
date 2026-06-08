@@ -5,12 +5,13 @@ import { flushSync } from 'react-dom';
 import { stripThinkTags } from '../../components/chat/chat-utils';
 import { streamChatMessageAgentic } from '../agent/chat-client';
 import { createAccumulator, processStreamEvent } from '../agent/stream-event-processor';
-import type { ChatMessageRequest, MessagePart, ThoughtEvent } from '../../types/chat';
+import type { ChatMessageRequest, MessagePart, ThoughtEvent, MessageCitation } from '../../types/chat';
 
 export interface StreamState {
   content: string;
   thoughts: ThoughtEvent[];
   parts: MessagePart[];
+  citations: MessageCitation[];
   agentName?: string;
   interimMessages: string[];
   quickReplies: string[];
@@ -23,6 +24,7 @@ export interface StreamResult {
   content: string;
   thoughts: ThoughtEvent[];
   parts: MessagePart[];
+  citations: MessageCitation[];
   agentName?: string;
   interimMessages: string[];
   conversationId?: string;
@@ -39,6 +41,7 @@ const INITIAL_STATE: StreamState = {
   content: '',
   thoughts: [],
   parts: [],
+  citations: [],
   agentName: undefined,
   interimMessages: [],
   quickReplies: [],
@@ -71,6 +74,7 @@ export function useChatStream({ token, agentUrl, onConversationCreated, onTitleU
         content: '',
         thoughts: [],
         parts: [],
+        citations: [],
         interimMessages: [],
         quickReplies: [],
         promptActive: false,
@@ -110,6 +114,7 @@ export function useChatStream({ token, agentUrl, onConversationCreated, onTitleU
             content: result.content ?? prev.content,
             thoughts: result.thoughts ?? prev.thoughts,
             parts: result.parts ?? prev.parts,
+            citations: result.citations ?? prev.citations,
             agentName: accumulated.agentName ?? prev.agentName,
             interimMessages: result.interimMessages ?? prev.interimMessages,
             quickReplies: result.quickReplies ?? prev.quickReplies,
@@ -130,6 +135,7 @@ export function useChatStream({ token, agentUrl, onConversationCreated, onTitleU
           content: '',
           thoughts: [],
           parts: [],
+          citations: [],
           agentName: undefined,
           interimMessages: [],
         }));
@@ -141,6 +147,7 @@ export function useChatStream({ token, agentUrl, onConversationCreated, onTitleU
       content: stripThinkTags(accumulated.fullContent),
       thoughts: accumulated.thoughts,
       parts: accumulated.parts,
+      citations: Array.from(accumulated.citationsByFileId.values()),
       agentName: accumulated.agentName,
       interimMessages: accumulated.interimMessages,
       conversationId: resultConversationId,

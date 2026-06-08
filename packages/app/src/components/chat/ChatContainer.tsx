@@ -56,6 +56,7 @@ function mapConversation(conv: any): Conversation {
  * Extracts thoughts from routing_decision.thoughts
  */
 function mapMessage(msg: any): Message {
+  const rawCitations: any[] = msg.routing_decision?.citations || [];
   return {
     id: msg.id,
     conversationId: msg.conversation_id || msg.conversationId,
@@ -75,6 +76,12 @@ function mapMessage(msg: any): Message {
       sizeBytes: a.size_bytes ?? a.sizeBytes,
       addedToLibrary: a.added_to_library ?? a.addedToLibrary,
     })),
+    citations: rawCitations.map((c: any) => ({
+      fileId: c.file_id || c.fileId,
+      filename: c.filename || '',
+      page: c.page_number ?? c.page ?? undefined,
+      score: c.score ?? undefined,
+    })).filter((c: any) => !!c.fileId),
     createdAt: msg.created_at ? new Date(msg.created_at) : msg.createdAt,
   };
 }
@@ -967,6 +974,7 @@ export function ChatContainer({
               streamingAgentName={streamState.agentName}
               streamingThoughts={streamState.thoughts}
               streamingParts={streamState.parts}
+              streamingCitations={streamState.citations}
               isLoading={isStreaming}
               onDeleteMessage={handleDeleteMessage}
               onRetryMessage={handleRetryMessage}

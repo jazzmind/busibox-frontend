@@ -38,6 +38,13 @@ export interface ThoughtEvent {
   timestamp?: Date;
 }
 
+export interface MessageCitation {
+  fileId: string;
+  filename: string;
+  page?: number;
+  score?: number;
+}
+
 export interface MessageAttachment {
   id: string;
   filename: string;
@@ -60,6 +67,7 @@ export interface Message {
   toolCalls?: ToolCall[];
   runId?: string;
   attachments?: MessageAttachment[];
+  citations?: MessageCitation[];
   createdAt: Date;
 }
 

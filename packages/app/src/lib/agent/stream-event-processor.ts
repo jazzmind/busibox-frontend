@@ -1,6 +1,6 @@
 import { stripThinkTags, extractThinkContent } from '../../components/chat/chat-utils';
 import type { ThoughtEvent } from '../../components/chat/ThinkingToggle';
-import type { MessagePart } from '../../types/chat';
+import type { MessagePart, MessageCitation } from '../../types/chat';
 
 export interface StreamAccumulator {
   fullContent: string;
@@ -10,12 +10,15 @@ export interface StreamAccumulator {
   agentName?: string;
   interimMessages: string[];
   interimContent?: string;
+  /** Deduplicated citations from document_search tool_result events (keyed by file_id). */
+  citationsByFileId: Map<string, MessageCitation>;
 }
 
 export interface StreamEventResult {
   content?: string;
   thoughts?: ThoughtEvent[];
   parts?: MessagePart[];
+  citations?: MessageCitation[];
   agentName?: string;
   interimMessages?: string[];
   quickReplies?: string[];
@@ -35,6 +38,7 @@ export function createAccumulator(): StreamAccumulator {
     pendingTools: new Map<string, number[]>(),
     agentName: undefined,
     interimMessages: [],
+    citationsByFileId: new Map<string, MessageCitation>(),
   };
 }
 
@@ -170,7 +174,27 @@ export function processStreamEvent(
           completedAt: new Date(),
         }];
       }
-      return { parts: accumulated.parts };
+
+      // Accumulate citations from document_search results during streaming.
+      if (resultSource === 'document_search' && Array.isArray(parsed.data?.results)) {
+        for (const item of parsed.data.results as any[]) {
+          const fid: string = item.file_id || item.fileId || '';
+          if (!fid) continue;
+          const score = typeof item.score === 'number' ? item.score : 0;
+          const existing = accumulated.citationsByFileId.get(fid);
+          if (!existing || score > (existing.score ?? 0)) {
+            accumulated.citationsByFileId.set(fid, {
+              fileId: fid,
+              filename: String(item.filename || ''),
+              page: item.page_number ?? item.pageNumber ?? undefined,
+              score,
+            });
+          }
+        }
+      }
+
+      const citations = Array.from(accumulated.citationsByFileId.values());
+      return { parts: accumulated.parts, citations };
     }
 
     case 'content': {
