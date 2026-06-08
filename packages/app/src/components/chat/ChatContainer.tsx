@@ -19,6 +19,8 @@ import { AgentSelectionPanel } from './AgentSelectionPanel';
 import type { ThoughtEvent } from './ThinkingToggle';
 import { InsightEditModal, type InsightData } from './InsightEditModal';
 import { stripThinkTags } from './chat-utils';
+import { CitationProvider, useCitation } from './CitationContext';
+import { DocumentPreviewPanel } from '../documents/DocumentPreviewPanel';
 import { useChatStream, type StreamState, type StreamResult } from '../../lib/hooks/useChatStream';
 import type {
   Conversation,
@@ -801,6 +803,7 @@ export function ChatContainer({
   );
 
   return (
+    <CitationProvider>
     <div className={`flex h-full overflow-hidden bg-gray-50 dark:bg-gray-900 ${className}`}>
       {/* Conversations Sidebar */}
       {!isMobile && conversationSidebar}
@@ -1280,6 +1283,23 @@ export function ChatContainer({
           </div>
         </div>
       )}
+
+      {/* Document Preview Panel — opened when a citation link is clicked */}
+      <DocumentCitationPanel />
     </div>
+    </CitationProvider>
+  );
+}
+
+/** Reads CitationContext and renders DocumentPreviewPanel when a citation is active. */
+function DocumentCitationPanel() {
+  const citation = useCitation();
+  if (!citation?.activeCitation) return null;
+  return (
+    <DocumentPreviewPanel
+      fileId={citation.activeCitation.fileId}
+      page={citation.activeCitation.page}
+      onClose={citation.closeCitation}
+    />
   );
 }

@@ -29,9 +29,11 @@ interface HtmlViewerProps {
   isEnhancing?: boolean;
   showImages?: boolean;
   showFilteredImages?: boolean;
+  /** When set, auto-scrolls to page-N after the HTML content loads. */
+  initialPage?: number;
 }
 
-export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage, statusMessage, pagesProcessed, totalPages, progress, isEnhancing, showImages = true, showFilteredImages = false }: HtmlViewerProps) {
+export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage, statusMessage, pagesProcessed, totalPages, progress, isEnhancing, showImages = true, showFilteredImages = false, initialPage }: HtmlViewerProps) {
   const api = useBusiboxApi();
   const resolve = useCrossAppApiPath();
   const documentsBase = useCrossAppBasePath('documents');
@@ -344,6 +346,15 @@ export function HtmlViewer({ fileId, onReprocess, isProcessing, processingStage,
       setActiveSection(sectionId);
     }
   };
+
+  // Scroll to the requested page after HTML renders
+  useEffect(() => {
+    if (!html || !initialPage) return;
+    // Use a small timeout to ensure the DOM has updated before scrolling
+    const timer = setTimeout(() => scrollToSection(`page-${initialPage}`), 150);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [html, initialPage]);
 
   // Inject page-level toolbars into data-page sections after HTML renders
   useEffect(() => {

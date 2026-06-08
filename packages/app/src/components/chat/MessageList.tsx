@@ -20,14 +20,38 @@ import { StepTimeline } from './StepTimeline';
 
 import { stripThinkTags, extractThinkContent } from './chat-utils';
 import type { MessagePart } from '../../types/chat';
+import { useCitation } from './CitationContext';
 
-const DOC_LINK_RE = /^doc:(.+)$/;
+// Matches doc:fileId or doc:fileId:pageNumber
+const DOC_LINK_RE = /^doc:([^:]+)(?::(\d+))?$/;
 
 function CitationLink({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
+  const citation = useCitation();
+
   if (href) {
     const match = DOC_LINK_RE.exec(href);
     if (match) {
       const fileId = match[1];
+      const page = match[2] ? parseInt(match[2], 10) : undefined;
+
+      // If a CitationContext is available, open the inline sidebar instead of a new tab.
+      if (citation) {
+        return (
+          <button
+            type="button"
+            onClick={() => citation.openCitation(fileId, page)}
+            className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors border border-blue-200 dark:border-blue-700 cursor-pointer"
+            title="View source document"
+          >
+            <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            {children}
+          </button>
+        );
+      }
+
+      // Fallback: open in new tab when no CitationContext is available.
       const documentsBp = process.env.NEXT_PUBLIC_DOCUMENTS_BASE_PATH || '/documents';
       const docHref = `${documentsBp}/${fileId}`;
       return (
@@ -641,6 +665,11 @@ export function MessageList({
                         
                       </div>
 
+                      {/* Thinking section - preserved after stream completes */}
+                      {allThoughts.some(t => t.type === 'thought' && t.data?.phase === 'model_reasoning') && (
+                        <ThinkingStream thoughts={allThoughts} isActive={false} defaultExpanded={false} />
+                      )}
+
                       {/* Tool-call cards from message parts (skip when StepTimeline already shows tool events) */}
                       {allThoughts.length === 0 && (
                         <MessagePartsRenderer parts={message.parts} content={cleanContent} onPromptReply={onQuickReply} />
@@ -895,6 +924,7 @@ export function MessageList({
                   <ReactMarkdown 
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[rehypeKatex]}
+                    components={markdownComponents}
                   >
                     {preprocessLatex(streamingContent)}
                   </ReactMarkdown>

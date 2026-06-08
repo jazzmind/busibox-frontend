@@ -7,15 +7,18 @@ import type { ThoughtEvent } from '../../types/chat';
 interface ThinkingStreamProps {
   thoughts: ThoughtEvent[];
   isActive: boolean;
+  defaultExpanded?: boolean;
 }
 
 /**
  * Live-streaming thinking display that shows model reasoning as it arrives.
  * Automatically collapses into a summary when content starts streaming,
  * but stays expanded while thinking is the only activity.
+ * For completed messages, pass isActive=false and defaultExpanded=false to
+ * render collapsed so users can expand on demand.
  */
-export function ThinkingStream({ thoughts, isActive }: ThinkingStreamProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+export function ThinkingStream({ thoughts, isActive, defaultExpanded = true }: ThinkingStreamProps) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [wasManuallyToggled, setWasManuallyToggled] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
