@@ -64,7 +64,8 @@ echo -e "${YELLOW}Step 1/7: Building package...${NC}"
 
 if [ ! -d "node_modules" ] || [ ! -f "node_modules/.modules.yaml" ]; then
     echo "  Installing dependencies..."
-    if ! pnpm install; then
+    # CI=true prevents pnpm from aborting when it can't prompt (no TTY).
+    if ! CI=true pnpm install; then
         echo -e "${RED}Failed to install dependencies!${NC}"
         exit 1
     fi
@@ -95,61 +96,47 @@ else
 fi
 echo ""
 
-# Step 3: Check package status and get latest version
-echo -e "${YELLOW}Step 3/7: Checking package status and latest version...${NC}"
+# Step 3: Fetch latest published version from npm
+echo -e "${YELLOW}Step 3/7: Checking latest published version on npmjs.org...${NC}"
 PACKAGE_NAME=$(jq -r '.name' package.json)
-CURRENT_VERSION=$(jq -r '.version' package.json)
 
 PACKAGE_EXISTS=false
 LATEST_PUBLISHED_VERSION=""
 
-# Temporarily disable ERR trap — npm view fails if package doesn't exist yet (first publish)
+# Temporarily disable ERR trap — npm view fails if package doesn't exist yet
 trap - ERR
-NPM_VIEW_OUTPUT=$(npm view "$PACKAGE_NAME" version --registry=https://registry.npmjs.org 2>&1) || true
+NPM_VIEW_OUTPUT=$(npm view "$PACKAGE_NAME" version --registry=https://registry.npmjs.org 2>/dev/null) || true
 NPM_EXIT_CODE=$?
 trap 'handle_error $LINENO "$BASH_COMMAND"' ERR
 
 if [ $NPM_EXIT_CODE -eq 0 ] && [[ "$NPM_VIEW_OUTPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     PACKAGE_EXISTS=true
     LATEST_PUBLISHED_VERSION="$NPM_VIEW_OUTPUT"
-fi
-
-if [ "$PACKAGE_EXISTS" = true ]; then
-    echo -e "${GREEN}✓ Package exists on npmjs.org${NC}"
-    if [ -n "$LATEST_PUBLISHED_VERSION" ]; then
-        echo "  Latest published version: ${LATEST_PUBLISHED_VERSION}"
-        echo "  Version in package.json: ${CURRENT_VERSION}"
-        
-        if [ "$CURRENT_VERSION" != "$LATEST_PUBLISHED_VERSION" ]; then
-            echo -e "${YELLOW}  ⚠ Version mismatch detected!${NC}"
-            echo "  Updating package.json to match latest published version..."
-            pnpm version "$LATEST_PUBLISHED_VERSION" --no-git-tag-version --allow-same-version
-            CURRENT_VERSION="$LATEST_PUBLISHED_VERSION"
-            echo -e "${GREEN}  ✓ Updated to ${LATEST_PUBLISHED_VERSION}${NC}"
-        else
-            echo -e "${GREEN}  ✓ Version matches latest published${NC}"
-        fi
-    fi
+    echo -e "${GREEN}✓ Latest published version: ${LATEST_PUBLISHED_VERSION}${NC}"
 else
     echo -e "${YELLOW}⚠ Package not found on npmjs.org (first publish?)${NC}"
-    echo "  Continuing with version from package.json: ${CURRENT_VERSION}"
 fi
 echo ""
 
-# Step 4: Auto-bump version if package exists
+# Step 4: Compute new version by incrementing patch of the PUBLISHED version.
+# We always derive from the npm-published version so local package.json drift
+# can never cause a "cannot publish over existing version" error.
+echo -e "${YELLOW}Step 4/7: Computing and writing new version...${NC}"
 if [ "$PACKAGE_EXISTS" = true ]; then
-    echo -e "${YELLOW}Step 4/7: Bumping version (patch)...${NC}"
-    if ! pnpm version patch --no-git-tag-version; then
-        echo -e "${RED}Version bump failed!${NC}"
-        exit 1
-    fi
-    NEW_VERSION=$(jq -r '.version' package.json)
-    echo -e "${GREEN}✓ Version bumped to $NEW_VERSION${NC}"
+    # Parse major.minor.patch from the published version string
+    IFS='.' read -r VER_MAJOR VER_MINOR VER_PATCH <<< "$LATEST_PUBLISHED_VERSION"
+    VER_PATCH=$((VER_PATCH + 1))
+    NEW_VERSION="${VER_MAJOR}.${VER_MINOR}.${VER_PATCH}"
+    echo "  Published: ${LATEST_PUBLISHED_VERSION} → New: ${NEW_VERSION}"
 else
-    echo -e "${YELLOW}Step 4/7: Skipping version bump (first publish)${NC}"
+    # First publish: use whatever is in package.json.prod
     NEW_VERSION=$(jq -r '.version' package.json)
-    echo -e "${GREEN}✓ Using version $NEW_VERSION${NC}"
+    echo "  First publish, using version from package.json: ${NEW_VERSION}"
 fi
+
+# Write the new version directly into package.json (avoids pnpm workspace version issues)
+sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"${NEW_VERSION}\"/" package.json
+echo -e "${GREEN}✓ package.json updated to ${NEW_VERSION}${NC}"
 echo ""
 
 # Step 5: Publish
@@ -178,8 +165,10 @@ if [ "$PACKAGE_EXISTS" = true ]; then
 fi
 
 if [ -f "package.json.backup" ]; then
+    # Also bump the version in the dev package.json backup so next publish starts correctly
+    sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"${NEW_VERSION}\"/" package.json.backup
     mv package.json.backup package.json
-    echo -e "${GREEN}✓ Restored dev package.json${NC}"
+    echo -e "${GREEN}✓ Restored dev package.json (version updated to ${NEW_VERSION})${NC}"
 else
     echo -e "${YELLOW}⚠ No backup found, keeping production package.json${NC}"
 fi
