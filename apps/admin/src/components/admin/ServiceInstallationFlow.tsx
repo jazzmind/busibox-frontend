@@ -274,13 +274,15 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
   const [currentService, setCurrentService] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
-  const [platformInfo, setPlatformInfo] = useState<{ 
-    backend?: string; 
-    tier?: string; 
-    ram_gb?: number; 
+  const [platformInfo, setPlatformInfo] = useState<{
+    backend?: string;
+    tier?: string;
+    ram_gb?: number;
     vram_gb?: number;
     environment?: string;
     use_production_vllm?: boolean;
+    service_preset?: string;
+    port_overrides?: Record<string, number>;
   } | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const installationStartedRef = useRef(false);  // Guard against React Strict Mode double-execution
@@ -591,15 +593,32 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
               }
             } else if (backend === 'cloud') {
               // No local AI hardware - update description but still run validation
-              setServices(prev => prev.map(s => 
-                s.id === 'llm-test' 
-                  ? { 
-                      ...s, 
+              setServices(prev => prev.map(s =>
+                s.id === 'llm-test'
+                  ? {
+                      ...s,
                       name: 'LLM Validation (Cloud)',
                       description: 'Testing cloud LLM → LiteLLM → Agent chain',
                     }
                   : s
               ));
+            }
+
+            // Apply Lite preset filtering: skip heavy infrastructure not needed in Lite mode
+            const preset = data.data.service_preset || 'standard';
+            console.log('[ServiceInstallationFlow] Service preset:', preset);
+            if (preset === 'lite') {
+              // Lite mode omits vector DB, graph DB, embedding, and RAG APIs
+              const LITE_SKIP = new Set([
+                'milvus', 'neo4j',          // heavy DBs not in lite stack
+                'embedding',                 // no vector search in lite
+                'search', 'docs', 'bridge',  // RAG / messaging APIs not in lite
+              ]);
+              setServiceGroups(prev => prev.map(group => ({
+                ...group,
+                services: group.services.filter(s => !LITE_SKIP.has(s.id)),
+              })));
+              setServices(prev => prev.filter(s => !LITE_SKIP.has(s.id)));
             }
           }
         }
@@ -607,7 +626,7 @@ export function ServiceInstallationFlow({ onComplete }: ServiceInstallationFlowP
         console.error('[ServiceInstallationFlow] Failed to fetch platform info:', error);
       }
     };
-    
+
     fetchPlatformInfo();
   }, []);
 
