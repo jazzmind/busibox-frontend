@@ -16,6 +16,7 @@ import { AIModelsSettings } from '@/components/admin/AIModelsSettings';
 import { EmailSettingsForm, type EmailSettingsData, type ImapSettingsData } from '@/components/admin/EmailSettingsForm';
 import { BridgeSettingsForm, type BridgeSettingsData } from '@/components/admin/BridgeSettingsForm';
 import { OAuthSettingsForm } from '@/components/admin/OAuthSettingsForm';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvider';
 import { useCustomization } from '@jazzmind/busibox-app';
 import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts';
@@ -147,10 +148,10 @@ export default function AdminSettingsPage() {
   };
   const handleSetDataSubTab = (s: DataSubTab) => setDataSubTab(s);
 
-  // ── Auth guard ───────────────────────────────────────────────────────────────
+  // ── Fetch data when user is available ────────────────────────────────────────
+  // Auth/admin redirect is handled by ProtectedRoute in the layout.
   useEffect(() => {
-    if (!user) { window.location.href = '/portal/login'; return; }
-    if (!user.roles?.includes('Admin')) { window.location.href = '/portal/home'; return; }
+    if (!user) return;
     fetchData();
   }, [user]);
 
@@ -322,7 +323,9 @@ export default function AdminSettingsPage() {
           <>
             {/* ── AI Models ──────────────────────────────────────────────────────── */}
             {activeTab === 'ai-models' && (
-              <AIModelsSettings section={aiSubTab} />
+              <ErrorBoundary fallbackMessage="AI Models settings encountered an error. Check the browser console for details.">
+                <AIModelsSettings section={aiSubTab} />
+              </ErrorBoundary>
             )}
 
             {/* ── Branding ───────────────────────────────────────────────────────── */}
