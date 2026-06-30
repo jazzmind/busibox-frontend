@@ -85,6 +85,14 @@
       "types": "./dist/lib/media/*.d.ts",
       "default": "./dist/lib/media/*.js"
     },
+    "./lib/config": {
+      "types": "./dist/lib/config/index.d.ts",
+      "default": "./dist/lib/config/index.js"
+    },
+    "./lib/config/*": {
+      "types": "./dist/lib/config/*.d.ts",
+      "default": "./dist/lib/config/*.js"
+    },
     "./lib/next/*": {
       "types": "./dist/lib/next/*.d.ts",
       "default": "./dist/lib/next/*.js"
