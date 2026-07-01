@@ -1,6 +1,6 @@
 {
   "name": "@jazzmind/busibox-app",
-  "version": "3.0.56",
+  "version": "3.0.57",
   "description": "Reusable components for Busibox applications",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -68,6 +68,14 @@
     "./lib/search/*": {
       "types": "./dist/lib/search/*.d.ts",
       "default": "./dist/lib/search/*.js"
+    },
+    "./lib/config": {
+      "types": "./dist/lib/config/index.d.ts",
+      "default": "./dist/lib/config/index.js"
+    },
+    "./lib/config/*": {
+      "types": "./dist/lib/config/*.d.ts",
+      "default": "./dist/lib/config/*.js"
     },
     "./lib/deploy/*": {
       "types": "./dist/lib/deploy/*.d.ts",
@@ -156,54 +164,33 @@
     "test:coverage": "jest --coverage",
     "test:platform": "vitest run --config tests/platform/vitest.config.ts",
     "test:platform:watch": "vitest --config tests/platform/vitest.config.ts",
-    "test:platform:coverage": "vitest run --config tests/platform/vitest.config.ts --coverage",
-    "test:integration": "vitest run --config tests/platform/vitest.integration.config.ts",
-    "test:integration:busibox": "vitest run --config tests/platform/vitest.integration.config.ts --testPathPattern=busibox",
-    "test:integration:vercel": "vitest run --config tests/platform/vitest.integration.config.ts --testPathPattern=vercel"
+    "test:platform:coverage": "vitest run --config tests/platform/vitest.config.ts --coverage"
   },
   "peerDependencies": {
-    "@ai-sdk/anthropic": "*",
-    "@ai-sdk/openai": "*",
-    "@neondatabase/serverless": "*",
-    "@vercel/blob": "*",
-    "ai": "*",
-    "drizzle-orm": "*",
     "next": "^16.0.10",
-    "next-auth": "*",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "ai": ">=7.0.0",
+    "@ai-sdk/anthropic": ">=4.0.0",
+    "@ai-sdk/openai": ">=4.0.0",
+    "@neondatabase/serverless": ">=1.0.0",
+    "@vercel/blob": ">=2.0.0"
   },
   "peerDependenciesMeta": {
-    "ai": {
-      "optional": true
-    },
-    "@ai-sdk/anthropic": {
-      "optional": true
-    },
-    "@ai-sdk/openai": {
-      "optional": true
-    },
-    "drizzle-orm": {
-      "optional": true
-    },
-    "@neondatabase/serverless": {
-      "optional": true
-    },
-    "@vercel/blob": {
-      "optional": true
-    },
-    "next-auth": {
-      "optional": true
-    }
+    "ai": { "optional": true },
+    "@ai-sdk/anthropic": { "optional": true },
+    "@ai-sdk/openai": { "optional": true },
+    "@neondatabase/serverless": { "optional": true },
+    "@vercel/blob": { "optional": true }
   },
   "dependencies": {
-    "@dnd-kit/core": "^6.3.1",
-    "@dnd-kit/sortable": "^9.0.0",
-    "@dnd-kit/utilities": "^3.2.2",
     "@radix-ui/react-dropdown-menu": "^2.1.4",
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.4",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^9.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@simplewebauthn/browser": "^13.0.0",
     "@simplewebauthn/server": "^13.0.0",
     "@simplewebauthn/types": "12.0.0",
