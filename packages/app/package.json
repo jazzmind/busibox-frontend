@@ -1,6 +1,6 @@
 {
   "name": "@jazzmind/busibox-app",
-  "version": "3.0.57",
+  "version": "3.0.58",
   "description": "Reusable components for Busibox applications",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -93,14 +93,6 @@
       "types": "./dist/lib/media/*.d.ts",
       "default": "./dist/lib/media/*.js"
     },
-    "./lib/config": {
-      "types": "./dist/lib/config/index.d.ts",
-      "default": "./dist/lib/config/index.js"
-    },
-    "./lib/config/*": {
-      "types": "./dist/lib/config/*.d.ts",
-      "default": "./dist/lib/config/*.js"
-    },
     "./lib/next/*": {
       "types": "./dist/lib/next/*.d.ts",
       "default": "./dist/lib/next/*.js"
@@ -177,11 +169,21 @@
     "@vercel/blob": ">=2.0.0"
   },
   "peerDependenciesMeta": {
-    "ai": { "optional": true },
-    "@ai-sdk/anthropic": { "optional": true },
-    "@ai-sdk/openai": { "optional": true },
-    "@neondatabase/serverless": { "optional": true },
-    "@vercel/blob": { "optional": true }
+    "ai": {
+      "optional": true
+    },
+    "@ai-sdk/anthropic": {
+      "optional": true
+    },
+    "@ai-sdk/openai": {
+      "optional": true
+    },
+    "@neondatabase/serverless": {
+      "optional": true
+    },
+    "@vercel/blob": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@radix-ui/react-dropdown-menu": "^2.1.4",

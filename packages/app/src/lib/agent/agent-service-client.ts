@@ -80,6 +80,16 @@ export interface AgentDefinitionInput {
   /** Application ID — required when visibility='application'. */
   app_id?: string;
   scopes?: string[];
+  /**
+   * Optional JSON Schema envelope enforced on every run output for this agent.
+   * When set, response_format is sent to the LLM on every run so output always
+   * matches this shape. Invoke-time response_schema overrides this value.
+   */
+  response_schema?: {
+    name: string;
+    strict?: boolean;
+    schema: Record<string, unknown>;
+  };
 }
 
 export interface AgentSyncResult {
