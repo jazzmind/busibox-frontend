@@ -26,13 +26,13 @@ import {
   Volume2,
   ImageIcon,
 } from 'lucide-react';
-import { MediaServerStatus } from './MediaServerStatus';
-import { VLLMServerStatus } from './VLLMServerStatus';
-import { MediaPlaygroundSTT } from './MediaPlaygroundSTT';
-import { MediaPlaygroundTTS } from './MediaPlaygroundTTS';
-import { MediaPlaygroundImage } from './MediaPlaygroundImage';
-import { ModelLibrary } from './ModelLibrary';
-import { GpuAllocation } from './GpuAllocation';
+import { MediaServerStatus } from '../MediaServerStatus';
+import { VLLMServerStatus } from '../VLLMServerStatus';
+import { MediaPlaygroundSTT } from '../MediaPlaygroundSTT';
+import { MediaPlaygroundTTS } from '../MediaPlaygroundTTS';
+import { MediaPlaygroundImage } from '../MediaPlaygroundImage';
+import { ModelLibrary } from '../ModelLibrary';
+import { GpuAllocation } from '../GpuAllocation';
 
 // =============================================================================
 // Types
@@ -155,6 +155,12 @@ const PURPOSE_LABELS: Record<string, { label: string; description: string }> = {
   image: { label: 'Image', description: 'Image generation (e.g. FLUX, DALL-E)' },
   transcribe: { label: 'Transcribe', description: 'Speech-to-text (e.g. Whisper)' },
   voice: { label: 'Voice', description: 'Text-to-speech (e.g. Kokoro, OpenAI TTS)' },
+  'code-writing': { label: 'Code Writing', description: 'Heavy code gen, refactoring, complex logic' },
+  'code-reading': { label: 'Code Reading', description: 'Codebase search, file reads, symbol lookup' },
+  'code-testing': { label: 'Code Testing', description: 'Unit tests, integration tests, test fixes' },
+  'code-securing': { label: 'Code Security', description: 'Security review and vulnerability analysis' },
+  'code-planning': { label: 'Code Planning', description: 'Architecture planning and design review' },
+  'code-documenting': { label: 'Code Documentation', description: 'READMEs, docstrings, inline comments' },
 };
 
 /** LiteLLM DB ciphertext when params cannot be decrypted (base64url blob). */
