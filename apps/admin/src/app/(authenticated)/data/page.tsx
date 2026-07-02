@@ -14,11 +14,11 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCustomization } from '@jazzmind/busibox-app';
-import { 
-  Database, 
-  FolderOpen, 
-  Tag, 
-  HardDrive, 
+import {
+  Database,
+  FolderOpen,
+  Tag,
+  HardDrive,
   RefreshCw,
   Plus,
   Search,
@@ -30,10 +30,16 @@ import {
   Shield,
   AlertTriangle,
   ChevronRight,
+  Cog,
+  Scissors,
+  Timer,
 } from 'lucide-react';
 import { CreateLibraryModal } from '@/components/admin/CreateLibraryModal';
 import { LibraryDeleteModal } from '@jazzmind/busibox-app/components/documents/LibraryDeleteModal';
 import { FileStorageTab } from '@/components/admin/FileStorageTab';
+import { DataSettingsForm } from '@/components/admin/DataSettingsForm';
+import { SubNav } from '@/components/admin/TabNav';
+import type { DataSettingsRecord } from '@jazzmind/busibox-app/lib/data/settings';
 
 type Library = {
   id: string;
@@ -97,6 +103,14 @@ function formatNumber(num: number): string {
   return new Intl.NumberFormat().format(num);
 }
 
+type ProcessingSubTab = 'options' | 'chunking' | 'timeouts';
+
+const PROCESSING_SUBTABS: { id: ProcessingSubTab; icon: React.ElementType; label: string }[] = [
+  { id: 'options', icon: Layers, label: 'Options' },
+  { id: 'chunking', icon: Scissors, label: 'Chunking' },
+  { id: 'timeouts', icon: Timer, label: 'Timeouts' },
+];
+
 export default function DataManagementPage() {
   const { customization } = useCustomization();
   const router = useRouter();
@@ -104,13 +118,17 @@ export default function DataManagementPage() {
   const searchParams = useSearchParams();
 
   const paramTab = searchParams.get('tab');
-  const validTabs = ['user-libraries', 'app-libraries', 'tags', 'file-storage', 'all-docs'] as const;
+  const validTabs = ['user-libraries', 'app-libraries', 'tags', 'file-storage', 'all-docs', 'processing'] as const;
   type TabId = typeof validTabs[number];
   const initialTab: TabId =
     paramTab && (validTabs as readonly string[]).includes(paramTab)
       ? (paramTab as TabId)
       // Legacy 'overview' and 'shared' redirect to user-libraries
       : 'user-libraries';
+
+  const paramSection = searchParams.get('section');
+  const initialProcessingSubTab: ProcessingSubTab =
+    paramSection === 'chunking' || paramSection === 'timeouts' ? paramSection : 'options';
   const paramSortField = searchParams.get('sort');
   const initialSortField =
     paramSortField === 'sourceApp' || paramSortField === 'displayName' || paramSortField === 'recordCount'
@@ -123,8 +141,10 @@ export default function DataManagementPage() {
   const [appDataLibraries, setAppDataLibraries] = useState<AppDataDocument[]>([]);
   const [tags, setTags] = useState<TagInfo[]>([]);
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
+  const [dataSettings, setDataSettings] = useState<DataSettingsRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  const [processingSubTab, setProcessingSubTab] = useState<ProcessingSubTab>(initialProcessingSubTab);
   const [selectedApp, setSelectedApp] = useState<string | null>(searchParams.get('sourceApp') || null);
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [appFilter, setAppFilter] = useState(searchParams.get('app') || 'all');
@@ -188,6 +208,9 @@ export default function DataManagementPage() {
     if (sortDirection !== 'asc') nextParams.set('dir', sortDirection);
     else nextParams.delete('dir');
 
+    if (activeTab === 'processing' && processingSubTab !== 'options') nextParams.set('section', processingSubTab);
+    else nextParams.delete('section');
+
     nextParams.delete('sourceApp');
 
     const current = searchParams.toString();
@@ -195,7 +218,7 @@ export default function DataManagementPage() {
     if (current !== next) {
       router.replace(`${pathname}${next ? `?${next}` : ''}`, { scroll: false });
     }
-  }, [activeTab, appFilter, pathname, router, searchParams, searchQuery, sortDirection, sortField]);
+  }, [activeTab, appFilter, pathname, processingSubTab, router, searchParams, searchQuery, sortDirection, sortField]);
 
   const fetchAllData = async () => {
     setIsLoading(true);
@@ -227,6 +250,13 @@ export default function DataManagementPage() {
         if (storageData.success) {
           setStorageStats(storageData.data);
         }
+      }
+
+      // Fetch data processing settings
+      const dataSettingsResponse = await fetch('/api/data-settings');
+      if (dataSettingsResponse.ok) {
+        const dataSettingsResult = await dataSettingsResponse.json();
+        setDataSettings(dataSettingsResult.data || null);
       }
 
       // Pre-fetch total admin document count so the All Documents stat card
@@ -411,7 +441,7 @@ export default function DataManagementPage() {
       {/* Stats / Tab Selector Cards */}
       <section className="pb-8">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {/* User Libraries Card */}
             <button
               type="button"
@@ -522,6 +552,27 @@ export default function DataManagementPage() {
               <p className="text-3xl font-bold text-gray-900">{formatNumber(allDocsTotal)}</p>
               <p className="text-sm text-gray-500 mt-1">admin view across users</p>
             </button>
+
+            {/* Processing Card (config, not a resource count) */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('processing')}
+              aria-pressed={activeTab === 'processing'}
+              className={`text-left bg-gradient-to-br from-indigo-50 to-white border rounded-xl p-5 transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                activeTab === 'processing'
+                  ? 'border-indigo-500 ring-2 ring-indigo-300 shadow-sm'
+                  : 'border-indigo-100 hover:border-indigo-300'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-indigo-100 rounded-lg">
+                  <Cog className="w-5 h-5 text-indigo-600" />
+                </div>
+                <span className="text-sm font-medium text-indigo-600">Processing</span>
+              </div>
+              <p className="text-lg font-semibold text-gray-900">Extraction &amp; chunking</p>
+              <p className="text-sm text-gray-500 mt-1">config</p>
+            </button>
           </div>
         </div>
       </section>
@@ -536,6 +587,7 @@ export default function DataManagementPage() {
               { id: 'tags', label: 'Tags', icon: <Tag className="w-4 h-4" /> },
               { id: 'file-storage', label: 'File Storage', icon: <HardDrive className="w-4 h-4" /> },
               { id: 'all-docs', label: 'All Documents', icon: <Shield className="w-4 h-4" /> },
+              { id: 'processing', label: 'Processing', icon: <Cog className="w-4 h-4" /> },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -554,6 +606,11 @@ export default function DataManagementPage() {
           </nav>
         </div>
       </section>
+
+      {/* Processing sub-nav */}
+      {activeTab === 'processing' && (
+        <SubNav tabs={PROCESSING_SUBTABS} active={processingSubTab} onSelect={setProcessingSubTab} />
+      )}
 
       {/* Content */}
       <section className="py-8">
@@ -945,6 +1002,19 @@ export default function DataManagementPage() {
                           <p className="text-gray-500">No documents found</p>
                         </div>
                       )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Processing Tab */}
+              {activeTab === 'processing' && (
+                <div className={processingSubTab === 'options' ? '' : 'bg-white rounded-xl border border-gray-200 p-6'}>
+                  {dataSettings ? (
+                    <DataSettingsForm settings={dataSettings} section={processingSubTab} />
+                  ) : (
+                    <div className="bg-white rounded-xl border border-gray-200 p-6 text-center py-8">
+                      <p className="text-gray-600">Loading processing settings...</p>
                     </div>
                   )}
                 </div>

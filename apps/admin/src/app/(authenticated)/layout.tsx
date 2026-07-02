@@ -24,6 +24,7 @@ const adminNavigation: NavigationItem[] = [
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/apps', label: 'Apps' },
   { href: '/admin/data', label: 'Data' },
+  { href: '/admin/ai', label: 'AI' },
   { href: '/admin/graph', label: 'Search' },
   { href: '/admin/system', label: 'System' },
 ];

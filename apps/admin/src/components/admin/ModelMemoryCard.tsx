@@ -244,9 +244,9 @@ export function ModelMemoryCard() {
             <RefreshCw className={`w-3.5 h-3.5 text-gray-400 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <Link
-            href="/settings?tab=ai-models&ai-section=status"
+            href="/ai?tab=status"
             className="p-1 rounded hover:bg-gray-100 transition-colors"
-            title="View in Settings"
+            title="View in AI"
           >
             <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
           </Link>

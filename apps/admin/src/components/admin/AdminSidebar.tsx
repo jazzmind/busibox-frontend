@@ -13,11 +13,11 @@ import React from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useCustomization } from '@jazzmind/busibox-app';
-import { 
-  Users, 
-  LayoutGrid, 
-  Database, 
-  Settings, 
+import {
+  Users,
+  LayoutGrid,
+  Database,
+  Settings,
   ScrollText,
   TestTube,
   Server,
@@ -28,6 +28,7 @@ import {
   Home,
   BookOpen,
   Search,
+  Cpu,
 } from 'lucide-react';
 
 // Gate the test runner to non-production environments only.
@@ -79,6 +80,13 @@ const navItems: NavItem[] = [
     href: '/data',
     icon: <Database className="w-5 h-5" />,
     description: 'Libraries, collections, tags, storage',
+  },
+  {
+    id: 'ai',
+    label: 'AI',
+    href: '/ai',
+    icon: <Cpu className="w-5 h-5" />,
+    description: 'Models, routing, and coding agents',
   },
   {
     id: 'graph',
