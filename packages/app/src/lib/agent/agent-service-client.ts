@@ -68,6 +68,13 @@ export interface AgentDefinitionInput {
     execution_mode?: string;
     tool_strategy?: string;
     max_iterations?: number;
+    /**
+     * Enhanced pipeline steps for DB-synced pipeline agents.
+     * When any step includes a "type" field the agent-api uses the
+     * inline pipeline executor (loop, tool, agent, condition, compute)
+     * instead of the legacy flat PipelineStep list.
+     */
+    pipeline?: Record<string, unknown>[];
   };
   allow_frontier_fallback?: boolean;
   /**
