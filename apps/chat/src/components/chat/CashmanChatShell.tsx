@@ -271,6 +271,38 @@ export function CashmanChatShell({
     }
   }, [apiCall, source, updateUrl]);
 
+  const handleDeleteConversation = useCallback(
+    async (conv: Conversation) => {
+      // Optimistic remove — snap the row out of the list before the request
+      // resolves so the click feels instant. Restore on failure.
+      const snapshot = { conversations, currentConversation };
+      const wasCurrent = currentConversation?.id === conv.id;
+      setConversations((prev) => prev.filter((c) => c.id !== conv.id));
+      if (wasCurrent) {
+        currentConversationRef.current = null;
+        setCurrentConversation(null);
+        setMessages([]);
+        updateUrl(null);
+      }
+
+      try {
+        await apiCall(`/conversations/${conv.id}`, { method: 'DELETE' });
+        toast.success('Conversation deleted');
+      } catch (e: any) {
+        console.error('Failed to delete conversation', e);
+        toast.error(e?.message || 'Failed to delete conversation');
+        // Roll back
+        setConversations(snapshot.conversations);
+        if (wasCurrent && snapshot.currentConversation) {
+          setCurrentConversation(snapshot.currentConversation);
+          currentConversationRef.current = snapshot.currentConversation.id;
+          updateUrl(snapshot.currentConversation.id);
+        }
+      }
+    },
+    [apiCall, conversations, currentConversation, updateUrl],
+  );
+
   const handleSendMessage = useCallback(
     async (content: string) => {
       if (!content.trim()) return;
@@ -378,6 +410,7 @@ export function CashmanChatShell({
         currentConversationId={currentConversation?.id ?? null}
         onSelectConversation={handleSelectConversation}
         onCreateConversation={handleCreateConversation}
+        onDeleteConversation={handleDeleteConversation}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -386,12 +419,8 @@ export function CashmanChatShell({
           style={{ borderColor: 'var(--cashman-border)' }}
         >
           <h1
-            className="truncate text-[19px] tracking-tight"
-            style={{
-              color: 'var(--cashman-text)',
-              fontFamily: 'Georgia, "Times New Roman", serif',
-              fontWeight: 700,
-            }}
+            className="truncate text-[18px] font-semibold tracking-tight"
+            style={{ color: 'var(--cashman-text)' }}
           >
             {conversationTitle}
           </h1>

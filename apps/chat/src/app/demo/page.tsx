@@ -395,12 +395,8 @@ export default function DemoPage() {
               style={{ borderColor: '#ebebeb' }}
             >
               <h1
-                className="truncate text-[19px] tracking-tight"
-                style={{
-                  color: '#101828',
-                  fontFamily: 'Georgia, "Times New Roman", serif',
-                  fontWeight: 700,
-                }}
+                className="truncate text-[18px] font-semibold tracking-tight"
+                style={{ color: 'var(--cashman-text)' }}
               >
                 {currentTitle}
               </h1>

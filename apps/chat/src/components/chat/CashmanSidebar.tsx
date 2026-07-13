@@ -7,6 +7,7 @@ import {
   Plus,
   MessageSquare,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import type { Conversation } from '@jazzmind/busibox-app/types/chat';
 import { Tooltip } from './Tooltip';
@@ -18,6 +19,8 @@ interface CashmanSidebarProps {
   currentConversationId: string | null;
   onSelectConversation: (conv: Conversation) => void;
   onCreateConversation: () => void;
+  /** Optional; when provided, expanded rows show a red trash icon on hover. */
+  onDeleteConversation?: (conv: Conversation) => void;
 }
 
 const EASE = 'cubic-bezier(0.4, 0, 0.2, 1)';
@@ -53,6 +56,7 @@ export function CashmanSidebar({
   currentConversationId,
   onSelectConversation,
   onCreateConversation,
+  onDeleteConversation,
 }: CashmanSidebarProps) {
   const [preferredWidth, setPreferredWidth] = useState(DEFAULT_EXPANDED_WIDTH);
   const [dragging, setDragging] = useState(false);
@@ -268,16 +272,21 @@ export function CashmanSidebar({
           <div className="flex flex-col gap-[2px]">
             {conversations.map((conv) => {
               const isActive = conv.id === currentConversationId;
-              const btn = (
+
+              // Shared select-conversation button. Sibling (not child) of the
+              // trash icon so click-events don't tangle.
+              const selectBtn = (
                 <button
-                  key={conv.id}
                   type="button"
                   onClick={() => onSelectConversation(conv)}
-                  className="group flex w-full items-center overflow-hidden text-left transition-all active:scale-[0.98]"
+                  className="flex w-full items-center overflow-hidden text-left transition-all active:scale-[0.98]"
                   style={{
                     height: collapsed ? 36 : 37,
                     width: collapsed ? 36 : '100%',
                     padding: collapsed ? 0 : '0 9px',
+                    // Reserve room on the right for the trash icon when
+                    // expanded so the title doesn't sit under it on hover.
+                    paddingRight: !collapsed && onDeleteConversation ? 32 : undefined,
                     justifyContent: collapsed ? 'center' : 'flex-start',
                     borderRadius: 8,
                     color: isActive ? 'var(--cashman-teal-dark)' : 'var(--cashman-text-muted)',
@@ -305,63 +314,88 @@ export function CashmanSidebar({
                 </button>
               );
 
-              return collapsed ? (
-                <Tooltip
-                  key={conv.id}
-                  side="right"
-                  preview={
-                    <div className="p-3">
-                      <div className="flex items-center gap-2 pb-1">
-                        <MessageSquare
-                          className="h-4 w-4 flex-shrink-0"
-                          style={{ color: 'var(--cashman-teal)' }}
-                        />
-                        <span
-                          className="text-[10px] font-bold uppercase tracking-wider"
-                          style={{ color: 'var(--cashman-text-subtle)', letterSpacing: '0.08em' }}
+              // Expanded row: wrap in a group container so the trash icon can
+              // fade in on hover. Collapsed row: no delete affordance (icon
+              // has nowhere to go without crowding), use the tooltip preview
+              // exactly as before.
+              if (collapsed) {
+                return (
+                  <Tooltip
+                    key={conv.id}
+                    side="right"
+                    preview={
+                      <div className="p-3">
+                        <div className="flex items-center gap-2 pb-1">
+                          <MessageSquare
+                            className="h-4 w-4 flex-shrink-0"
+                            style={{ color: 'var(--cashman-teal)' }}
+                          />
+                          <span
+                            className="text-[10px] font-bold uppercase tracking-wider"
+                            style={{ color: 'var(--cashman-text-subtle)', letterSpacing: '0.08em' }}
+                          >
+                            Conversation
+                          </span>
+                        </div>
+                        <p
+                          className="text-sm font-semibold leading-[20px]"
+                          style={{ color: 'var(--cashman-text)' }}
                         >
-                          Conversation
-                        </span>
+                          {conv.title || 'New Conversation'}
+                        </p>
+                        <p
+                          className="pt-1 text-xs"
+                          style={{ color: 'var(--cashman-text-muted)' }}
+                        >
+                          {conv.messageCount
+                            ? `${conv.messageCount} message${conv.messageCount === 1 ? '' : 's'}`
+                            : 'No messages yet'}
+                        </p>
                       </div>
-                      <p
-                        className="text-sm font-semibold leading-[20px]"
-                        style={{ color: 'var(--cashman-text)' }}
-                      >
-                        {conv.title || 'New Conversation'}
-                      </p>
-                      <p
-                        className="pt-1 text-xs"
-                        style={{ color: 'var(--cashman-text-muted)' }}
-                      >
-                        {conv.messageCount
-                          ? `${conv.messageCount} message${conv.messageCount === 1 ? '' : 's'}`
-                          : 'No messages yet'}
-                      </p>
-                    </div>
-                  }
-                >
-                  {btn}
-                </Tooltip>
-              ) : (
-                <span key={conv.id}>{btn}</span>
+                    }
+                  >
+                    {selectBtn}
+                  </Tooltip>
+                );
+              }
+
+              return (
+                <div key={conv.id} className="group relative">
+                  {selectBtn}
+                  {onDeleteConversation && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (
+                          confirm(
+                            `Delete "${conv.title || 'New Conversation'}"? This cannot be undone.`,
+                          )
+                        ) {
+                          onDeleteConversation(conv);
+                        }
+                      }}
+                      aria-label="Delete conversation"
+                      title="Delete conversation"
+                      className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md opacity-0 transition-opacity focus:opacity-100 focus:outline-none group-hover:opacity-100"
+                      style={{ color: '#ef4444' }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor =
+                          'rgba(239, 68, 68, 0.12)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
         )}
       </div>
-
-      {!collapsed && (
-        <div
-          className="pointer-events-none border-t px-3 py-2 text-[10px] italic"
-          style={{
-            borderColor: 'var(--cashman-border)',
-            color: 'var(--cashman-text-subtle)',
-            transition: `opacity ${DURATION}ms ${EASE}`,
-          }}
-        >
-          Click « to collapse · drag to resize
-        </div>
-      )}
 
       {!collapsed && (
         <div
