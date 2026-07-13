@@ -31,6 +31,7 @@ import { CashmanEmptyState } from './CashmanEmptyState';
 import { CashmanMessages } from './CashmanMessages';
 import { CashmanComposer } from './CashmanComposer';
 import { CashmanSourcePanel } from './CashmanSourcePanel';
+import { CashmanDebugToggle, useDebugMode } from './CashmanDebugToggle';
 
 function mapConversation(conv: any): Conversation {
   return {
@@ -104,6 +105,7 @@ export function CashmanChatShell({
   const resolve = useCrossAppApiPath();
 
   const [collapsed, setCollapsed] = useState(false);
+  const [debugMode, setDebugMode] = useDebugMode();
   const [conversations, setConversations] =
     useState<Conversation[]>(initialConversations);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(
@@ -380,7 +382,7 @@ export function CashmanChatShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <div
-          className="flex h-12 items-center border-b bg-white px-6"
+          className="flex h-12 items-center justify-between border-b bg-white px-6"
           style={{ borderColor: '#ebebeb' }}
         >
           <h1
@@ -393,6 +395,10 @@ export function CashmanChatShell({
           >
             {conversationTitle}
           </h1>
+          <CashmanDebugToggle
+            enabled={debugMode}
+            onToggle={() => setDebugMode(!debugMode)}
+          />
         </div>
 
         <div className="relative flex flex-1 flex-col overflow-hidden">
@@ -414,7 +420,11 @@ export function CashmanChatShell({
                 messages={messages}
                 streamingContent={streamState.content || undefined}
                 streamingCitations={streamState.citations}
+                streamingThoughts={streamState.thoughts}
+                streamingParts={streamState.parts}
+                streamingAgentName={streamState.agentName}
                 isLoading={isStreaming}
+                debugMode={debugMode}
                 activeCitation={
                   openCitation
                     ? { fileId: openCitation.fileId, page: openCitation.page }

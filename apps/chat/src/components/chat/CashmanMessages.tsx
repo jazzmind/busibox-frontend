@@ -11,9 +11,15 @@ import {
   Download,
   Check,
 } from 'lucide-react';
-import type { Message, MessageCitation } from '@jazzmind/busibox-app/types/chat';
+import type {
+  Message,
+  MessageCitation,
+  ThoughtEvent,
+  MessagePart,
+} from '@jazzmind/busibox-app/types/chat';
 import { Tooltip } from './Tooltip';
 import { CitationPreview, type CitationPreviewData } from './CitationPreview';
+import { CashmanDebugPanel } from './CashmanDebugPanel';
 
 const DOC_LINK_RE = /^doc:([^:]+)(?::(\d+))?$/;
 
@@ -29,11 +35,16 @@ interface CashmanMessagesProps {
   messages: Message[];
   streamingContent?: string;
   streamingCitations?: MessageCitation[];
+  streamingThoughts?: ThoughtEvent[];
+  streamingParts?: MessagePart[];
+  streamingAgentName?: string;
   isLoading?: boolean;
   activeCitation?: { fileId: string; page?: number } | null;
   onCitationClick: (fileId: string, page?: number) => void;
   /** Optional hover-preview data for a given citation. If omitted, no preview shows. */
   getCitationPreview?: CitationPreviewLookup;
+  /** When true, render debug panels (step timeline, thoughts, tool cards, routing). */
+  debugMode?: boolean;
 }
 
 interface CitationChipProps {
@@ -247,10 +258,14 @@ export function CashmanMessages({
   messages,
   streamingContent,
   streamingCitations,
+  streamingThoughts,
+  streamingParts,
+  streamingAgentName,
   isLoading,
   activeCitation = null,
   onCitationClick,
   getCitationPreview,
+  debugMode = false,
 }: CashmanMessagesProps) {
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -306,6 +321,17 @@ export function CashmanMessages({
                 : undefined,
             }}
           >
+            {debugMode && (
+              <div className="w-full max-w-none">
+                <CashmanDebugPanel
+                  agentName={(message as any).agentName}
+                  model={(message as any).model}
+                  thoughts={(message as any).thoughts}
+                  parts={(message as any).parts}
+                  routingDecision={(message as any).routingDecision}
+                />
+              </div>
+            )}
             <div
               className="prose max-w-none text-[15px] leading-[26px]"
               style={{ color: '#101828' }}
@@ -339,8 +365,18 @@ export function CashmanMessages({
             animation: 'cashmanFadeSlideUp 260ms cubic-bezier(0.4,0,0.2,1)',
           }}
         >
+          {debugMode && (
+            <div className="w-full max-w-none">
+              <CashmanDebugPanel
+                agentName={streamingAgentName}
+                thoughts={streamingThoughts}
+                parts={streamingParts}
+                isStreaming
+              />
+            </div>
+          )}
           <div
-            className="prose prose-sm max-w-none leading-[26px]"
+            className="prose max-w-none text-[15px] leading-[26px]"
             style={{ color: '#101828' }}
           >
             {streamingContent ? (
