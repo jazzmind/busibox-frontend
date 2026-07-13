@@ -32,7 +32,7 @@ export function CashmanEmptyState({ onPromptClick }: CashmanEmptyStateProps) {
     <div className="mx-auto flex w-full max-w-[640px] flex-col px-2 pt-16">
       <h2
         className="pb-8 text-[26px] font-bold leading-[34px]"
-        style={{ color: '#101828' }}
+        style={{ color: 'var(--cashman-text)' }}
       >
         What can I do for you today?
       </h2>
@@ -44,13 +44,13 @@ export function CashmanEmptyState({ onPromptClick }: CashmanEmptyStateProps) {
             className="flex flex-col py-5"
             style={
               idx < SUGGESTED_PROMPTS.length - 1
-                ? { borderBottom: '1px solid #ebebeb' }
+                ? { borderBottom: '1px solid var(--cashman-border)' }
                 : undefined
             }
           >
             <p
               className="pb-1.5 text-sm leading-[22px]"
-              style={{ color: '#6b6c72' }}
+              style={{ color: 'var(--cashman-text-muted)' }}
             >
               {item.description}
             </p>
@@ -58,7 +58,7 @@ export function CashmanEmptyState({ onPromptClick }: CashmanEmptyStateProps) {
               type="button"
               onClick={() => onPromptClick(item.prompt)}
               className="self-start text-left text-sm font-medium leading-[21px] transition-opacity hover:opacity-80"
-              style={{ color: '#068284' }}
+              style={{ color: 'var(--cashman-teal)' }}
             >
               {item.prompt}
             </button>

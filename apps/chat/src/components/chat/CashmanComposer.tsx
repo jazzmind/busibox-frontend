@@ -51,7 +51,7 @@ export function CashmanComposer({
       <div
         className="w-full rounded-[14px] p-px"
         style={{
-          backgroundColor: '#068284',
+          backgroundColor: 'var(--cashman-teal)',
           boxShadow: focused
             ? '0 12px 24px rgba(6,130,132,0.22)'
             : '0 10px 16px rgba(6,130,132,0.12)',
@@ -60,14 +60,14 @@ export function CashmanComposer({
       >
         <div
           className="flex items-center gap-3 rounded-[13px] px-4 py-2"
-          style={{ backgroundColor: '#f5fbfb' }}
+          style={{ backgroundColor: 'var(--cashman-teal-tint)' }}
         >
           <Tooltip label="Attach a file">
             <button
               type="button"
               aria-label="Attach"
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/60"
-              style={{ color: '#5d686f' }}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-[var(--cashman-teal-light)]"
+              style={{ color: 'var(--cashman-text-muted)' }}
             >
               <Paperclip className="h-5 w-5" />
             </button>
@@ -83,8 +83,15 @@ export function CashmanComposer({
             placeholder={placeholder}
             rows={1}
             disabled={disabled}
-            className="min-h-[24px] max-h-[200px] flex-1 resize-none border-0 bg-transparent py-2 text-base outline-none placeholder:text-[#5d686f]"
-            style={{ color: '#101828' }}
+            className="min-h-[24px] max-h-[200px] flex-1 resize-none border-0 py-2 text-base outline-none placeholder:text-[var(--cashman-text-muted)]"
+            style={{
+              color: 'var(--cashman-text)',
+              // Inline background wins over the `.dark textarea` rule in
+              // globals.css that would otherwise force gray-900 here.
+              backgroundColor: 'transparent',
+              border: 'none',
+              boxShadow: 'none',
+            }}
           />
 
           <div className="flex flex-shrink-0 items-center gap-2">
@@ -92,8 +99,8 @@ export function CashmanComposer({
               <button
                 type="button"
                 aria-label="Voice"
-                className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-white/60"
-                style={{ color: '#5d686f' }}
+                className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-[var(--cashman-teal-light)]"
+                style={{ color: 'var(--cashman-text-muted)' }}
               >
                 <Mic className="h-5 w-5" />
               </button>
@@ -107,7 +114,7 @@ export function CashmanComposer({
                   aria-label="Stop"
                   className="flex h-9 w-9 items-center justify-center rounded-full text-white transition-transform hover:scale-105 active:scale-95"
                   style={{
-                    backgroundColor: '#068284',
+                    backgroundColor: 'var(--cashman-teal)',
                     boxShadow: '0 5px 7px rgba(6,130,132,0.25)',
                   }}
                 >
@@ -123,7 +130,7 @@ export function CashmanComposer({
                   aria-label="Send"
                   className="flex h-9 w-9 items-center justify-center rounded-full text-white transition-all disabled:cursor-not-allowed hover:scale-105 disabled:hover:scale-100 active:scale-95"
                   style={{
-                    backgroundColor: hasContent && !disabled ? '#068284' : '#94b8b9',
+                    backgroundColor: hasContent && !disabled ? 'var(--cashman-teal)' : 'var(--cashman-teal-muted)',
                     boxShadow:
                       hasContent && !disabled
                         ? '0 5px 7px rgba(6,130,132,0.25)'
@@ -140,7 +147,7 @@ export function CashmanComposer({
 
       <p
         className="pt-3 text-center text-[11px] leading-4"
-        style={{ color: '#6b6c72' }}
+        style={{ color: 'var(--cashman-text-muted)' }}
       >
         Cashman AI can make mistakes. Check the responses.
       </p>

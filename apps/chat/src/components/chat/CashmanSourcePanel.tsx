@@ -178,11 +178,11 @@ export function CashmanSourcePanel({
 
   return (
     <aside
-      className="relative flex h-full flex-shrink-0 flex-col border-l bg-white"
+      className="relative flex h-full flex-shrink-0 flex-col border-l bg-[var(--cashman-surface)]"
       style={{
         width,
         maxWidth: '100%',
-        borderColor: '#ebebeb',
+        borderColor: 'var(--cashman-border)',
         boxShadow: isOverlay
           ? '-16px 0 32px rgba(0,0,0,0.16)'
           : '-8px 0 24px rgba(0,0,0,0.04)',
@@ -210,14 +210,14 @@ export function CashmanSourcePanel({
           <span
             className="pointer-events-none block h-full w-[2px] transition-colors"
             style={{
-              backgroundColor: dragging ? '#068284' : 'transparent',
+              backgroundColor: dragging ? 'var(--cashman-teal)' : 'transparent',
             }}
           />
           <span
             aria-hidden
             className="pointer-events-none absolute h-8 w-[3px] rounded-full transition-colors group-hover:opacity-100"
             style={{
-              backgroundColor: dragging ? '#068284' : '#94b8b9',
+              backgroundColor: dragging ? 'var(--cashman-teal)' : 'var(--cashman-teal-muted)',
               opacity: dragging ? 1 : 0,
               transition: 'opacity 150ms ease-out, background-color 150ms',
             }}
@@ -226,20 +226,20 @@ export function CashmanSourcePanel({
           <span
             aria-hidden
             className="pointer-events-none absolute h-8 w-[3px] rounded-full opacity-0 transition-opacity group-hover:opacity-70"
-            style={{ backgroundColor: '#94b8b9' }}
+            style={{ backgroundColor: 'var(--cashman-teal-muted)' }}
           />
         </div>
       )}
 
       <div
         className="flex h-12 items-center justify-between border-b px-4"
-        style={{ borderColor: '#ebebeb' }}
+        style={{ borderColor: 'var(--cashman-border)' }}
       >
         <div className="flex min-w-0 items-center gap-2">
-          <FileText className="h-5 w-5 flex-shrink-0" style={{ color: '#068284' }} />
+          <FileText className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--cashman-teal)' }} />
           <span
             className="truncate text-sm font-semibold"
-            style={{ color: '#101828' }}
+            style={{ color: 'var(--cashman-text)' }}
           >
             Source Document{page ? ` — Page ${page}` : ''}
           </span>
@@ -249,8 +249,8 @@ export function CashmanSourcePanel({
           <Tooltip label="Download">
             <a
               href={downloadHref}
-              className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:bg-[#f5fbfb]"
-              style={{ borderColor: '#ebebeb', color: '#393a3d' }}
+              className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:bg-[var(--cashman-teal-tint)]"
+              style={{ borderColor: 'var(--cashman-border)', color: 'var(--cashman-text-body)' }}
             >
               <Download className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Download</span>
@@ -261,8 +261,8 @@ export function CashmanSourcePanel({
               type="button"
               onClick={toggleMax}
               aria-label={maximized ? 'Restore' : 'Maximize'}
-              className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[#f5fbfb]"
-              style={{ color: '#6b6c72' }}
+              className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--cashman-teal-tint)]"
+              style={{ color: 'var(--cashman-text-muted)' }}
             >
               {maximized ? (
                 <Minimize2 className="h-4 w-4" />
@@ -276,8 +276,8 @@ export function CashmanSourcePanel({
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[#f5fbfb]"
-              style={{ color: '#6b6c72' }}
+              className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--cashman-teal-tint)]"
+              style={{ color: 'var(--cashman-text-muted)' }}
             >
               <X className="h-4 w-4" />
             </button>
@@ -290,13 +290,13 @@ export function CashmanSourcePanel({
         {(maximized || preferredWidth >= 520) && !isOverlay && (
           <div
             className="w-56 flex-shrink-0 self-start rounded-md border p-3"
-            style={{ borderColor: '#ebebeb', backgroundColor: '#fbfbfb' }}
+            style={{ borderColor: 'var(--cashman-border)', backgroundColor: 'var(--cashman-surface-alt)' }}
           >
             <div className="mb-2 flex items-center gap-2">
-              <FileText className="h-4 w-4" style={{ color: '#068284' }} />
+              <FileText className="h-4 w-4" style={{ color: 'var(--cashman-teal)' }} />
               <span
                 className="text-sm font-semibold"
-                style={{ color: '#101828' }}
+                style={{ color: 'var(--cashman-text)' }}
               >
                 Table of Contents
               </span>
@@ -306,7 +306,7 @@ export function CashmanSourcePanel({
                 <li
                   key={item.id}
                   className="text-xs leading-[18px]"
-                  style={{ color: '#393a3d' }}
+                  style={{ color: 'var(--cashman-text-body)' }}
                 >
                   {item.label}
                 </li>
@@ -319,7 +319,7 @@ export function CashmanSourcePanel({
           <div className="flex items-center justify-center pb-4">
             <div
               className="rounded-md px-6 py-3 text-2xl font-black tracking-widest"
-              style={{ backgroundColor: '#e6f4f4', color: '#0f3e18' }}
+              style={{ backgroundColor: 'var(--cashman-teal-light)', color: 'var(--cashman-green-dark)' }}
             >
               CASHMAN
             </div>
@@ -327,21 +327,21 @@ export function CashmanSourcePanel({
 
           <h1
             className="pb-4 text-2xl font-bold"
-            style={{ color: '#101828' }}
+            style={{ color: 'var(--cashman-text)' }}
           >
             {filename === 'Source Document'
               ? 'Cashman Companies 2026 Holiday Schedule'
               : filename}
           </h1>
 
-          <div className="space-y-2 pb-6 text-sm" style={{ color: '#101828' }}>
+          <div className="space-y-2 pb-6 text-sm" style={{ color: 'var(--cashman-text)' }}>
             <p className="font-semibold">
               Jay Cashman, Inc. and Affiliate Companies will observe the following
               Holiday Schedule:
             </p>
           </div>
 
-          <div className="space-y-4 text-sm" style={{ color: '#393a3d' }}>
+          <div className="space-y-4 text-sm" style={{ color: 'var(--cashman-text-body)' }}>
             {[
               ["New Year's Day", 'Thursday, January 1st'],
               ['Presidents Day', 'Monday, February 16th'],
@@ -354,7 +354,7 @@ export function CashmanSourcePanel({
               ['Christmas Day', 'Friday, December 25th'],
             ].map(([name, date]) => (
               <div key={name}>
-                <p className="font-semibold" style={{ color: '#101828' }}>
+                <p className="font-semibold" style={{ color: 'var(--cashman-text)' }}>
                   {name}
                 </p>
                 <p>{date}</p>
@@ -364,7 +364,7 @@ export function CashmanSourcePanel({
 
           <p
             className="pt-8 text-xs italic"
-            style={{ color: '#6b6c72' }}
+            style={{ color: 'var(--cashman-text-muted)' }}
           >
             Live document content will render here once the source viewer is wired to
             the data API (file <code>{fileId}</code>

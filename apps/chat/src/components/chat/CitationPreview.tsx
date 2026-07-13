@@ -24,13 +24,13 @@ interface CitationPreviewProps {
 export function CitationPreview({ open, data, align = 'left' }: CitationPreviewProps) {
   return (
     <div
-      className="pointer-events-none absolute z-50 rounded-lg border bg-white shadow-lg"
+      className="pointer-events-none absolute z-50 rounded-lg border bg-[var(--cashman-surface)] shadow-lg"
       style={{
         bottom: 'calc(100% + 10px)',
         left: align === 'left' ? 0 : 'auto',
         right: align === 'right' ? 0 : 'auto',
         width: 320,
-        borderColor: '#ebebeb',
+        borderColor: 'var(--cashman-border)',
         boxShadow: '0 8px 24px rgba(15,62,24,0.10), 0 2px 6px rgba(0,0,0,0.04)',
         opacity: open ? 1 : 0,
         transform: `translateY(${open ? '0' : '4px'})`,
@@ -39,10 +39,10 @@ export function CitationPreview({ open, data, align = 'left' }: CitationPreviewP
     >
       <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-3">
         <div className="flex min-w-0 items-center gap-2">
-          <FileText className="h-4 w-4 flex-shrink-0" style={{ color: '#068284' }} />
+          <FileText className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--cashman-teal)' }} />
           <span
             className="truncate text-sm font-semibold"
-            style={{ color: '#101828' }}
+            style={{ color: 'var(--cashman-text)' }}
           >
             {data.filename}
           </span>
@@ -50,17 +50,17 @@ export function CitationPreview({ open, data, align = 'left' }: CitationPreviewP
         {data.page !== undefined && (
           <span
             className="flex-shrink-0 text-xs font-medium"
-            style={{ color: '#6b6c72' }}
+            style={{ color: 'var(--cashman-text-muted)' }}
           >
             p.{data.page}
           </span>
         )}
       </div>
 
-      <div className="border-t px-4 py-3" style={{ borderColor: '#ebebeb' }}>
+      <div className="border-t px-4 py-3" style={{ borderColor: 'var(--cashman-border)' }}>
         <p
           className="text-sm leading-[22px]"
-          style={{ color: '#393a3d' }}
+          style={{ color: 'var(--cashman-text-body)' }}
         >
           &ldquo;{data.snippet}&rdquo;
         </p>
@@ -70,8 +70,8 @@ export function CitationPreview({ open, data, align = 'left' }: CitationPreviewP
         <div
           className="border-t px-4 py-2 text-[10px] font-bold uppercase tracking-wider"
           style={{
-            borderColor: '#ebebeb',
-            color: '#9ca3af',
+            borderColor: 'var(--cashman-border)',
+            color: 'var(--cashman-text-subtle)',
             letterSpacing: '0.08em',
           }}
         >
@@ -82,12 +82,12 @@ export function CitationPreview({ open, data, align = 'left' }: CitationPreviewP
       {/* Small pointer tail */}
       <span
         aria-hidden
-        className="absolute h-2 w-2 rotate-45 border-b border-r bg-white"
+        className="absolute h-2 w-2 rotate-45 border-b border-r bg-[var(--cashman-surface)]"
         style={{
           bottom: -5,
           left: align === 'left' ? 12 : 'auto',
           right: align === 'right' ? 12 : 'auto',
-          borderColor: '#ebebeb',
+          borderColor: 'var(--cashman-border)',
         }}
       />
     </div>

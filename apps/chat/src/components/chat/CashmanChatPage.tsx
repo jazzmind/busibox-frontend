@@ -28,7 +28,7 @@ function ChatShellSkeleton() {
   return (
     <div
       className="flex h-full w-full items-center justify-center"
-      style={{ backgroundColor: '#f8f9fa', color: '#6b6c72' }}
+      style={{ backgroundColor: 'var(--cashman-bg)', color: 'var(--cashman-text-muted)' }}
     >
       Loading Cashman AI…
     </div>

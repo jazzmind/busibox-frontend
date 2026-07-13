@@ -28,7 +28,7 @@ export function CashmanHeader({
   return (
     <header
       className="flex h-16 w-full flex-shrink-0 items-center justify-between px-4 text-white shadow-md sm:px-8"
-      style={{ backgroundColor: '#0f3e18' }}
+      style={{ backgroundColor: 'var(--cashman-green-dark)' }}
     >
       <div className="flex flex-col leading-tight tracking-wider">
         <span className="text-[16px] font-bold text-white sm:text-[20px]">

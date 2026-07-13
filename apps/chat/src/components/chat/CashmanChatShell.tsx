@@ -369,7 +369,7 @@ export function CashmanChatShell({
   return (
     <div
       className="relative flex h-full min-h-0 w-full"
-      style={{ backgroundColor: '#f8f9fa' }}
+      style={{ backgroundColor: 'var(--cashman-bg)' }}
     >
       <CashmanSidebar
         collapsed={collapsed}
@@ -382,13 +382,13 @@ export function CashmanChatShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <div
-          className="flex h-12 items-center justify-between border-b bg-white px-6"
-          style={{ borderColor: '#ebebeb' }}
+          className="flex h-12 items-center justify-between border-b bg-[var(--cashman-surface)] px-6"
+          style={{ borderColor: 'var(--cashman-border)' }}
         >
           <h1
             className="truncate text-[19px] tracking-tight"
             style={{
-              color: '#101828',
+              color: 'var(--cashman-text)',
               fontFamily: 'Georgia, "Times New Roman", serif',
               fontWeight: 700,
             }}
@@ -409,7 +409,7 @@ export function CashmanChatShell({
             {isLoadingMessages ? (
               <div
                 className="flex h-full items-center justify-center"
-                style={{ color: '#6b6c72' }}
+                style={{ color: 'var(--cashman-text-muted)' }}
               >
                 Loading messages…
               </div>

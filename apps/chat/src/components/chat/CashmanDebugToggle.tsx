@@ -48,11 +48,11 @@ export function CashmanDebugToggle({ enabled, onToggle }: DebugToggleProps) {
         onClick={onToggle}
         aria-label="Toggle debug mode"
         aria-pressed={enabled}
-        className="flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-[#f5fbfb]"
+        className="flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-[var(--cashman-teal-tint)]"
         style={{
-          color: enabled ? '#068284' : '#9ca3af',
-          backgroundColor: enabled ? '#e6f4f4' : 'transparent',
-          border: `1px solid ${enabled ? '#b8dede' : 'transparent'}`,
+          color: enabled ? 'var(--cashman-teal)' : 'var(--cashman-text-subtle)',
+          backgroundColor: enabled ? 'var(--cashman-teal-light)' : 'transparent',
+          border: `1px solid ${enabled ? 'var(--cashman-teal-border)' : 'transparent'}`,
         }}
       >
         <Bug className="h-4 w-4" />

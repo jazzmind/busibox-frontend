@@ -69,7 +69,7 @@ function CitationChip({ index, label, preview, onClick }: CitationChipProps) {
         type="button"
         onClick={onClick}
         className="ml-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[6px] px-1 text-[10px] font-semibold transition-colors hover:brightness-95"
-        style={{ backgroundColor: '#e6f4f4', color: '#056870' }}
+        style={{ backgroundColor: 'var(--cashman-teal-light)', color: 'var(--cashman-teal-dark)' }}
         aria-label="View source"
       >
         {index > 0 ? index : label}
@@ -117,7 +117,7 @@ function makeCitationRenderer(
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        style={{ color: '#068284' }}
+        style={{ color: 'var(--cashman-teal)' }}
       >
         {children}
       </a>
@@ -136,11 +136,11 @@ function SourcePills({ citations, activeCitation, onCitationClick }: SourcePills
   return (
     <div
       className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3"
-      style={{ borderColor: '#ebebeb' }}
+      style={{ borderColor: 'var(--cashman-border)' }}
     >
       <span
         className="text-[10px] font-bold uppercase tracking-wider"
-        style={{ color: '#9ca3af', letterSpacing: '0.08em' }}
+        style={{ color: 'var(--cashman-text-subtle)', letterSpacing: '0.08em' }}
       >
         Sources
       </span>
@@ -157,12 +157,12 @@ function SourcePills({ citations, activeCitation, onCitationClick }: SourcePills
             onClick={() => onCitationClick(c.fileId, c.page)}
             className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-all hover:brightness-95 active:scale-[0.98]"
             style={{
-              borderColor: isActive ? '#068284' : '#ebebeb',
-              backgroundColor: isActive ? '#e6f4f4' : '#ffffff',
-              color: isActive ? '#056870' : '#393a3d',
+              borderColor: isActive ? 'var(--cashman-teal)' : 'var(--cashman-border)',
+              backgroundColor: isActive ? 'var(--cashman-teal-light)' : 'var(--cashman-surface)',
+              color: isActive ? 'var(--cashman-teal-dark)' : 'var(--cashman-text-body)',
             }}
           >
-            <FileText className="h-3.5 w-3.5" style={{ color: '#068284' }} />
+            <FileText className="h-3.5 w-3.5" style={{ color: 'var(--cashman-teal)' }} />
             {label}
           </button>
         );
@@ -200,7 +200,7 @@ function MessageActions({ content }: MessageActionsProps) {
   };
 
   const buttonClass =
-    'flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[#f5fbfb]';
+    'flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--cashman-teal-tint)]';
 
   return (
     <div className="mt-2 flex items-center gap-1">
@@ -209,7 +209,7 @@ function MessageActions({ content }: MessageActionsProps) {
           type="button"
           onClick={() => setVote(vote === 'up' ? null : 'up')}
           className={buttonClass}
-          style={{ color: vote === 'up' ? '#056870' : '#9ca3af' }}
+          style={{ color: vote === 'up' ? 'var(--cashman-teal-dark)' : 'var(--cashman-text-subtle)' }}
           aria-label="Helpful"
           aria-pressed={vote === 'up'}
         >
@@ -221,7 +221,7 @@ function MessageActions({ content }: MessageActionsProps) {
           type="button"
           onClick={() => setVote(vote === 'down' ? null : 'down')}
           className={buttonClass}
-          style={{ color: vote === 'down' ? '#b91c1c' : '#9ca3af' }}
+          style={{ color: vote === 'down' ? 'var(--cashman-error)' : 'var(--cashman-text-subtle)' }}
           aria-label="Not helpful"
           aria-pressed={vote === 'down'}
         >
@@ -233,7 +233,7 @@ function MessageActions({ content }: MessageActionsProps) {
           type="button"
           onClick={handleCopy}
           className={buttonClass}
-          style={{ color: copied ? '#056870' : '#9ca3af' }}
+          style={{ color: copied ? 'var(--cashman-teal-dark)' : 'var(--cashman-text-subtle)' }}
           aria-label="Copy"
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -244,7 +244,7 @@ function MessageActions({ content }: MessageActionsProps) {
           type="button"
           onClick={handleDownload}
           className={buttonClass}
-          style={{ color: '#9ca3af' }}
+          style={{ color: 'var(--cashman-text-subtle)' }}
           aria-label="Download"
         >
           <Download className="h-4 w-4" />
@@ -293,9 +293,9 @@ export function CashmanMessages({
               <div
                 className="rounded-full border px-4 py-2 text-[13px] leading-[20px]"
                 style={{
-                  borderColor: '#b8dede',
-                  backgroundColor: '#f5fbfb',
-                  color: '#056870',
+                  borderColor: 'var(--cashman-teal-border)',
+                  backgroundColor: 'var(--cashman-teal-tint)',
+                  color: 'var(--cashman-teal-dark)',
                   maxWidth: '85%',
                 }}
               >
@@ -334,7 +334,7 @@ export function CashmanMessages({
             )}
             <div
               className="prose max-w-none text-[15px] leading-[26px]"
-              style={{ color: '#101828' }}
+              style={{ color: 'var(--cashman-text)' }}
             >
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
@@ -377,7 +377,7 @@ export function CashmanMessages({
           )}
           <div
             className="prose max-w-none text-[15px] leading-[26px]"
-            style={{ color: '#101828' }}
+            style={{ color: 'var(--cashman-text)' }}
           >
             {streamingContent ? (
               <>
@@ -396,23 +396,23 @@ export function CashmanMessages({
                 </ReactMarkdown>
                 <span
                   className="ml-1 inline-block h-4 w-[3px] animate-pulse rounded-sm align-middle"
-                  style={{ backgroundColor: '#068284' }}
+                  style={{ backgroundColor: 'var(--cashman-teal)' }}
                 />
               </>
             ) : (
-              <div className="flex items-center gap-2" style={{ color: '#6b6c72' }}>
+              <div className="flex items-center gap-2" style={{ color: 'var(--cashman-text-muted)' }}>
                 <span className="flex gap-1">
                   <span
                     className="h-2 w-2 animate-bounce rounded-full"
-                    style={{ backgroundColor: '#068284', animationDelay: '0ms' }}
+                    style={{ backgroundColor: 'var(--cashman-teal)', animationDelay: '0ms' }}
                   />
                   <span
                     className="h-2 w-2 animate-bounce rounded-full"
-                    style={{ backgroundColor: '#068284', animationDelay: '150ms' }}
+                    style={{ backgroundColor: 'var(--cashman-teal)', animationDelay: '150ms' }}
                   />
                   <span
                     className="h-2 w-2 animate-bounce rounded-full"
-                    style={{ backgroundColor: '#068284', animationDelay: '300ms' }}
+                    style={{ backgroundColor: 'var(--cashman-teal)', animationDelay: '300ms' }}
                   />
                 </span>
                 <span className="text-sm">Thinking…</span>
