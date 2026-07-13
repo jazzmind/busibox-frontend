@@ -184,6 +184,33 @@ function SourcePills({ citations, activeCitation, onCitationClick }: SourcePills
   );
 }
 
+function SourcePlaceholder() {
+  return (
+    <div
+      className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3"
+      style={{ borderColor: 'var(--cashman-border)' }}
+    >
+      <span
+        className="text-[10px] font-bold uppercase tracking-wider"
+        style={{ color: 'var(--cashman-text-subtle)', letterSpacing: '0.08em' }}
+      >
+        Sources
+      </span>
+      <span
+        className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium"
+        style={{
+          borderColor: 'var(--cashman-border)',
+          backgroundColor: 'var(--cashman-surface)',
+          color: 'var(--cashman-text-subtle)',
+        }}
+      >
+        <FileText className="h-3.5 w-3.5" style={{ color: 'var(--cashman-text-subtle)' }} />
+        Sources pending
+      </span>
+    </div>
+  );
+}
+
 function AttachmentPills({ attachments }: { attachments: NonNullable<Message['attachments']> }) {
   if (!attachments.length) return null;
   return (
@@ -383,12 +410,14 @@ export function CashmanMessages({
               </ReactMarkdown>
             </div>
 
-            {message.citations && message.citations.length > 0 && (
+            {message.citations && message.citations.length > 0 ? (
               <SourcePills
                 citations={dedupeCitations(message.citations)}
                 activeCitation={activeCitation}
                 onCitationClick={onCitationClick}
               />
+            ) : (
+              <SourcePlaceholder />
             )}
 
             <MessageActions content={message.content} />
@@ -457,13 +486,15 @@ export function CashmanMessages({
               </div>
             )}
           </div>
-          {streamingCitations && streamingCitations.length > 0 && (
+          {streamingCitations && streamingCitations.length > 0 ? (
             <SourcePills
               citations={dedupeCitations(streamingCitations)}
               activeCitation={activeCitation}
               onCitationClick={onCitationClick}
             />
-          )}
+          ) : streamingContent ? (
+            <SourcePlaceholder />
+          ) : null}
         </div>
       )}
 
