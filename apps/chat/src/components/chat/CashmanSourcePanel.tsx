@@ -14,7 +14,6 @@
  *   - Max width: min(viewport - 420, 900)  (keep 420px reserved for chat)
  *   - Viewport <= 900px: overlay, full-width, no splitter
  *
- * Backend document fetch is a follow-up; body is a Figma-6301 placeholder.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -25,6 +24,8 @@ import {
   Minimize2,
   X,
 } from 'lucide-react';
+import { HtmlViewer } from '@jazzmind/busibox-app/components/documents/HtmlViewer';
+import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts';
 import { Tooltip } from './Tooltip';
 
 interface SourcePanelProps {
@@ -35,23 +36,35 @@ interface SourcePanelProps {
   onMaximizedChange?: (maximized: boolean) => void;
 }
 
-const PLACEHOLDER_TOC = [
-  { id: 'title', label: 'Cashman Companies 2026 Holiday Schedule' },
-  {
-    id: 'observance',
-    label:
-      'Jay Cashman, Inc. and Affiliate Companies will observe the following Holiday Schedule:',
-  },
-  {
-    id: 'eligibility',
-    label:
-      'Any employee who requests time off from work to observe a holiday not regularly observed',
-  },
-  {
-    id: 'vacation',
-    label: 'by the Company is eligible to use any accrued vacation time.',
-  },
-];
+interface DocumentStatusResponse {
+  fileId?: string;
+  filename?: string;
+  status?: {
+    stage?: string | null;
+    progress?: number | null;
+    chunksProcessed?: number | null;
+    totalChunks?: number | null;
+    pagesProcessed?: number | null;
+    totalPages?: number | null;
+    errorMessage?: string | null;
+    statusMessage?: string | null;
+    passDetails?: {
+      currentPass?: number;
+      totalPasses?: number;
+      passName?: string;
+    } | null;
+  };
+}
+
+const ACTIVE_STAGES = new Set([
+  'queued',
+  'uploading',
+  'processing',
+  'parsing',
+  'chunking',
+  'embedding',
+  'indexing',
+]);
 
 const WIDTH_STORAGE_KEY = 'cashman-source-width';
 const MIN_WIDTH = 380;
@@ -85,12 +98,14 @@ export function CashmanSourcePanel({
   onClose,
   onMaximizedChange,
 }: SourcePanelProps) {
+  const resolve = useCrossAppApiPath();
   const [maximized, setMaximized] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(
     typeof window === 'undefined' ? 1440 : window.innerWidth,
   );
   const [preferredWidth, setPreferredWidth] = useState(DEFAULT_WIDTH);
   const [dragging, setDragging] = useState(false);
+  const [documentStatus, setDocumentStatus] = useState<DocumentStatusResponse | null>(null);
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
 
@@ -171,10 +186,50 @@ export function CashmanSourcePanel({
 
   const documentsBase = process.env.NEXT_PUBLIC_DOCUMENTS_BASE_PATH || '/documents';
   const downloadHref = `${documentsBase}/${fileId}${page ? `?page=${page}` : ''}`;
+  const status = documentStatus?.status;
+  const stage = String(status?.stage || '').toLowerCase();
+  const isProcessing = ACTIVE_STAGES.has(stage);
+  const isEnhancing = stage === 'available';
+  const displayFilename = filename === 'Source Document'
+    ? documentStatus?.filename || filename
+    : filename;
 
   // Compute rendered width
   const width = maximized ? '100%' : isOverlay ? '100%' : preferredWidth;
   const showSplitter = !isOverlay && !maximized;
+
+  useEffect(() => {
+    let cancelled = false;
+    let interval: NodeJS.Timeout | null = null;
+
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch(resolve('documents', `/api/documents/${fileId}/status`), {
+          headers: { 'X-Quiet-Logs': '1' },
+        });
+        if (!response.ok) return;
+        const result = await response.json();
+        if (cancelled) return;
+        const data = result.data || result;
+        setDocumentStatus(data);
+        const nextStage = String(data?.status?.stage || '').toLowerCase();
+        if (!ACTIVE_STAGES.has(nextStage) && nextStage !== 'available' && interval) {
+          clearInterval(interval);
+          interval = null;
+        }
+      } catch {
+        /* HtmlViewer will render its own load/error state if status is unavailable. */
+      }
+    };
+
+    fetchStatus();
+    interval = setInterval(fetchStatus, 5000);
+
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+    };
+  }, [fileId, resolve]);
 
   return (
     <aside
@@ -241,7 +296,7 @@ export function CashmanSourcePanel({
             className="truncate text-sm font-semibold"
             style={{ color: 'var(--cashman-text)' }}
           >
-            Source Document{page ? ` — Page ${page}` : ''}
+            {displayFilename || 'Source Document'}{page ? ` — Page ${page}` : ''}
           </span>
         </div>
 
@@ -285,92 +340,18 @@ export function CashmanSourcePanel({
         </div>
       </div>
 
-      <div className="flex flex-1 gap-4 overflow-hidden p-5">
-        {/* Table of contents — hide when the panel is very narrow so the doc body has room. */}
-        {(maximized || preferredWidth >= 520) && !isOverlay && (
-          <div
-            className="w-56 flex-shrink-0 self-start rounded-md border p-3"
-            style={{ borderColor: 'var(--cashman-border)', backgroundColor: 'var(--cashman-surface-alt)' }}
-          >
-            <div className="mb-2 flex items-center gap-2">
-              <FileText className="h-4 w-4" style={{ color: 'var(--cashman-teal)' }} />
-              <span
-                className="text-sm font-semibold"
-                style={{ color: 'var(--cashman-text)' }}
-              >
-                Table of Contents
-              </span>
-            </div>
-            <ul className="space-y-3">
-              {PLACEHOLDER_TOC.map((item) => (
-                <li
-                  key={item.id}
-                  className="text-xs leading-[18px]"
-                  style={{ color: 'var(--cashman-text-body)' }}
-                >
-                  {item.label}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto pr-2">
-          <div className="flex items-center justify-center pb-4">
-            <div
-              className="rounded-md px-6 py-3 text-2xl font-black tracking-widest"
-              style={{ backgroundColor: 'var(--cashman-teal-light)', color: 'var(--cashman-green-dark)' }}
-            >
-              CASHMAN
-            </div>
-          </div>
-
-          <h1
-            className="pb-4 text-2xl font-bold"
-            style={{ color: 'var(--cashman-text)' }}
-          >
-            {filename === 'Source Document'
-              ? 'Cashman Companies 2026 Holiday Schedule'
-              : filename}
-          </h1>
-
-          <div className="space-y-2 pb-6 text-sm" style={{ color: 'var(--cashman-text)' }}>
-            <p className="font-semibold">
-              Jay Cashman, Inc. and Affiliate Companies will observe the following
-              Holiday Schedule:
-            </p>
-          </div>
-
-          <div className="space-y-4 text-sm" style={{ color: 'var(--cashman-text-body)' }}>
-            {[
-              ["New Year's Day", 'Thursday, January 1st'],
-              ['Presidents Day', 'Monday, February 16th'],
-              ['Memorial Day', 'Monday, May 25th'],
-              ['Independence Day', 'Friday, July 3rd (Observed)'],
-              ['Labor Day', 'Monday, September 7th'],
-              ['Thanksgiving Day', 'Thursday, November 26th'],
-              ['Day after Thanksgiving', 'Friday, November 27th'],
-              ['Christmas Eve', 'Thursday, December 24th'],
-              ['Christmas Day', 'Friday, December 25th'],
-            ].map(([name, date]) => (
-              <div key={name}>
-                <p className="font-semibold" style={{ color: 'var(--cashman-text)' }}>
-                  {name}
-                </p>
-                <p>{date}</p>
-              </div>
-            ))}
-          </div>
-
-          <p
-            className="pt-8 text-xs italic"
-            style={{ color: 'var(--cashman-text-muted)' }}
-          >
-            Live document content will render here once the source viewer is wired to
-            the data API (file <code>{fileId}</code>
-            {page ? `, page ${page}` : ''}).
-          </p>
-        </div>
+      <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-900">
+        <HtmlViewer
+          fileId={fileId}
+          initialPage={page}
+          isProcessing={isProcessing}
+          isEnhancing={isEnhancing}
+          processingStage={stage || undefined}
+          statusMessage={status?.statusMessage || status?.errorMessage || undefined}
+          pagesProcessed={status?.pagesProcessed ?? undefined}
+          totalPages={status?.totalPages ?? undefined}
+          progress={status?.progress ?? undefined}
+        />
       </div>
     </aside>
   );

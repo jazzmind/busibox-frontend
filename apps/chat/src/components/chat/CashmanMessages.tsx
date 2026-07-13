@@ -100,7 +100,18 @@ function makeCitationRenderer(
           (citations || []).findIndex(
             (c) => c.fileId === fileId && (page === undefined || c.page === page),
           ) + 1;
-        const preview = getCitationPreview?.(fileId, page);
+        const citation = (citations || []).find(
+          (c) => c.fileId === fileId && (page === undefined || c.page === page),
+        );
+        const preview = getCitationPreview?.(fileId, page) ||
+          (citation?.snippet
+            ? {
+                filename: citation.filename || 'Source',
+                page: citation.page,
+                snippet: citation.snippet,
+                effectiveLabel: citation.source,
+              }
+            : undefined);
         return (
           <sup>
             <CitationChip
@@ -446,6 +457,13 @@ export function CashmanMessages({
               </div>
             )}
           </div>
+          {streamingCitations && streamingCitations.length > 0 && (
+            <SourcePills
+              citations={dedupeCitations(streamingCitations)}
+              activeCitation={activeCitation}
+              onCitationClick={onCitationClick}
+            />
+          )}
         </div>
       )}
 

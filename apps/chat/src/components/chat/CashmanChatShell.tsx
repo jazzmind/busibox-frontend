@@ -75,9 +75,11 @@ function mapMessage(msg: any): Message {
     citations: rawCitations
       .map((c: any) => ({
         fileId: c.file_id || c.fileId,
-        filename: c.filename || '',
+        filename: c.filename || c.title || 'Source',
         page: c.page_number ?? c.page ?? undefined,
         score: c.score ?? undefined,
+        snippet: c.snippet || c.text || c.content || c.chunk_text || undefined,
+        source: c.source || c.library_name || c.libraryName || undefined,
       }))
       .filter((c: any) => !!c.fileId),
     createdAt: msg.created_at ? new Date(msg.created_at) : msg.createdAt,
@@ -387,16 +389,19 @@ export function CashmanChatShell({
 
   const handleCitationClick = useCallback(
     (fileId: string, page?: number) => {
-      // Try to find filename from latest assistant citations
+      // Try to find filename from the clicked source first, then any older assistant citation.
       const lastCitations =
         [...messages].reverse().find((m) => m.role === 'assistant' && m.citations)
           ?.citations || [];
+      const streamingMatch = streamState.citations.find(
+        (c) => c.fileId === fileId && (page === undefined || c.page === page),
+      );
       const match = lastCitations.find(
         (c) => c.fileId === fileId && (page === undefined || c.page === page),
       );
-      setOpenCitation({ fileId, page, filename: match?.filename });
+      setOpenCitation({ fileId, page, filename: streamingMatch?.filename || match?.filename });
     },
-    [messages],
+    [messages, streamState.citations],
   );
 
   const conversationTitle =
