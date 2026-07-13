@@ -3,11 +3,19 @@
  *
  * Zero Trust: Uses session JWT from cookie for authentication.
  * All data fetching happens server-side with token exchange.
+ *
+ * Brand switch:
+ *   NEXT_PUBLIC_CHAT_BRAND=cashman  → renders the Cashman-branded chat shell
+ *   (unset / anything else)         → renders the default shared ChatPage
+ *
+ * This keeps the shared UI (insights, agents, tools, thoughts, tool-call cards)
+ * as the mainline experience so upstream deploys are unaffected.
  */
 
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { ChatPage } from '@jazzmind/busibox-app/components';
+import { CashmanChatPage } from '../../components/chat/CashmanChatPage';
 import { createAgentClient } from '@jazzmind/busibox-app/lib/agent';
 import { exchangeWithSubjectToken } from '@jazzmind/busibox-app/lib/authz/next-client';
 
@@ -49,12 +57,12 @@ async function getServerSession() {
 
   // Zero Trust: Validate JWT locally (signature verified at token exchange)
   const claims = parseJwtClaims(sessionToken);
-  
+
   if (!claims || claims.typ !== 'session') {
     console.log('[CHAT] Invalid session JWT format');
     return null;
   }
-  
+
   // Check expiration
   if (claims.exp * 1000 < Date.now()) {
     console.log('[CHAT] Session JWT expired');
@@ -77,7 +85,7 @@ export default async function Page({ searchParams }: PageProps) {
 
   // Create agent client with server-side auth (Zero Trust)
   const agentUrl = getAgentApiUrl();
-  
+
   const client = createAgentClient({
     agentUrl,
     getAuthToken: async () => {
@@ -95,6 +103,20 @@ export default async function Page({ searchParams }: PageProps) {
 
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const initialConversationId = resolvedSearchParams?.conversation;
+
+  const brand = process.env.NEXT_PUBLIC_CHAT_BRAND;
+
+  if (brand === 'cashman') {
+    return (
+      <div className="h-full w-full">
+        <CashmanChatPage
+          client={client}
+          initialConversationId={initialConversationId}
+          source="cashman-chat"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full w-full">
