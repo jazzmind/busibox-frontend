@@ -23,6 +23,7 @@ import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts';
 import type {
   Conversation,
   Message,
+  MessageAttachment,
 } from '@jazzmind/busibox-app/types/chat';
 import { stripThinkTags } from '@jazzmind/busibox-app/components/chat/chat-utils';
 
@@ -304,8 +305,13 @@ export function CashmanChatShell({
   );
 
   const handleSendMessage = useCallback(
-    async (content: string) => {
-      if (!content.trim()) return;
+    async (
+      content: string,
+      attachmentIds?: string[],
+      attachmentMeta?: MessageAttachment[],
+    ) => {
+      const trimmed = content.trim();
+      if (!trimmed && (!attachmentIds || attachmentIds.length === 0)) return;
       const convId = await ensureConversation();
       if (!convId) return;
 
@@ -313,7 +319,8 @@ export function CashmanChatShell({
         id: `temp-${Date.now()}`,
         conversationId: convId,
         role: 'user',
-        content,
+        content: trimmed,
+        attachments: attachmentMeta,
         createdAt: new Date(),
       };
       setMessages((prev) => [...prev, tempUser]);
@@ -331,10 +338,11 @@ export function CashmanChatShell({
         }
 
         const result = await hookSendMessage({
-          message: content,
+          message: trimmed || ' ',
           conversation_id: convId,
           model: 'auto',
           selected_agents: defaultAgentIds,
+          attachment_ids: attachmentIds,
           metadata: { user_context: browserContext },
         });
 
@@ -468,6 +476,8 @@ export function CashmanChatShell({
             onSend={handleSendMessage}
             onStop={hookCancel}
             isStreaming={isStreaming}
+            conversationId={currentConversation?.id}
+            onEnsureConversation={ensureConversation}
           />
         </div>
       </div>

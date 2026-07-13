@@ -5,6 +5,7 @@ import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   FileText,
+  Paperclip,
   ThumbsUp,
   ThumbsDown,
   Copy,
@@ -20,6 +21,7 @@ import type {
 import { Tooltip } from './Tooltip';
 import { CitationPreview, type CitationPreviewData } from './CitationPreview';
 import { CashmanDebugPanel } from './CashmanDebugPanel';
+import { CashmanAttachmentStatus } from './CashmanAttachmentStatus';
 
 const DOC_LINK_RE = /^doc:([^:]+)(?::(\d+))?$/;
 
@@ -171,6 +173,21 @@ function SourcePills({ citations, activeCitation, onCitationClick }: SourcePills
   );
 }
 
+function AttachmentPills({ attachments }: { attachments: NonNullable<Message['attachments']> }) {
+  if (!attachments.length) return null;
+  return (
+    <div className="mt-2 flex flex-wrap justify-end gap-2">
+      {attachments.map((attachment) => (
+        <CashmanAttachmentStatus
+          key={attachment.id}
+          attachment={attachment}
+          align="right"
+        />
+      ))}
+    </div>
+  );
+}
+
 interface MessageActionsProps {
   content: string;
 }
@@ -282,6 +299,7 @@ export function CashmanMessages({
     <div className="mx-auto flex w-full max-w-[860px] flex-col gap-6 px-5 pb-10 pt-6">
       {messages.map((message, idx) => {
         if (message.role === 'user') {
+          const hasAttachments = !!message.attachments?.length;
           return (
             <div
               key={message.id}
@@ -291,15 +309,24 @@ export function CashmanMessages({
               }}
             >
               <div
-                className="rounded-full border px-4 py-2 text-[13px] leading-[20px]"
+                className="max-w-[85%] rounded-[18px] border px-4 py-2 text-[13px] leading-[20px]"
                 style={{
                   borderColor: 'var(--cashman-teal-border)',
                   backgroundColor: 'var(--cashman-teal-tint)',
                   color: 'var(--cashman-teal-dark)',
-                  maxWidth: '85%',
                 }}
               >
-                {message.content}
+                {message.content.trim() ? (
+                  message.content
+                ) : hasAttachments ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Paperclip className="h-3.5 w-3.5" />
+                    Attached document
+                  </span>
+                ) : null}
+                {hasAttachments && (
+                  <AttachmentPills attachments={message.attachments!} />
+                )}
               </div>
             </div>
           );
