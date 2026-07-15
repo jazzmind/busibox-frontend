@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Cashman Chat Shell — client orchestrator for the Cashman-branded chat UI.
+ * Marine Chat Shell — client orchestrator for the Marine-branded chat UI.
  *
  * Owns:
  *   - conversation list + selection state
@@ -27,12 +27,12 @@ import type {
 } from '@jazzmind/busibox-app/types/chat';
 import { stripThinkTags } from '@jazzmind/busibox-app/components/chat/chat-utils';
 
-import { CashmanSidebar } from './CashmanSidebar';
-import { CashmanEmptyState } from './CashmanEmptyState';
-import { CashmanMessages } from './CashmanMessages';
-import { CashmanComposer } from './CashmanComposer';
-import { CashmanSourcePanel } from './CashmanSourcePanel';
-import { CashmanDebugToggle, useDebugMode } from './CashmanDebugToggle';
+import { MarineSidebar } from './Sidebar';
+import { MarineEmptyState } from './EmptyState';
+import { MarineMessages } from './Messages';
+import { MarineComposer } from './Composer';
+import { MarineSourcePanel } from './SourcePanel';
+import { MarineDebugToggle, useDebugMode } from './DebugToggle';
 
 function mapConversation(conv: any): Conversation {
   return {
@@ -86,7 +86,7 @@ function mapMessage(msg: any): Message {
   };
 }
 
-export interface CashmanChatShellProps {
+export interface MarineChatShellProps {
   initialConversations: Conversation[];
   initialMessages: Message[];
   initialConversation: Conversation | null;
@@ -97,14 +97,14 @@ export interface CashmanChatShellProps {
   conversationQueryParam?: string;
 }
 
-export function CashmanChatShell({
+export function MarineChatShell({
   initialConversations,
   initialMessages,
   initialConversation,
   defaultAgentIds = [],
-  source = 'cashman-chat',
+  source = 'marine-chat',
   conversationQueryParam = 'conversation',
-}: CashmanChatShellProps) {
+}: MarineChatShellProps) {
   const resolve = useCrossAppApiPath();
 
   const [collapsed, setCollapsed] = useState(false);
@@ -414,9 +414,9 @@ export function CashmanChatShell({
   return (
     <div
       className="relative flex h-full min-h-0 w-full"
-      style={{ backgroundColor: 'var(--cashman-bg)' }}
+      style={{ backgroundColor: 'var(--marine-bg)' }}
     >
-      <CashmanSidebar
+      <MarineSidebar
         collapsed={collapsed}
         onToggleCollapsed={() => setCollapsed((v) => !v)}
         conversations={conversations}
@@ -428,16 +428,16 @@ export function CashmanChatShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <div
-          className="flex h-12 items-center justify-between border-b bg-[var(--cashman-surface)] px-6"
-          style={{ borderColor: 'var(--cashman-border)' }}
+          className="flex h-12 items-center justify-between border-b bg-[var(--marine-surface)] px-6"
+          style={{ borderColor: 'var(--marine-border)' }}
         >
           <h1
             className="truncate text-[18px] font-semibold tracking-tight"
-            style={{ color: 'var(--cashman-text)' }}
+            style={{ color: 'var(--marine-text)' }}
           >
             {conversationTitle}
           </h1>
-          <CashmanDebugToggle
+          <MarineDebugToggle
             enabled={debugMode}
             onToggle={() => setDebugMode(!debugMode)}
           />
@@ -451,14 +451,14 @@ export function CashmanChatShell({
             {isLoadingMessages ? (
               <div
                 className="flex h-full items-center justify-center"
-                style={{ color: 'var(--cashman-text-muted)' }}
+                style={{ color: 'var(--marine-text-muted)' }}
               >
                 Loading messages…
               </div>
             ) : showEmpty ? (
-              <CashmanEmptyState onPromptClick={handleSendMessage} />
+              <MarineEmptyState onPromptClick={handleSendMessage} />
             ) : (
-              <CashmanMessages
+              <MarineMessages
                 messages={messages}
                 streamingContent={streamState.content || undefined}
                 streamingCitations={streamState.citations}
@@ -477,7 +477,7 @@ export function CashmanChatShell({
             )}
           </div>
 
-          <CashmanComposer
+          <MarineComposer
             onSend={handleSendMessage}
             onStop={hookCancel}
             isStreaming={isStreaming}
@@ -488,7 +488,7 @@ export function CashmanChatShell({
       </div>
 
       {openCitation && (
-        <CashmanSourcePanel
+        <MarineSourcePanel
           fileId={openCitation.fileId}
           page={openCitation.page}
           filename={openCitation.filename}

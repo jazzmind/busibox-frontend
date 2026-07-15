@@ -4,16 +4,16 @@
  * Debug-mode toggle — a small bug icon in the chat header that flips
  * `debugMode` on/off, persisted to localStorage so it survives reload.
  *
- * When on, CashmanMessages surfaces the underlying step timeline, thinking
+ * When on, MarineMessages surfaces the underlying step timeline, thinking
  * stream, tool-call cards and routing decision payload for each assistant
  * message (and during streaming).
  */
 
 import { useEffect, useState } from 'react';
 import { Bug } from 'lucide-react';
-import { Tooltip } from './Tooltip';
+import { Tooltip } from './primitives/Tooltip';
 
-const STORAGE_KEY = 'cashman-debug-mode';
+const STORAGE_KEY = 'marine-debug-mode';
 
 /** Hook: get + set debug mode with localStorage persistence. */
 export function useDebugMode(): [boolean, (v: boolean) => void] {
@@ -40,7 +40,7 @@ interface DebugToggleProps {
   onToggle: () => void;
 }
 
-export function CashmanDebugToggle({ enabled, onToggle }: DebugToggleProps) {
+export function MarineDebugToggle({ enabled, onToggle }: DebugToggleProps) {
   return (
     <Tooltip label={enabled ? 'Debug mode: on' : 'Debug mode: off'} side="bottom">
       <button
@@ -48,11 +48,11 @@ export function CashmanDebugToggle({ enabled, onToggle }: DebugToggleProps) {
         onClick={onToggle}
         aria-label="Toggle debug mode"
         aria-pressed={enabled}
-        className="flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-[var(--cashman-teal-tint)]"
+        className="flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-[var(--marine-teal-tint)]"
         style={{
-          color: enabled ? 'var(--cashman-teal)' : 'var(--cashman-text-subtle)',
-          backgroundColor: enabled ? 'var(--cashman-teal-light)' : 'transparent',
-          border: `1px solid ${enabled ? 'var(--cashman-teal-border)' : 'transparent'}`,
+          color: enabled ? 'var(--marine-teal)' : 'var(--marine-text-subtle)',
+          backgroundColor: enabled ? 'var(--marine-teal-light)' : 'transparent',
+          border: `1px solid ${enabled ? 'var(--marine-teal-border)' : 'transparent'}`,
         }}
       >
         <Bug className="h-4 w-4" />

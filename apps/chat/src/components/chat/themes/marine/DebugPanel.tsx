@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * Cashman debug panel — rendered above/around assistant messages when debug
+ * Marine debug panel — rendered above/around assistant messages when debug
  * mode is on. Composes the shared StepTimeline + ThinkingStream and adds a
- * small Cashman-styled agent badge + collapsible tool-call cards + a
+ * small Marine-styled agent badge + collapsible tool-call cards + a
  * collapsible routing_decision payload viewer.
  */
 
@@ -30,7 +30,7 @@ interface DebugPanelProps {
   isStreaming?: boolean;
 }
 
-export function CashmanDebugPanel({
+export function MarineDebugPanel({
   agentName,
   model,
   thoughts = [],
@@ -56,16 +56,16 @@ export function CashmanDebugPanel({
     <div
       className="mb-3 rounded-lg border p-3"
       style={{
-        borderColor: 'var(--cashman-border-strong)',
-        backgroundColor: 'var(--cashman-surface-alt)',
+        borderColor: 'var(--marine-border-strong)',
+        backgroundColor: 'var(--marine-surface-alt)',
       }}
     >
       <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px]">
         <span
           className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold uppercase tracking-wider"
           style={{
-            backgroundColor: 'var(--cashman-teal-light)',
-            color: 'var(--cashman-teal-dark)',
+            backgroundColor: 'var(--marine-teal-light)',
+            color: 'var(--marine-teal-dark)',
             letterSpacing: '0.08em',
             fontSize: '10px',
           }}
@@ -74,19 +74,19 @@ export function CashmanDebugPanel({
           Debug
         </span>
         {agentName && (
-          <span className="text-[11px]" style={{ color: 'var(--cashman-text-body)' }}>
+          <span className="text-[11px]" style={{ color: 'var(--marine-text-body)' }}>
             Agent: <span className="font-semibold">{agentName}</span>
           </span>
         )}
         {model && (
-          <span className="text-[11px]" style={{ color: 'var(--cashman-text-body)' }}>
+          <span className="text-[11px]" style={{ color: 'var(--marine-text-body)' }}>
             Model: <span className="font-mono font-semibold">{model}</span>
           </span>
         )}
         {isStreaming && (
           <span
             className="inline-flex items-center gap-1 text-[10px]"
-            style={{ color: 'var(--cashman-teal)' }}
+            style={{ color: 'var(--marine-teal)' }}
           >
             <Loader2 className="h-3 w-3 animate-spin" />
             streaming
@@ -133,15 +133,15 @@ function ToolCallDebugCard({
   const statusIcon = (() => {
     switch (part.status) {
       case 'completed':
-        return <CheckCircle2 className="h-3.5 w-3.5" style={{ color: 'var(--cashman-success)' }} />;
+        return <CheckCircle2 className="h-3.5 w-3.5" style={{ color: 'var(--marine-success)' }} />;
       case 'error':
-        return <XCircle className="h-3.5 w-3.5" style={{ color: 'var(--cashman-error)' }} />;
+        return <XCircle className="h-3.5 w-3.5" style={{ color: 'var(--marine-error)' }} />;
       case 'running':
         return (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: 'var(--cashman-teal)' }} />
+          <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: 'var(--marine-teal)' }} />
         );
       default:
-        return <Wrench className="h-3.5 w-3.5" style={{ color: 'var(--cashman-text-muted)' }} />;
+        return <Wrench className="h-3.5 w-3.5" style={{ color: 'var(--marine-text-muted)' }} />;
     }
   })();
 
@@ -155,26 +155,26 @@ function ToolCallDebugCard({
   return (
     <details
       className="overflow-hidden rounded-md border text-xs"
-      style={{ borderColor: 'var(--cashman-border)', backgroundColor: 'var(--cashman-surface)' }}
+      style={{ borderColor: 'var(--marine-border)', backgroundColor: 'var(--marine-surface)' }}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
     >
       <summary
-        className="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 hover:bg-[var(--cashman-teal-tint)]"
+        className="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 hover:bg-[var(--marine-teal-tint)]"
         style={{ listStyle: 'none' }}
       >
         {open ? (
-          <ChevronDown className="h-3 w-3" style={{ color: 'var(--cashman-text-muted)' }} />
+          <ChevronDown className="h-3 w-3" style={{ color: 'var(--marine-text-muted)' }} />
         ) : (
-          <ChevronRight className="h-3 w-3" style={{ color: 'var(--cashman-text-muted)' }} />
+          <ChevronRight className="h-3 w-3" style={{ color: 'var(--marine-text-muted)' }} />
         )}
         {statusIcon}
-        <span className="font-medium" style={{ color: 'var(--cashman-text)' }}>
+        <span className="font-medium" style={{ color: 'var(--marine-text)' }}>
           {part.displayName || part.name}
         </span>
         {duration && (
           <span
             className="ml-auto font-mono tabular-nums"
-            style={{ color: 'var(--cashman-text-subtle)' }}
+            style={{ color: 'var(--marine-text-subtle)' }}
           >
             {duration}
           </span>
@@ -182,19 +182,19 @@ function ToolCallDebugCard({
       </summary>
       <div
         className="border-t px-3 py-2 text-[11px]"
-        style={{ borderColor: 'var(--cashman-border)' }}
+        style={{ borderColor: 'var(--marine-border)' }}
       >
         {part.output && (
           <div className="mb-1.5">
             <div
               className="mb-0.5 text-[9px] font-bold uppercase tracking-wider"
-              style={{ color: 'var(--cashman-text-subtle)', letterSpacing: '0.08em' }}
+              style={{ color: 'var(--marine-text-subtle)', letterSpacing: '0.08em' }}
             >
               Output
             </div>
             <pre
               className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded p-1.5 font-mono text-[10px]"
-              style={{ backgroundColor: 'var(--cashman-bg)', color: 'var(--cashman-text-body)' }}
+              style={{ backgroundColor: 'var(--marine-bg)', color: 'var(--marine-text-body)' }}
             >
               {part.output.slice(0, 2000)}
               {part.output.length > 2000 ? `\n… (${part.output.length - 2000} more chars)` : ''}
@@ -205,20 +205,20 @@ function ToolCallDebugCard({
           <div>
             <div
               className="mb-0.5 text-[9px] font-bold uppercase tracking-wider"
-              style={{ color: 'var(--cashman-error)', letterSpacing: '0.08em' }}
+              style={{ color: 'var(--marine-error)', letterSpacing: '0.08em' }}
             >
               Error
             </div>
             <pre
               className="whitespace-pre-wrap break-words rounded p-1.5 font-mono text-[10px]"
-              style={{ backgroundColor: 'var(--cashman-error-tint)', color: 'var(--cashman-error-text)' }}
+              style={{ backgroundColor: 'var(--marine-error-tint)', color: 'var(--marine-error-text)' }}
             >
               {part.error}
             </pre>
           </div>
         )}
         {!part.output && !part.error && (
-          <span className="italic" style={{ color: 'var(--cashman-text-subtle)' }}>
+          <span className="italic" style={{ color: 'var(--marine-text-subtle)' }}>
             (no output yet)
           </span>
         )}
@@ -233,32 +233,32 @@ function RoutingDecisionCollapsible({ routing }: { routing: any }) {
   return (
     <details
       className="overflow-hidden rounded-md border text-xs"
-      style={{ borderColor: 'var(--cashman-border)', backgroundColor: 'var(--cashman-surface)' }}
+      style={{ borderColor: 'var(--marine-border)', backgroundColor: 'var(--marine-surface)' }}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
     >
       <summary
-        className="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 hover:bg-[var(--cashman-teal-tint)]"
+        className="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 hover:bg-[var(--marine-teal-tint)]"
         style={{ listStyle: 'none' }}
       >
         {open ? (
-          <ChevronDown className="h-3 w-3" style={{ color: 'var(--cashman-text-muted)' }} />
+          <ChevronDown className="h-3 w-3" style={{ color: 'var(--marine-text-muted)' }} />
         ) : (
-          <ChevronRight className="h-3 w-3" style={{ color: 'var(--cashman-text-muted)' }} />
+          <ChevronRight className="h-3 w-3" style={{ color: 'var(--marine-text-muted)' }} />
         )}
-        <span className="font-medium" style={{ color: 'var(--cashman-text)' }}>
+        <span className="font-medium" style={{ color: 'var(--marine-text)' }}>
           Routing decision
         </span>
-        <span className="ml-auto text-[10px]" style={{ color: 'var(--cashman-text-subtle)' }}>
+        <span className="ml-auto text-[10px]" style={{ color: 'var(--marine-text-subtle)' }}>
           {routing.primaryModel || routing.model || 'json'}
         </span>
       </summary>
       <div
         className="border-t px-3 py-2 text-[10px]"
-        style={{ borderColor: 'var(--cashman-border)' }}
+        style={{ borderColor: 'var(--marine-border)' }}
       >
         <pre
           className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded p-2 font-mono"
-          style={{ backgroundColor: 'var(--cashman-bg)', color: 'var(--cashman-text-body)' }}
+          style={{ backgroundColor: 'var(--marine-bg)', color: 'var(--marine-text-body)' }}
         >
           {JSON.stringify(routing, null, 2)}
         </pre>

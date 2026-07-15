@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { HtmlViewer } from '@jazzmind/busibox-app/components/documents/HtmlViewer';
 import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts';
-import { Tooltip } from './Tooltip';
+import { Tooltip } from './primitives/Tooltip';
 
 interface SourcePanelProps {
   fileId: string;
@@ -66,7 +66,7 @@ const ACTIVE_STAGES = new Set([
   'indexing',
 ]);
 
-const WIDTH_STORAGE_KEY = 'cashman-source-width';
+const WIDTH_STORAGE_KEY = 'marine-source-width';
 const MIN_WIDTH = 380;
 const CHAT_RESERVED = 420;
 const OVERLAY_BREAKPOINT = 900;
@@ -91,7 +91,7 @@ function readPersisted(): number {
   return Number.isFinite(parsed) ? parsed : DEFAULT_WIDTH;
 }
 
-export function CashmanSourcePanel({
+export function MarineSourcePanel({
   fileId,
   page,
   filename = 'Source Document',
@@ -233,11 +233,11 @@ export function CashmanSourcePanel({
 
   return (
     <aside
-      className="relative flex h-full flex-shrink-0 flex-col border-l bg-[var(--cashman-surface)]"
+      className="relative flex h-full flex-shrink-0 flex-col border-l bg-[var(--marine-surface)]"
       style={{
         width,
         maxWidth: '100%',
-        borderColor: 'var(--cashman-border)',
+        borderColor: 'var(--marine-border)',
         boxShadow: isOverlay
           ? '-16px 0 32px rgba(0,0,0,0.16)'
           : '-8px 0 24px rgba(0,0,0,0.04)',
@@ -265,14 +265,14 @@ export function CashmanSourcePanel({
           <span
             className="pointer-events-none block h-full w-[2px] transition-colors"
             style={{
-              backgroundColor: dragging ? 'var(--cashman-teal)' : 'transparent',
+              backgroundColor: dragging ? 'var(--marine-teal)' : 'transparent',
             }}
           />
           <span
             aria-hidden
             className="pointer-events-none absolute h-8 w-[3px] rounded-full transition-colors group-hover:opacity-100"
             style={{
-              backgroundColor: dragging ? 'var(--cashman-teal)' : 'var(--cashman-teal-muted)',
+              backgroundColor: dragging ? 'var(--marine-teal)' : 'var(--marine-teal-muted)',
               opacity: dragging ? 1 : 0,
               transition: 'opacity 150ms ease-out, background-color 150ms',
             }}
@@ -281,20 +281,20 @@ export function CashmanSourcePanel({
           <span
             aria-hidden
             className="pointer-events-none absolute h-8 w-[3px] rounded-full opacity-0 transition-opacity group-hover:opacity-70"
-            style={{ backgroundColor: 'var(--cashman-teal-muted)' }}
+            style={{ backgroundColor: 'var(--marine-teal-muted)' }}
           />
         </div>
       )}
 
       <div
         className="flex h-12 items-center justify-between border-b px-4"
-        style={{ borderColor: 'var(--cashman-border)' }}
+        style={{ borderColor: 'var(--marine-border)' }}
       >
         <div className="flex min-w-0 items-center gap-2">
-          <FileText className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--cashman-teal)' }} />
+          <FileText className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--marine-teal)' }} />
           <span
             className="truncate text-sm font-semibold"
-            style={{ color: 'var(--cashman-text)' }}
+            style={{ color: 'var(--marine-text)' }}
           >
             {displayFilename || 'Source Document'}{page ? ` — Page ${page}` : ''}
           </span>
@@ -304,8 +304,8 @@ export function CashmanSourcePanel({
           <Tooltip label="Download">
             <a
               href={downloadHref}
-              className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:bg-[var(--cashman-teal-tint)]"
-              style={{ borderColor: 'var(--cashman-border)', color: 'var(--cashman-text-body)' }}
+              className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:bg-[var(--marine-teal-tint)]"
+              style={{ borderColor: 'var(--marine-border)', color: 'var(--marine-text-body)' }}
             >
               <Download className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Download</span>
@@ -316,8 +316,8 @@ export function CashmanSourcePanel({
               type="button"
               onClick={toggleMax}
               aria-label={maximized ? 'Restore' : 'Maximize'}
-              className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--cashman-teal-tint)]"
-              style={{ color: 'var(--cashman-text-muted)' }}
+              className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--marine-teal-tint)]"
+              style={{ color: 'var(--marine-text-muted)' }}
             >
               {maximized ? (
                 <Minimize2 className="h-4 w-4" />
@@ -331,8 +331,8 @@ export function CashmanSourcePanel({
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--cashman-teal-tint)]"
-              style={{ color: 'var(--cashman-text-muted)' }}
+              className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--marine-teal-tint)]"
+              style={{ color: 'var(--marine-text-muted)' }}
             >
               <X className="h-4 w-4" />
             </button>

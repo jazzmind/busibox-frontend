@@ -16,27 +16,27 @@
   --busibox-accent: #4a7c7c;
   --busibox-gray: #f5f5f5;
 
-  /* Cashman brand tokens — used by apps/chat Cashman-branded UI */
-  --cashman-bg: #f8f9fa;
-  --cashman-surface: #ffffff;
-  --cashman-surface-alt: #fbfbfb;
-  --cashman-border: #ebebeb;
-  --cashman-border-strong: #dbeaea;
-  --cashman-text: #101828;
-  --cashman-text-body: #393a3d;
-  --cashman-text-muted: #6b6c72;
-  --cashman-text-subtle: #9ca3af;
-  --cashman-teal: #068284;
-  --cashman-teal-dark: #056870;
-  --cashman-teal-light: #e6f4f4;
-  --cashman-teal-tint: #f5fbfb;
-  --cashman-teal-border: #b8dede;
-  --cashman-teal-muted: #94b8b9;
-  --cashman-green-dark: #0f3e18;
-  --cashman-success: #059669;
-  --cashman-error: #b91c1c;
-  --cashman-error-tint: #fef2f2;
-  --cashman-error-text: #7f1d1d;
+  /* Marine brand tokens — used by apps/chat Marine-branded UI */
+  --marine-bg: #f8f9fa;
+  --marine-surface: #ffffff;
+  --marine-surface-alt: #fbfbfb;
+  --marine-border: #ebebeb;
+  --marine-border-strong: #dbeaea;
+  --marine-text: #101828;
+  --marine-text-body: #393a3d;
+  --marine-text-muted: #6b6c72;
+  --marine-text-subtle: #9ca3af;
+  --marine-teal: #068284;
+  --marine-teal-dark: #056870;
+  --marine-teal-light: #e6f4f4;
+  --marine-teal-tint: #f5fbfb;
+  --marine-teal-border: #b8dede;
+  --marine-teal-muted: #94b8b9;
+  --marine-green-dark: #0f3e18;
+  --marine-success: #059669;
+  --marine-error: #b91c1c;
+  --marine-error-tint: #fef2f2;
+  --marine-error-text: #7f1d1d;
 
   /* Additional semantic colors for light mode */
   --card-bg: #ffffff;
@@ -89,29 +89,29 @@
   --busibox-accent: #5a8c8c;
   --busibox-gray: #1f2937;
 
-  /* Cashman brand tokens — dark variant
+  /* Marine brand tokens — dark variant
    * Softer near-black grays (not navy) with a calmer teal accent, so nothing
    * feels neon or oversaturated. Aligns with the shared Busibox dark palette. */
-  --cashman-bg: #0f1113;
-  --cashman-surface: #17191c;
-  --cashman-surface-alt: #1c1f23;
-  --cashman-border: #26292e;
-  --cashman-border-strong: #333740;
-  --cashman-text: #e5e7eb;
-  --cashman-text-body: #c5c9d1;
-  --cashman-text-muted: #8a8f97;
-  --cashman-text-subtle: #6b7280;
-  --cashman-teal: #14b8a6;
-  --cashman-teal-dark: #5eead4;
-  --cashman-teal-light: rgba(20, 184, 166, 0.14);
-  --cashman-teal-tint: rgba(20, 184, 166, 0.06);
-  --cashman-teal-border: rgba(20, 184, 166, 0.32);
-  --cashman-teal-muted: rgba(20, 184, 166, 0.45);
-  --cashman-green-dark: #0f3e18;
-  --cashman-success: #22c55e;
-  --cashman-error: #ef4444;
-  --cashman-error-tint: rgba(239, 68, 68, 0.1);
-  --cashman-error-text: #fca5a5;
+  --marine-bg: #0f1113;
+  --marine-surface: #17191c;
+  --marine-surface-alt: #1c1f23;
+  --marine-border: #26292e;
+  --marine-border-strong: #333740;
+  --marine-text: #e5e7eb;
+  --marine-text-body: #c5c9d1;
+  --marine-text-muted: #8a8f97;
+  --marine-text-subtle: #6b7280;
+  --marine-teal: #14b8a6;
+  --marine-teal-dark: #5eead4;
+  --marine-teal-light: rgba(20, 184, 166, 0.14);
+  --marine-teal-tint: rgba(20, 184, 166, 0.06);
+  --marine-teal-border: rgba(20, 184, 166, 0.32);
+  --marine-teal-muted: rgba(20, 184, 166, 0.45);
+  --marine-green-dark: #0f3e18;
+  --marine-success: #22c55e;
+  --marine-error: #ef4444;
+  --marine-error-tint: rgba(239, 68, 68, 0.1);
+  --marine-error-text: #fca5a5;
 
   /* Additional semantic colors for dark mode */
   --card-bg: #1f2937;

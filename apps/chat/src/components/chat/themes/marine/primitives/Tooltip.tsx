@@ -122,11 +122,11 @@ export function Tooltip({ label, preview, side = 'top', children }: TooltipProps
       ref={popoverRef}
       role="tooltip"
       aria-hidden={!open}
-      className="rounded-lg border bg-[var(--cashman-surface)] text-left shadow-lg"
+      className="rounded-lg border bg-[var(--marine-surface)] text-left shadow-lg"
       style={{
         ...popoverStyle,
-        borderColor: 'var(--cashman-border)',
-        color: 'var(--cashman-text)',
+        borderColor: 'var(--marine-border)',
+        color: 'var(--marine-text)',
         width: 260,
         boxShadow: '0 8px 24px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.06)',
       }}
@@ -141,7 +141,7 @@ export function Tooltip({ label, preview, side = 'top', children }: TooltipProps
       className="whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium shadow-md"
       style={{
         ...popoverStyle,
-        backgroundColor: 'var(--cashman-green-dark)',
+        backgroundColor: 'var(--marine-green-dark)',
         color: '#ffffff',
       }}
     >

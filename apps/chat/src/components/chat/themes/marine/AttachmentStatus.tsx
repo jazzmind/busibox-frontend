@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, FileText, Loader2, X } from 'lucide-react';
 import { useCrossAppApiPath, useCrossAppBasePath } from '@jazzmind/busibox-app/contexts';
 
-export interface CashmanAttachmentDisplay {
+export interface MarineAttachmentDisplay {
   id: string;
   filename: string;
   fileUrl: string;
@@ -34,8 +34,8 @@ interface DocumentStatusResponse {
   };
 }
 
-interface CashmanAttachmentStatusProps {
-  attachment: CashmanAttachmentDisplay;
+interface MarineAttachmentStatusProps {
+  attachment: MarineAttachmentDisplay;
   localStatus?: LocalAttachmentStatus;
   onRemove?: () => void;
   align?: 'left' | 'right';
@@ -114,7 +114,7 @@ function progressFromStatus(status?: DocumentStatusResponse['status']): number |
 }
 
 function detailText(
-  attachment: CashmanAttachmentDisplay,
+  attachment: MarineAttachmentDisplay,
   status?: DocumentStatusResponse['status'],
   localStatus?: LocalAttachmentStatus,
 ): string {
@@ -135,12 +135,12 @@ function detailText(
   return formatFileSize(attachment.sizeBytes);
 }
 
-export function CashmanAttachmentStatus({
+export function MarineAttachmentStatus({
   attachment,
   localStatus = 'ready',
   onRemove,
   align = 'right',
-}: CashmanAttachmentStatusProps) {
+}: MarineAttachmentStatusProps) {
   const resolve = useCrossAppApiPath();
   const documentsBase = useCrossAppBasePath('documents');
   const [documentStatus, setDocumentStatus] = useState<DocumentStatusResponse | null>(null);
@@ -195,31 +195,31 @@ export function CashmanAttachmentStatus({
 
   const icon =
     tone === 'active' ? (
-      <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin" style={{ color: 'var(--cashman-teal)' }} />
+      <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin" style={{ color: 'var(--marine-teal)' }} />
     ) : tone === 'failed' ? (
-      <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--cashman-error)' }} />
+      <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--marine-error)' }} />
     ) : tone === 'complete' ? (
-      <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--cashman-teal)' }} />
+      <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--marine-teal)' }} />
     ) : (
-      <FileText className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--cashman-teal)' }} />
+      <FileText className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--marine-teal)' }} />
     );
 
   const chip = (
     <div
       className="relative inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border px-2.5 py-1.5 text-xs transition-colors hover:brightness-95"
       style={{
-        borderColor: tone === 'failed' ? 'var(--cashman-error)' : 'var(--cashman-teal-border)',
-        backgroundColor: 'var(--cashman-surface)',
-        color: 'var(--cashman-text-body)',
+        borderColor: tone === 'failed' ? 'var(--marine-error)' : 'var(--marine-teal-border)',
+        backgroundColor: 'var(--marine-surface)',
+        color: 'var(--marine-text-body)',
       }}
     >
       {icon}
       <span className="max-w-[260px] truncate font-medium">{attachment.filename}</span>
-      <span className="flex-shrink-0" style={{ color: 'var(--cashman-text-muted)' }}>
+      <span className="flex-shrink-0" style={{ color: 'var(--marine-text-muted)' }}>
         {stageLabel(stage, localStatus, awaitingStatus)}
       </span>
       {detailText(attachment, documentStatus?.status, localStatus) && (
-        <span className="hidden max-w-[220px] truncate sm:inline" style={{ color: 'var(--cashman-text-muted)' }}>
+        <span className="hidden max-w-[220px] truncate sm:inline" style={{ color: 'var(--marine-text-muted)' }}>
           {detailText(attachment, documentStatus?.status, localStatus)}
         </span>
       )}
@@ -230,8 +230,8 @@ export function CashmanAttachmentStatus({
             event.preventDefault();
             onRemove();
           }}
-          className="flex h-5 w-5 items-center justify-center rounded-full transition-colors hover:bg-[var(--cashman-teal-light)]"
-          style={{ color: 'var(--cashman-text-muted)' }}
+          className="flex h-5 w-5 items-center justify-center rounded-full transition-colors hover:bg-[var(--marine-teal-light)]"
+          style={{ color: 'var(--marine-text-muted)' }}
           aria-label={`Remove ${attachment.filename}`}
         >
           <X className="h-3.5 w-3.5" />
@@ -242,7 +242,7 @@ export function CashmanAttachmentStatus({
           className="absolute bottom-0 left-0 h-0.5 rounded-full"
           style={{
             width: `${progress}%`,
-            backgroundColor: 'var(--cashman-teal)',
+            backgroundColor: 'var(--marine-teal)',
           }}
         />
       )}
