@@ -10,7 +10,7 @@ export interface StreamAccumulator {
   agentName?: string;
   interimMessages: string[];
   interimContent?: string;
-  /** Deduplicated citations from document_search tool_result events (keyed by file_id). */
+  /** Deduplicated citations from document_search tool_result events (keyed by file_id + page). */
   citationsByFileId: Map<string, MessageCitation>;
 }
 
@@ -180,14 +180,18 @@ export function processStreamEvent(
         for (const item of parsed.data.results as any[]) {
           const fid: string = item.file_id || item.fileId || '';
           if (!fid) continue;
+          const page = item.page_number ?? item.pageNumber ?? item.page ?? undefined;
           const score = typeof item.score === 'number' ? item.score : 0;
-          const existing = accumulated.citationsByFileId.get(fid);
+          const key = `${fid}:${page ?? ''}`;
+          const existing = accumulated.citationsByFileId.get(key);
           if (!existing || score > (existing.score ?? 0)) {
-            accumulated.citationsByFileId.set(fid, {
+            accumulated.citationsByFileId.set(key, {
               fileId: fid,
-              filename: String(item.filename || ''),
-              page: item.page_number ?? item.pageNumber ?? undefined,
+              filename: String(item.filename || item.title || item.document_name || 'Source'),
+              page,
               score,
+              snippet: item.snippet || item.text || item.content || item.chunk_text || undefined,
+              source: item.source || item.library_name || item.libraryName || undefined,
             });
           }
         }

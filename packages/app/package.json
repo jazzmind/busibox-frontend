@@ -97,6 +97,18 @@
       "types": "./dist/lib/next/*.d.ts",
       "default": "./dist/lib/next/*.js"
     },
+    "./lib/hooks/*": {
+      "types": "./dist/lib/hooks/*.d.ts",
+      "default": "./dist/lib/hooks/*.js"
+    },
+    "./components/chat/*": {
+      "types": "./dist/components/chat/*.d.ts",
+      "default": "./dist/components/chat/*.js"
+    },
+    "./contexts/*": {
+      "types": "./dist/contexts/*.d.ts",
+      "default": "./dist/contexts/*.js"
+    },
     "./lib/http/*": {
       "types": "./dist/lib/http/*.d.ts",
       "default": "./dist/lib/http/*.js"
@@ -112,6 +124,10 @@
     "./types/next-auth": {
       "types": "./dist/types/next-auth.d.ts",
       "default": "./dist/types/next-auth.js"
+    },
+    "./types/*": {
+      "types": "./dist/types/*.d.ts",
+      "default": "./dist/types/*.js"
     },
     "./components/auth/*": {
       "types": "./dist/components/auth/*.d.ts",

@@ -43,6 +43,8 @@ export interface MessageCitation {
   filename: string;
   page?: number;
   score?: number;
+  snippet?: string;
+  source?: string;
 }
 
 export interface MessageAttachment {
@@ -169,7 +171,6 @@ export type MessagePart =
       completedAt?: Date;
     }
   | { type: 'prompt'; options: string[]; promptType: 'confirm' | 'choice' | 'open' };
-
 
 
 
