@@ -68,6 +68,14 @@ export interface AgentDefinitionInput {
     execution_mode?: string;
     tool_strategy?: string;
     max_iterations?: number;
+    /**
+     * Declarative pipeline steps for deterministic orchestrator agents that run
+     * without an LLM (execution_mode: "run_once" + tool_strategy:
+     * "predefined_pipeline"). Each step is a `{ id, type, expression, args }`
+     * shape; the exact schema is interpreted by the agent-api inline pipeline
+     * runtime (`execute_inline_pipeline`). See busibox commit 7570ef3a.
+     */
+    pipeline?: Array<Record<string, unknown>>;
   };
   allow_frontier_fallback?: boolean;
   /**
@@ -80,6 +88,21 @@ export interface AgentDefinitionInput {
   /** Application ID — required when visibility='application'. */
   app_id?: string;
   scopes?: string[];
+  /**
+   * Structured-output contract. When set, the model must return JSON matching
+   * this JSON Schema. Used by agents whose output shape is fixed (e.g.
+   * notice-extractor returning `notices[]`).
+   *
+   * NOTE: as of agent-api at busibox@987da61e this is honored only when supplied
+   * in the per-run context, not when persisted on a synced agent definition —
+   * the server's AgentDefinitionCreate schema does not yet carry it. Setting it
+   * here is forward-compatible but currently inert on synced definitions.
+   */
+  response_schema?: {
+    name: string;
+    strict: boolean;
+    schema: Record<string, unknown>;
+  };
 }
 
 export interface AgentSyncResult {
