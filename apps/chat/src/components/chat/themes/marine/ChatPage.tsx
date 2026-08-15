@@ -1,25 +1,25 @@
 /**
- * Cashman Chat Page — server component.
+ * Marine Chat Page — server component.
  *
  * Fetches initial conversation list + (optional) initial conversation messages
- * server-side, then hands off to the client-side CashmanChatShell.
+ * server-side, then hands off to the client-side MarineChatShell.
  */
 
 import { Suspense } from 'react';
 import type { AgentClient } from '@jazzmind/busibox-app/lib/agent';
-import { CashmanChatShell } from './CashmanChatShell';
+import { MarineChatShell } from './ChatShell';
 
-export interface CashmanChatPageProps {
+export interface MarineChatPageProps {
   client: AgentClient;
   initialConversationId?: string;
   source?: string;
   conversationQueryParam?: string;
 }
 
-export async function CashmanChatPage(props: CashmanChatPageProps) {
+export async function MarineChatPage(props: MarineChatPageProps) {
   return (
     <Suspense fallback={<ChatShellSkeleton />}>
-      <CashmanChatPageContent {...props} />
+      <MarineChatPageContent {...props} />
     </Suspense>
   );
 }
@@ -28,19 +28,19 @@ function ChatShellSkeleton() {
   return (
     <div
       className="flex h-full w-full items-center justify-center"
-      style={{ backgroundColor: 'var(--cashman-bg)', color: 'var(--cashman-text-muted)' }}
+      style={{ backgroundColor: 'var(--marine-bg)', color: 'var(--marine-text-muted)' }}
     >
-      Loading Cashman AI…
+      Loading Marine AI…
     </div>
   );
 }
 
-async function CashmanChatPageContent({
+async function MarineChatPageContent({
   client,
   initialConversationId,
   source,
   conversationQueryParam,
-}: CashmanChatPageProps) {
+}: MarineChatPageProps) {
   // Fetch conversations + agents in parallel. Agents are needed so we can
   // pass the default "chat" agent ID with each message — the backend rejects
   // requests without an agent context (falls through to using the literal
@@ -51,21 +51,21 @@ async function CashmanChatPageContent({
     [conversations, agents] = await Promise.all([
       client.getConversations({ limit: 50, source }).catch((e: any) => {
         console.error(
-          '[CashmanChatPage] Failed to load conversations:',
+          '[MarineChatPage] Failed to load conversations:',
           e?.name === 'AbortError' ? 'Request timed out' : e?.message,
         );
         return [];
       }),
       client.getAgents().catch((e: any) => {
         console.error(
-          '[CashmanChatPage] Failed to load agents:',
+          '[MarineChatPage] Failed to load agents:',
           e?.name === 'AbortError' ? 'Request timed out' : e?.message,
         );
         return [];
       }),
     ]);
   } catch (e: any) {
-    console.error('[CashmanChatPage] initial fetch failed:', e?.message);
+    console.error('[MarineChatPage] initial fetch failed:', e?.message);
   }
 
   // Pick the default chat agent (matches shared ChatContainer's default logic).
@@ -90,11 +90,11 @@ async function CashmanChatPageContent({
       }
     }
   } catch (e: any) {
-    console.error('[CashmanChatPage] load messages failed:', e?.message);
+    console.error('[MarineChatPage] load messages failed:', e?.message);
   }
 
   return (
-    <CashmanChatShell
+    <MarineChatShell
       initialConversations={conversations}
       initialMessages={initialMessages}
       initialConversation={currentConversation}

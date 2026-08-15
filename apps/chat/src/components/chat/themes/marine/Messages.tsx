@@ -18,10 +18,10 @@ import type {
   ThoughtEvent,
   MessagePart,
 } from '@jazzmind/busibox-app/types/chat';
-import { Tooltip } from './Tooltip';
-import { CitationPreview, type CitationPreviewData } from './CitationPreview';
-import { CashmanDebugPanel } from './CashmanDebugPanel';
-import { CashmanAttachmentStatus } from './CashmanAttachmentStatus';
+import { Tooltip } from './primitives/Tooltip';
+import { CitationPreview, type CitationPreviewData } from './primitives/CitationPreview';
+import { MarineDebugPanel } from './DebugPanel';
+import { MarineAttachmentStatus } from './AttachmentStatus';
 
 const DOC_LINK_RE = /^doc:([^:]+)(?::(\d+))?$/;
 
@@ -33,7 +33,7 @@ export type CitationPreviewLookup = (
   page?: number,
 ) => CitationPreviewData | undefined;
 
-interface CashmanMessagesProps {
+interface MarineMessagesProps {
   messages: Message[];
   streamingContent?: string;
   streamingCitations?: MessageCitation[];
@@ -71,7 +71,7 @@ function CitationChip({ index, label, preview, onClick }: CitationChipProps) {
         type="button"
         onClick={onClick}
         className="ml-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[6px] px-1 text-[10px] font-semibold transition-colors hover:brightness-95"
-        style={{ backgroundColor: 'var(--cashman-teal-light)', color: 'var(--cashman-teal-dark)' }}
+        style={{ backgroundColor: 'var(--marine-teal-light)', color: 'var(--marine-teal-dark)' }}
         aria-label="View source"
       >
         {index > 0 ? index : label}
@@ -130,7 +130,7 @@ function makeCitationRenderer(
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        style={{ color: 'var(--cashman-teal)' }}
+        style={{ color: 'var(--marine-teal)' }}
       >
         {children}
       </a>
@@ -149,11 +149,11 @@ function SourcePills({ citations, activeCitation, onCitationClick }: SourcePills
   return (
     <div
       className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3"
-      style={{ borderColor: 'var(--cashman-border)' }}
+      style={{ borderColor: 'var(--marine-border)' }}
     >
       <span
         className="text-[10px] font-bold uppercase tracking-wider"
-        style={{ color: 'var(--cashman-text-subtle)', letterSpacing: '0.08em' }}
+        style={{ color: 'var(--marine-text-subtle)', letterSpacing: '0.08em' }}
       >
         Sources
       </span>
@@ -170,12 +170,12 @@ function SourcePills({ citations, activeCitation, onCitationClick }: SourcePills
             onClick={() => onCitationClick(c.fileId, c.page)}
             className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-all hover:brightness-95 active:scale-[0.98]"
             style={{
-              borderColor: isActive ? 'var(--cashman-teal)' : 'var(--cashman-border)',
-              backgroundColor: isActive ? 'var(--cashman-teal-light)' : 'var(--cashman-surface)',
-              color: isActive ? 'var(--cashman-teal-dark)' : 'var(--cashman-text-body)',
+              borderColor: isActive ? 'var(--marine-teal)' : 'var(--marine-border)',
+              backgroundColor: isActive ? 'var(--marine-teal-light)' : 'var(--marine-surface)',
+              color: isActive ? 'var(--marine-teal-dark)' : 'var(--marine-text-body)',
             }}
           >
-            <FileText className="h-3.5 w-3.5" style={{ color: 'var(--cashman-teal)' }} />
+            <FileText className="h-3.5 w-3.5" style={{ color: 'var(--marine-teal)' }} />
             {label}
           </button>
         );
@@ -188,23 +188,23 @@ function SourcePlaceholder() {
   return (
     <div
       className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3"
-      style={{ borderColor: 'var(--cashman-border)' }}
+      style={{ borderColor: 'var(--marine-border)' }}
     >
       <span
         className="text-[10px] font-bold uppercase tracking-wider"
-        style={{ color: 'var(--cashman-text-subtle)', letterSpacing: '0.08em' }}
+        style={{ color: 'var(--marine-text-subtle)', letterSpacing: '0.08em' }}
       >
         Sources
       </span>
       <span
         className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium"
         style={{
-          borderColor: 'var(--cashman-border)',
-          backgroundColor: 'var(--cashman-surface)',
-          color: 'var(--cashman-text-subtle)',
+          borderColor: 'var(--marine-border)',
+          backgroundColor: 'var(--marine-surface)',
+          color: 'var(--marine-text-subtle)',
         }}
       >
-        <FileText className="h-3.5 w-3.5" style={{ color: 'var(--cashman-text-subtle)' }} />
+        <FileText className="h-3.5 w-3.5" style={{ color: 'var(--marine-text-subtle)' }} />
         Sources pending
       </span>
     </div>
@@ -216,7 +216,7 @@ function AttachmentPills({ attachments }: { attachments: NonNullable<Message['at
   return (
     <div className="mt-2 flex flex-wrap justify-end gap-2">
       {attachments.map((attachment) => (
-        <CashmanAttachmentStatus
+        <MarineAttachmentStatus
           key={attachment.id}
           attachment={attachment}
           align="right"
@@ -249,13 +249,13 @@ function MessageActions({ content }: MessageActionsProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'cashman-response.md';
+    a.download = 'chat-response.md';
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const buttonClass =
-    'flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--cashman-teal-tint)]';
+    'flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--marine-teal-tint)]';
 
   return (
     <div className="mt-2 flex items-center gap-1">
@@ -264,7 +264,7 @@ function MessageActions({ content }: MessageActionsProps) {
           type="button"
           onClick={() => setVote(vote === 'up' ? null : 'up')}
           className={buttonClass}
-          style={{ color: vote === 'up' ? 'var(--cashman-teal-dark)' : 'var(--cashman-text-subtle)' }}
+          style={{ color: vote === 'up' ? 'var(--marine-teal-dark)' : 'var(--marine-text-subtle)' }}
           aria-label="Helpful"
           aria-pressed={vote === 'up'}
         >
@@ -276,7 +276,7 @@ function MessageActions({ content }: MessageActionsProps) {
           type="button"
           onClick={() => setVote(vote === 'down' ? null : 'down')}
           className={buttonClass}
-          style={{ color: vote === 'down' ? 'var(--cashman-error)' : 'var(--cashman-text-subtle)' }}
+          style={{ color: vote === 'down' ? 'var(--marine-error)' : 'var(--marine-text-subtle)' }}
           aria-label="Not helpful"
           aria-pressed={vote === 'down'}
         >
@@ -288,7 +288,7 @@ function MessageActions({ content }: MessageActionsProps) {
           type="button"
           onClick={handleCopy}
           className={buttonClass}
-          style={{ color: copied ? 'var(--cashman-teal-dark)' : 'var(--cashman-text-subtle)' }}
+          style={{ color: copied ? 'var(--marine-teal-dark)' : 'var(--marine-text-subtle)' }}
           aria-label="Copy"
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -299,7 +299,7 @@ function MessageActions({ content }: MessageActionsProps) {
           type="button"
           onClick={handleDownload}
           className={buttonClass}
-          style={{ color: 'var(--cashman-text-subtle)' }}
+          style={{ color: 'var(--marine-text-subtle)' }}
           aria-label="Download"
         >
           <Download className="h-4 w-4" />
@@ -309,7 +309,7 @@ function MessageActions({ content }: MessageActionsProps) {
   );
 }
 
-export function CashmanMessages({
+export function MarineMessages({
   messages,
   streamingContent,
   streamingCitations,
@@ -321,7 +321,7 @@ export function CashmanMessages({
   onCitationClick,
   getCitationPreview,
   debugMode = false,
-}: CashmanMessagesProps) {
+}: MarineMessagesProps) {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -343,15 +343,15 @@ export function CashmanMessages({
               key={message.id}
               className="flex justify-end"
               style={{
-                animation: 'cashmanFadeSlideUp 260ms cubic-bezier(0.4,0,0.2,1)',
+                animation: 'marineFadeSlideUp 260ms cubic-bezier(0.4,0,0.2,1)',
               }}
             >
               <div
                 className="max-w-[85%] rounded-[18px] border px-4 py-2 text-[13px] leading-[20px]"
                 style={{
-                  borderColor: 'var(--cashman-teal-border)',
-                  backgroundColor: 'var(--cashman-teal-tint)',
-                  color: 'var(--cashman-teal-dark)',
+                  borderColor: 'var(--marine-teal-border)',
+                  backgroundColor: 'var(--marine-teal-tint)',
+                  color: 'var(--marine-teal-dark)',
                 }}
               >
                 {message.content.trim() ? (
@@ -382,13 +382,13 @@ export function CashmanMessages({
             className="flex flex-col items-start"
             style={{
               animation: isLast
-                ? 'cashmanFadeSlideUp 260ms cubic-bezier(0.4,0,0.2,1)'
+                ? 'marineFadeSlideUp 260ms cubic-bezier(0.4,0,0.2,1)'
                 : undefined,
             }}
           >
             {debugMode && (
               <div className="w-full max-w-none">
-                <CashmanDebugPanel
+                <MarineDebugPanel
                   agentName={(message as any).agentName}
                   model={(message as any).model}
                   thoughts={(message as any).thoughts}
@@ -399,7 +399,7 @@ export function CashmanMessages({
             )}
             <div
               className="prose max-w-none text-[15px] leading-[26px]"
-              style={{ color: 'var(--cashman-text)' }}
+              style={{ color: 'var(--marine-text)' }}
             >
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
@@ -429,12 +429,12 @@ export function CashmanMessages({
         <div
           className="flex flex-col items-start"
           style={{
-            animation: 'cashmanFadeSlideUp 260ms cubic-bezier(0.4,0,0.2,1)',
+            animation: 'marineFadeSlideUp 260ms cubic-bezier(0.4,0,0.2,1)',
           }}
         >
           {debugMode && (
             <div className="w-full max-w-none">
-              <CashmanDebugPanel
+              <MarineDebugPanel
                 agentName={streamingAgentName}
                 thoughts={streamingThoughts}
                 parts={streamingParts}
@@ -444,7 +444,7 @@ export function CashmanMessages({
           )}
           <div
             className="prose max-w-none text-[15px] leading-[26px]"
-            style={{ color: 'var(--cashman-text)' }}
+            style={{ color: 'var(--marine-text)' }}
           >
             {streamingContent ? (
               <>
@@ -463,23 +463,23 @@ export function CashmanMessages({
                 </ReactMarkdown>
                 <span
                   className="ml-1 inline-block h-4 w-[3px] animate-pulse rounded-sm align-middle"
-                  style={{ backgroundColor: 'var(--cashman-teal)' }}
+                  style={{ backgroundColor: 'var(--marine-teal)' }}
                 />
               </>
             ) : (
-              <div className="flex items-center gap-2" style={{ color: 'var(--cashman-text-muted)' }}>
+              <div className="flex items-center gap-2" style={{ color: 'var(--marine-text-muted)' }}>
                 <span className="flex gap-1">
                   <span
                     className="h-2 w-2 animate-bounce rounded-full"
-                    style={{ backgroundColor: 'var(--cashman-teal)', animationDelay: '0ms' }}
+                    style={{ backgroundColor: 'var(--marine-teal)', animationDelay: '0ms' }}
                   />
                   <span
                     className="h-2 w-2 animate-bounce rounded-full"
-                    style={{ backgroundColor: 'var(--cashman-teal)', animationDelay: '150ms' }}
+                    style={{ backgroundColor: 'var(--marine-teal)', animationDelay: '150ms' }}
                   />
                   <span
                     className="h-2 w-2 animate-bounce rounded-full"
-                    style={{ backgroundColor: 'var(--cashman-teal)', animationDelay: '300ms' }}
+                    style={{ backgroundColor: 'var(--marine-teal)', animationDelay: '300ms' }}
                   />
                 </span>
                 <span className="text-sm">Thinking…</span>
@@ -501,7 +501,7 @@ export function CashmanMessages({
       <div ref={endRef} />
 
       <style jsx global>{`
-        @keyframes cashmanFadeSlideUp {
+        @keyframes marineFadeSlideUp {
           from {
             opacity: 0;
             transform: translateY(6px);

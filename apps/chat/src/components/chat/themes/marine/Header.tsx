@@ -2,20 +2,26 @@
 
 import { Grid2x2, Sun, ChevronDown } from 'lucide-react';
 import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvider';
-import { Tooltip } from './Tooltip';
+import { Tooltip } from './primitives/Tooltip';
+import { marineBrand } from './config';
 
-interface CashmanHeaderProps {
+interface MarineHeaderProps {
   appsHref?: string;
   /** Fallback name shown if the session isn't populated (mainly for the /demo route). */
   fallbackName?: string;
   fallbackRole?: string;
+  /** Optional overrides — otherwise sourced from marineBrand (env-driven). */
+  productName?: string;
+  tagline?: string;
 }
 
-export function CashmanHeader({
+export function MarineHeader({
   appsHref = '/portal/home',
   fallbackName = 'User',
   fallbackRole = 'Member',
-}: CashmanHeaderProps) {
+  productName = marineBrand.productName,
+  tagline = marineBrand.tagline,
+}: MarineHeaderProps) {
   const session = useSession();
   const email: string = (session as any)?.user?.email || (session as any)?.email || '';
   const displayName: string =
@@ -28,15 +34,17 @@ export function CashmanHeader({
   return (
     <header
       className="flex h-16 w-full flex-shrink-0 items-center justify-between px-4 text-white shadow-md sm:px-8"
-      style={{ backgroundColor: 'var(--cashman-green-dark)' }}
+      style={{ backgroundColor: 'var(--marine-green-dark)' }}
     >
       <div className="flex flex-col leading-tight tracking-wider">
         <span className="text-[16px] font-bold text-white sm:text-[20px]">
-          Cashman AI Portal
+          {productName}
         </span>
-        <span className="hidden text-[10px] text-white/80 sm:block">
-          Think AImpossible!
-        </span>
+        {tagline && (
+          <span className="hidden text-[10px] text-white/80 sm:block">
+            {tagline}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-2 sm:gap-4">

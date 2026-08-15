@@ -1,25 +1,31 @@
 /**
- * Cashman UI demo route — no auth, no backend, mock data only.
- * Includes static canned replies so the send interaction and streaming animation
- * can be exercised without the agent API.
+ * Marine theme demo route — no auth, no backend, mock data only.
+ *
+ * Renders the marine theme end-to-end with canned streaming replies so the
+ * send interaction and streaming animation can be exercised without the
+ * agent API. Mock corpus is deliberately Sledgewood-flavoured so citations,
+ * source pills and the source panel have plausible content to display; this
+ * copy lives inside /demo only and is not shipped in the production path.
  */
 
 'use client';
 
 import { Toaster } from 'react-hot-toast';
 import { useState, useRef, useCallback } from 'react';
-import { CashmanHeader } from '../../components/chat/CashmanHeader';
-import { CashmanSidebar } from '../../components/chat/CashmanSidebar';
-import { CashmanEmptyState } from '../../components/chat/CashmanEmptyState';
-import { CashmanMessages } from '../../components/chat/CashmanMessages';
-import { CashmanComposer } from '../../components/chat/CashmanComposer';
-import { CashmanSourcePanel } from '../../components/chat/CashmanSourcePanel';
+import {
+  MarineHeader,
+  MarineSidebar,
+  MarineEmptyState,
+  MarineMessages,
+  MarineComposer,
+  MarineSourcePanel,
+  type CitationPreviewData,
+} from '../../components/chat/themes/marine';
 import type {
   Conversation,
   Message,
   MessageCitation,
 } from '@jazzmind/busibox-app/types/chat';
-import type { CitationPreviewData } from '../../components/chat/CitationPreview';
 
 const MOCK_CONVERSATIONS: Conversation[] = [
   {
@@ -362,7 +368,7 @@ export default function DemoPage() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      <CashmanHeader
+      <MarineHeader
         appsHref="#"
         fallbackName="Michael"
         fallbackRole="Admin"
@@ -373,7 +379,7 @@ export default function DemoPage() {
           className="relative flex h-full w-full"
           style={{ backgroundColor: '#f8f9fa' }}
         >
-          <CashmanSidebar
+          <MarineSidebar
             collapsed={collapsed}
             onToggleCollapsed={() => setCollapsed((v) => !v)}
             conversations={MOCK_CONVERSATIONS}
@@ -396,7 +402,7 @@ export default function DemoPage() {
             >
               <h1
                 className="truncate text-[18px] font-semibold tracking-tight"
-                style={{ color: 'var(--cashman-text)' }}
+                style={{ color: 'var(--marine-text)' }}
               >
                 {currentTitle}
               </h1>
@@ -405,9 +411,9 @@ export default function DemoPage() {
             <div className="relative flex flex-1 flex-col overflow-hidden">
               <div data-chat-scroll="1" className="flex-1 overflow-y-auto">
                 {showEmpty ? (
-                  <CashmanEmptyState onPromptClick={handleSendMessage} />
+                  <MarineEmptyState onPromptClick={handleSendMessage} />
                 ) : (
-                  <CashmanMessages
+                  <MarineMessages
                     messages={messages}
                     streamingContent={streaming?.content}
                     streamingCitations={streaming?.citations}
@@ -426,7 +432,7 @@ export default function DemoPage() {
                 )}
               </div>
 
-              <CashmanComposer
+              <MarineComposer
                 onSend={handleSendMessage}
                 onStop={stopStream}
                 isStreaming={isThinking || !!streaming}
@@ -435,7 +441,7 @@ export default function DemoPage() {
           </div>
 
           {openCitation && (
-            <CashmanSourcePanel
+            <MarineSourcePanel
               fileId={openCitation.fileId}
               page={openCitation.page}
               filename={openCitation.filename}

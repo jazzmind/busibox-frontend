@@ -4,18 +4,20 @@
  * Zero Trust: Uses session JWT from cookie for authentication.
  * All data fetching happens server-side with token exchange.
  *
- * Brand switch:
- *   NEXT_PUBLIC_CHAT_BRAND=cashman  → renders the Cashman-branded chat shell
- *   (unset / anything else)         → renders the default shared ChatPage
+ * Brand / theme switch:
+ *   NEXT_PUBLIC_CHAT_BRAND=marine  → renders the Marine themed chat shell
+ *   (unset / anything else)        → renders the default shared ChatPage
  *
- * This keeps the shared UI (insights, agents, tools, thoughts, tool-call cards)
- * as the mainline experience so upstream deploys are unaffected.
+ * Additional themes can be added under components/chat/themes/<name>/ and
+ * wired into the switch below. Product-specific copy (name, tagline,
+ * suggested prompts, etc.) is sourced from NEXT_PUBLIC_CHAT_* env vars,
+ * not hardcoded in the theme, so a single theme can be reskinned per tenant.
  */
 
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { ChatPage } from '@jazzmind/busibox-app/components';
-import { CashmanChatPage } from '../../components/chat/CashmanChatPage';
+import { MarineChatPage } from '../../components/chat/themes/marine';
 import { createAgentClient } from '@jazzmind/busibox-app/lib/agent';
 import { exchangeWithSubjectToken } from '@jazzmind/busibox-app/lib/authz/next-client';
 
@@ -106,13 +108,13 @@ export default async function Page({ searchParams }: PageProps) {
 
   const brand = process.env.NEXT_PUBLIC_CHAT_BRAND;
 
-  if (brand === 'cashman') {
+  if (brand === 'marine') {
     return (
       <div className="h-full w-full">
-        <CashmanChatPage
+        <MarineChatPage
           client={client}
           initialConversationId={initialConversationId}
-          source="cashman-chat"
+          source="marine-chat"
         />
       </div>
     );

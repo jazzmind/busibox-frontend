@@ -5,10 +5,11 @@ import toast from 'react-hot-toast';
 import { Mic, Paperclip, Send, Square } from 'lucide-react';
 import { useCrossAppApiPath } from '@jazzmind/busibox-app/contexts';
 import type { MessageAttachment } from '@jazzmind/busibox-app/types/chat';
-import { Tooltip } from './Tooltip';
-import { CashmanAttachmentStatus } from './CashmanAttachmentStatus';
+import { Tooltip } from './primitives/Tooltip';
+import { MarineAttachmentStatus } from './AttachmentStatus';
+import { marineBrand } from './config';
 
-interface CashmanComposerProps {
+interface MarineComposerProps {
   onSend: (
     content: string,
     attachmentIds?: string[],
@@ -51,15 +52,15 @@ const SUPPORTED_TYPES = [
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 
-export function CashmanComposer({
+export function MarineComposer({
   onSend,
   onStop,
   isStreaming = false,
   disabled = false,
-  placeholder = 'Ask Cashman anything',
+  placeholder = marineBrand.composerPlaceholder,
   conversationId,
   onEnsureConversation,
-}: CashmanComposerProps) {
+}: MarineComposerProps) {
   const resolve = useCrossAppApiPath();
   const [content, setContent] = useState('');
   const [focused, setFocused] = useState(false);
@@ -203,7 +204,7 @@ export function CashmanComposer({
       <div
         className="w-full rounded-[14px] p-px"
         style={{
-          backgroundColor: 'var(--cashman-teal)',
+          backgroundColor: 'var(--marine-teal)',
           boxShadow: focused
             ? '0 12px 24px rgba(6,130,132,0.22)'
             : '0 10px 16px rgba(6,130,132,0.12)',
@@ -212,12 +213,12 @@ export function CashmanComposer({
       >
         <div
           className="rounded-[13px] px-4 py-2"
-          style={{ backgroundColor: 'var(--cashman-teal-tint)' }}
+          style={{ backgroundColor: 'var(--marine-teal-tint)' }}
         >
           {attachments.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2">
               {attachments.map((attachment) => (
-                <CashmanAttachmentStatus
+                <MarineAttachmentStatus
                   key={attachment.id}
                   attachment={{
                     id: attachment.attachmentId || attachment.id,
@@ -250,8 +251,8 @@ export function CashmanComposer({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 aria-label="Attach"
-                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-[var(--cashman-teal-light)]"
-                style={{ color: 'var(--cashman-text-muted)' }}
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-[var(--marine-teal-light)]"
+                style={{ color: 'var(--marine-text-muted)' }}
               >
                 <Paperclip className="h-5 w-5" />
               </button>
@@ -267,9 +268,9 @@ export function CashmanComposer({
               placeholder={placeholder}
               rows={1}
               disabled={disabled}
-              className="min-h-[24px] max-h-[200px] flex-1 resize-none border-0 py-2 text-base outline-none placeholder:text-[var(--cashman-text-muted)]"
+              className="min-h-[24px] max-h-[200px] flex-1 resize-none border-0 py-2 text-base outline-none placeholder:text-[var(--marine-text-muted)]"
               style={{
-                color: 'var(--cashman-text)',
+                color: 'var(--marine-text)',
                 // Inline background wins over the `.dark textarea` rule in
                 // globals.css that would otherwise force gray-900 here.
                 backgroundColor: 'transparent',
@@ -283,8 +284,8 @@ export function CashmanComposer({
                 <button
                   type="button"
                   aria-label="Voice"
-                  className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-[var(--cashman-teal-light)]"
-                  style={{ color: 'var(--cashman-text-muted)' }}
+                  className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-[var(--marine-teal-light)]"
+                  style={{ color: 'var(--marine-text-muted)' }}
                 >
                   <Mic className="h-5 w-5" />
                 </button>
@@ -298,7 +299,7 @@ export function CashmanComposer({
                     aria-label="Stop"
                     className="flex h-9 w-9 items-center justify-center rounded-full text-white transition-transform hover:scale-105 active:scale-95"
                     style={{
-                      backgroundColor: 'var(--cashman-teal)',
+                      backgroundColor: 'var(--marine-teal)',
                       boxShadow: '0 5px 7px rgba(6,130,132,0.25)',
                     }}
                   >
@@ -314,7 +315,7 @@ export function CashmanComposer({
                     aria-label="Send"
                     className="flex h-9 w-9 items-center justify-center rounded-full text-white transition-all disabled:cursor-not-allowed hover:scale-105 disabled:hover:scale-100 active:scale-95"
                     style={{
-                      backgroundColor: canSend ? 'var(--cashman-teal)' : 'var(--cashman-teal-muted)',
+                      backgroundColor: canSend ? 'var(--marine-teal)' : 'var(--marine-teal-muted)',
                       boxShadow: canSend
                         ? '0 5px 7px rgba(6,130,132,0.25)'
                         : 'none',
@@ -331,9 +332,9 @@ export function CashmanComposer({
 
       <p
         className="pt-3 text-center text-[11px] leading-4"
-        style={{ color: 'var(--cashman-text-muted)' }}
+        style={{ color: 'var(--marine-text-muted)' }}
       >
-        Cashman AI can make mistakes. Check the responses.
+        {marineBrand.disclaimer}
       </p>
     </div>
   );
