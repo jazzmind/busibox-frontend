@@ -102,7 +102,7 @@ export function MarineChatShell({
   initialMessages,
   initialConversation,
   defaultAgentIds = [],
-  source = 'marine-chat',
+  source,
   conversationQueryParam = 'conversation',
 }: MarineChatShellProps) {
   const resolve = useCrossAppApiPath();

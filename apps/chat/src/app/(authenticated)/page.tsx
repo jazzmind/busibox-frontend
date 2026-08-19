@@ -114,7 +114,6 @@ export default async function Page({ searchParams }: PageProps) {
         <MarineChatPage
           client={client}
           initialConversationId={initialConversationId}
-          source="marine-chat"
         />
       </div>
     );
