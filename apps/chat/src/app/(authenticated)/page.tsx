@@ -33,6 +33,11 @@ function getAgentApiUrl(): string {
 // Session cookie name - contains RS256-signed JWT from authz
 const SESSION_COOKIE_NAME = 'busibox-session';
 
+function getPortalLoginUrl(): string {
+  const portalBaseUrl = process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL?.replace(/\/+$/, '');
+  return portalBaseUrl ? `${portalBaseUrl}/login` : '/portal/login';
+}
+
 /**
  * Parse JWT claims without verification (for extracting user info).
  * Full signature verification happens at token exchange with authz.
@@ -82,7 +87,9 @@ export default async function Page({ searchParams }: PageProps) {
   const session = await getServerSession();
 
   if (!session) {
-    redirect('/portal/login');
+    // An absolute cross-app URL prevents Next's Chat basePath from turning
+    // `/portal/login` into `/chat/portal/login` in deployed standalone builds.
+    redirect(getPortalLoginUrl());
   }
 
   // Create agent client with server-side auth (Zero Trust)
