@@ -110,6 +110,8 @@ export interface ChatMessageRequest {
   selected_tools?: string[]; // Tool IDs to use
   selected_agents?: string[]; // Agent IDs to use
   selected_libraries?: string[]; // Library IDs for document search
+  knowledge_scope?: 'all' | 'libraries' | 'attachments';
+  selected_library_ids?: string[];
   /** Application context metadata passed to agent tools (e.g. { projectId: "abc", appName: "busibox-projects" }) */
   metadata?: Record<string, any>;
 }
@@ -171,7 +173,6 @@ export type MessagePart =
       completedAt?: Date;
     }
   | { type: 'prompt'; options: string[]; promptType: 'confirm' | 'choice' | 'open' };
-
 
 
 

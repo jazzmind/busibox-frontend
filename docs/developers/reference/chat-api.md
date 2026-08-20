@@ -1,67 +1,78 @@
 # Chat API Reference
 
-Chat API reference for the agent-api service. All endpoints require Bearer token authentication via Zero Trust token exchange.
+The Python Agent API exposes the chat contract. Browser code normally reaches it through the Agents app catch-all proxy at `/agents/api/agent/*`; server components can call the internal Agent API directly with an audience-bound token.
 
-## Endpoints
+## Primary endpoints
 
-### Conversations
+| Method | Agent API path | Purpose |
+|---|---|---|
+| `GET` | `/agents` | List visible agents; Marine selects the active `chat` agent |
+| `GET` | `/conversations?limit=&offset=&source=` | List the current user's conversations |
+| `POST` | `/conversations` | Create a conversation |
+| `GET` | `/conversations/<id>` | Get a conversation with messages |
+| `PATCH` | `/conversations/<id>` | Update title/metadata supported by the backend schema |
+| `DELETE` | `/conversations/<id>` | Delete a conversation |
+| `GET` | `/conversations/<id>/messages` | Paginated message list |
+| `GET` | `/chat/<id>/history` | Chat-oriented history response used by the UI |
+| `POST` | `/chat/message` | Non-streaming response |
+| `POST` | `/chat/message/stream` | Standard SSE response |
+| `POST` | `/chat/message/stream/agentic` | Agentic SSE response used by Marine |
+| `GET` | `/chat/models` | Selectable chat models |
+| `POST` | `/chat/<id>/generate-insights` | Trigger insight generation |
+| `POST` | `/chat-attachments` | Create attachment metadata after file processing |
+| `GET` | `/chat-attachments/<id>` | Read attachment metadata |
+| `DELETE` | `/chat-attachments/<id>` | Delete attachment metadata |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/conversations` | List conversations. Params: `limit`, `offset` |
-| POST | `/conversations` | Create conversation. Body: `title`, `isPrivate` |
-| GET | `/conversations/[id]` | Get conversation with messages |
-| DELETE | `/conversations/[id]` | Delete conversation |
-| GET | `/conversations/[id]/messages` | Get message history. Params: `limit`, `offset` |
+Conversation sharing, settings, messages, insights, agents, runs, tools, tasks, workflows, and eval endpoints also live in the Agent API. Inspect the FastAPI routers in sibling `busibox/srv/agent/app/api` for the current full surface.
 
-### Chat
+## Agentic send request
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/chat/message/stream` | Send message with SSE streaming. Body: `conversationId`, `content`, `model`, `webSearch`, `docSearch`, `selectedLibraries` |
+The shared frontend type is `ChatMessageRequest` in `packages/app/src/types/chat.ts`. Important fields used by Marine are:
 
-**Stream events:**
-- `message` – content chunk
-- `done` – `messageId`
-- `error` – error payload
+- `message`
+- `conversation_id`
+- `model` (`auto` in the current Marine shell)
+- `selected_agents` (the active default Chat agent ID when found)
+- `attachment_ids`
+- `knowledge_scope` (`all`, `libraries`, or `attachments`)
+- `selected_library_ids` (exactly one accessible library ID when the scope is `libraries`)
+- `metadata.user_context.timezone` and `metadata.user_context.locale`
 
-## Data Models
+The Agent API enforces the administrator's `chat_model_routing_mode` platform setting (`local`, `auto`, or `frontier`). Marine continues to send `model: "auto"` for compatibility, but that browser field cannot override the administrator policy.
 
-### Conversation
+Document scope is user-controlled per chat request:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | string | Unique identifier |
-| ownerId | string | Owner user ID |
-| title | string | Conversation title |
-| isPrivate | boolean | Private flag |
-| createdAt | string | ISO timestamp |
-| updatedAt | string | ISO timestamp |
+- `all` searches every document the authenticated user can access.
+- `libraries` first asks Data API to validate the selected library and resolve its files under RLS, then searches only those server-resolved file IDs.
+- `attachments` searches only file IDs linked to the current chat attachments. An empty attachment or library scope returns no document results; it never broadens to all documents.
 
-### Message
+When changing a field, update the frontend type, request builder, FastAPI schema, route behavior, persistence mapping, and tests as one contract.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | string | Unique identifier |
-| conversationId | string | Parent conversation ID |
-| role | string | `user` \| `assistant` \| `system` |
-| content | string | Message content |
-| webSearchResults | object | Web search results (if applicable) |
-| docSearchResults | object | Document search results (if applicable) |
-| createdAt | string | ISO timestamp |
-| updatedAt | string | ISO timestamp |
+## Agentic SSE events
 
-## Client Integration
+| Event | Meaning |
+|---|---|
+| `conversation_created` | Backend created a conversation and returned its ID/title |
+| `title_update` | Default title was replaced from the first message |
+| `thought`, `plan`, `progress` | Dispatcher/agent progress and reasoning metadata |
+| `tool_start` | Tool execution began |
+| `tool_result` | Tool completed; `document_search` results may contain citations |
+| `content`, `content_chunk` | Interim or final assistant text |
+| `interim` | Non-final follow-up/status content |
+| `clarify_parallel`, `prompt` | A user choice/confirmation is requested |
+| `message_complete` | Final assistant message was persisted |
+| `complete` | Execution completed |
+| `error` | Stream failed |
 
-Use the `ChatPage` component from `@jazzmind/busibox-app` with `createAgentClient` for client-side integration.
+The shared parser is `packages/app/src/lib/agent/stream-event-processor.ts`. Treat it as the frontend source of truth for supported events.
 
-## Error Format
+The dispatcher emits a `thought` with `data.phase: "model_route"` and the effective `routing_mode`/model alias. The persisted assistant `routing_decision` also records `model_routing_mode` and `knowledge_scope`, which makes routing and scope auditable after the stream completes.
 
-```json
-{
-  "error": "string",
-  "details": "string"
-}
-```
+## Authentication path
 
-**Status codes:** 400, 401, 403, 404, 500
+1. Browser sends the `busibox-session` cookie to `/agents/api/agent/*`.
+2. The Agents app proxy exchanges it for an `agent-api` token.
+3. The proxy forwards `Authorization: Bearer <token>` to FastAPI.
+4. FastAPI resolves the `Principal` and applies user/ownership checks.
+
+Do not send an internal service URL or reusable Agent API token to the browser.

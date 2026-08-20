@@ -19,6 +19,7 @@ For people who build on or contribute to the busibox-frontend monorepo.
 ```
 developers/
   architecture/          # System design (00-overview through 07-workflows)
+  guides/                # Cross-cutting development and multi-agent runbooks
   reference/             # API specs, env vars, quick lookups
   apps/                  # Per-app docs (portal, admin, agents, etc.)
   packages/              # Shared package docs (busibox-app, shared)
@@ -44,6 +45,12 @@ For end users of the platform.
 2. **Documents** -- document management guide
 3. **Video Generation** -- creating videos with Sora-2
 4. **Authentication** -- TOTP and passkey setup
+
+### Chat development
+
+- `developers/architecture/02-chat.md` -- current Chat runtime and route map
+- `developers/reference/chat-api.md` -- Agent API and SSE contract
+- `developers/guides/chat-multi-agent-work.md` -- coordinated frontend/backend workflow
 
 ## File Conventions
 

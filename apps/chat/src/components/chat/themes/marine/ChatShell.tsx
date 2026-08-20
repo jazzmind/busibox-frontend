@@ -33,6 +33,7 @@ import { MarineMessages } from './Messages';
 import { MarineComposer } from './Composer';
 import { MarineSourcePanel } from './SourcePanel';
 import { MarineDebugToggle, useDebugMode } from './DebugToggle';
+import { buildKnowledgeScopeRequest, type KnowledgeScope } from './knowledge-scope';
 
 function mapConversation(conv: any): Conversation {
   return {
@@ -115,6 +116,8 @@ export function MarineChatShell({
     initialConversation,
   );
   const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [knowledgeScope, setKnowledgeScope] = useState<KnowledgeScope>('all');
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string>();
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [openCitation, setOpenCitation] = useState<{
     fileId: string;
@@ -345,6 +348,7 @@ export function MarineChatShell({
           model: 'auto',
           selected_agents: defaultAgentIds,
           attachment_ids: attachmentIds,
+          ...buildKnowledgeScopeRequest(knowledgeScope, selectedLibraryId),
           metadata: { user_context: browserContext },
         });
 
@@ -384,7 +388,15 @@ export function MarineChatShell({
         setMessages((prev) => prev.filter((m) => m.id !== tempUser.id));
       }
     },
-    [apiCall, ensureConversation, hookSendMessage, source, defaultAgentIds],
+    [
+      apiCall,
+      ensureConversation,
+      hookSendMessage,
+      source,
+      defaultAgentIds,
+      knowledgeScope,
+      selectedLibraryId,
+    ],
   );
 
   const handleCitationClick = useCallback(
@@ -483,6 +495,10 @@ export function MarineChatShell({
             isStreaming={isStreaming}
             conversationId={currentConversation?.id}
             onEnsureConversation={ensureConversation}
+            knowledgeScope={knowledgeScope}
+            selectedLibraryId={selectedLibraryId}
+            onKnowledgeScopeChange={setKnowledgeScope}
+            onSelectedLibraryChange={setSelectedLibraryId}
           />
         </div>
       </div>

@@ -99,6 +99,8 @@ interface CloudModelsData {
   provider_error?: string;
 }
 
+type ChatRoutingMode = 'local' | 'auto' | 'frontier';
+
 interface PurposesData {
   purposes: Record<string, string>;
   configurable_purposes: string[];
@@ -214,6 +216,12 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
   const [loadingInsightsConfig, setLoadingInsightsConfig] = useState(true);
   const [savingInsightsConfig, setSavingInsightsConfig] = useState(false);
 
+  // Administrator-enforced Chat app model routing policy
+  const [chatRoutingMode, setChatRoutingMode] = useState<ChatRoutingMode>('local');
+  const [loadingChatRoutingConfig, setLoadingChatRoutingConfig] = useState(true);
+  const [savingChatRoutingConfig, setSavingChatRoutingConfig] = useState(false);
+  const [chatRoutingError, setChatRoutingError] = useState<string | null>(null);
+
   // Provider key inputs
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -301,6 +309,7 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
       fetchPurposes(),
       fetchStreamingConfig(),
       fetchInsightsConfig(),
+      fetchChatRoutingConfig(),
       fetchMediaStatus(),
       fetchPlatformBackend(),
     ]);
@@ -459,6 +468,20 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
     }
   };
 
+  const fetchChatRoutingConfig = async () => {
+    try {
+      const res = await fetch('/api/chat-routing-config', { headers: { 'X-Quiet-Logs': '1' } });
+      if (!res.ok) throw new Error('Failed to load chat routing policy');
+      const data = await res.json();
+      setChatRoutingMode(data.data?.config?.mode ?? 'local');
+      setChatRoutingError(null);
+    } catch (error) {
+      setChatRoutingError(error instanceof Error ? error.message : 'Failed to load chat routing policy');
+    } finally {
+      setLoadingChatRoutingConfig(false);
+    }
+  };
+
   // =============================================================================
   // Handlers
   // =============================================================================
@@ -492,6 +515,25 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
       console.error('Error updating insights config:', e);
     } finally {
       setSavingInsightsConfig(false);
+    }
+  };
+
+  const handleChatRoutingChange = async (mode: ChatRoutingMode) => {
+    setSavingChatRoutingConfig(true);
+    setChatRoutingError(null);
+    try {
+      const res = await fetch('/api/chat-routing-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to save chat routing policy');
+      setChatRoutingMode(mode);
+    } catch (error) {
+      setChatRoutingError(error instanceof Error ? error.message : 'Failed to save chat routing policy');
+    } finally {
+      setSavingChatRoutingConfig(false);
     }
   };
 
@@ -1691,6 +1733,31 @@ export function AIModelsSettings({ section = 'status' }: { section?: 'status' | 
         </div>
 
         <div className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-lg">
+          <div className="min-w-0 flex-1 pr-4">
+            <div className="text-sm font-medium text-gray-900">Chat model routing</div>
+            <div className="text-xs text-gray-500 mt-0.5">
+              Enforced by Agent API for every Marine chat. Browser requests cannot override this policy.
+            </div>
+            {chatRoutingError && <div className="text-xs text-red-600 mt-1">{chatRoutingError}</div>}
+          </div>
+          {loadingChatRoutingConfig ? (
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
+          ) : (
+            <select
+              value={chatRoutingMode}
+              onChange={event => handleChatRoutingChange(event.target.value as ChatRoutingMode)}
+              disabled={savingChatRoutingConfig}
+              aria-label="Chat model routing"
+              className="min-w-36 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800 disabled:opacity-60"
+            >
+              <option value="local">Local only</option>
+              <option value="auto">Automatic</option>
+              <option value="frontier">Frontier</option>
+            </select>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-lg mt-2">
           <div>
             <div className="text-sm font-medium text-gray-900">Streaming Responses</div>
             <div className="text-xs text-gray-500 mt-0.5">

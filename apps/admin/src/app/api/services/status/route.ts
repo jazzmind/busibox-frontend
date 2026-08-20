@@ -28,6 +28,7 @@ const AUTHZ_BASE_URL = process.env.AUTHZ_BASE_URL || 'http://authz-api:8010';
 
 // --- Server-side response cache ---
 const CACHE_TTL_MS = 60_000; // 60 seconds
+const PROXMOX_HEALTH_TIMEOUT_MS = 12_000;
 
 let cachedResponse: { data: unknown; timestamp: number } | null = null;
 
@@ -425,7 +426,7 @@ async function buildFallbackFromHealthChecks(
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ service: serviceId }),
-        }, 5_000);
+        }, PROXMOX_HEALTH_TIMEOUT_MS);
         if (!res.ok) return { serviceId, healthy: false, reason: `http_${res.status}` };
         const payload = (await res.json()) as { healthy?: boolean; reason?: string };
         return { serviceId, healthy: payload.healthy === true, reason: payload.reason || '' };
