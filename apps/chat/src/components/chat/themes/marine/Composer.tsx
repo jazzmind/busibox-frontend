@@ -21,6 +21,16 @@ interface MarineComposerProps {
   placeholder?: string;
   conversationId?: string;
   onEnsureConversation?: () => Promise<string | null>;
+  knowledgeScope: 'all' | 'libraries' | 'attachments';
+  selectedLibraryId?: string;
+  onKnowledgeScopeChange: (scope: 'all' | 'libraries' | 'attachments') => void;
+  onSelectedLibraryChange: (libraryId?: string) => void;
+}
+
+interface KnowledgeLibrary {
+  id: string;
+  name: string;
+  isPersonal: boolean;
 }
 
 interface AttachmentDraft {
@@ -60,11 +70,16 @@ export function MarineComposer({
   placeholder = marineBrand.composerPlaceholder,
   conversationId,
   onEnsureConversation,
+  knowledgeScope,
+  selectedLibraryId,
+  onKnowledgeScopeChange,
+  onSelectedLibraryChange,
 }: MarineComposerProps) {
   const resolve = useCrossAppApiPath();
   const [content, setContent] = useState('');
   const [focused, setFocused] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
+  const [knowledgeLibraries, setKnowledgeLibraries] = useState<KnowledgeLibrary[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -74,6 +89,34 @@ export function MarineComposer({
     ta.style.height = 'auto';
     ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
   }, [content]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadLibraries = async () => {
+      try {
+        const response = await fetch(resolve('libraries', '/api/libraries'));
+        if (!response.ok) return;
+        const data = await response.json();
+        const rawLibraries = data.data?.libraries || data.libraries || [];
+        const libraries: KnowledgeLibrary[] = rawLibraries.map((library: any) => ({
+          id: String(library.id),
+          name: String(library.name),
+          isPersonal: Boolean(library.isPersonal ?? library.is_personal),
+        }));
+        if (cancelled) return;
+        setKnowledgeLibraries(libraries);
+        if (!selectedLibraryId && libraries.length > 0) {
+          onSelectedLibraryChange(libraries[0].id);
+        }
+      } catch (error) {
+        console.error('Failed to load knowledge libraries:', error);
+      }
+    };
+    loadLibraries();
+    return () => {
+      cancelled = true;
+    };
+  }, [resolve, selectedLibraryId, onSelectedLibraryChange]);
 
   const uploadFile = async (file: File, activeConversationId: string) => {
     const draftId = `attachment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -215,6 +258,63 @@ export function MarineComposer({
           className="rounded-[13px] px-4 py-2"
           style={{ backgroundColor: 'var(--marine-teal-tint)' }}
         >
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+            <label
+              htmlFor="marine-knowledge-scope"
+              className="font-medium"
+              style={{ color: 'var(--marine-text-muted)' }}
+            >
+              Knowledge
+            </label>
+            <select
+              id="marine-knowledge-scope"
+              value={knowledgeScope}
+              onChange={(event) =>
+                onKnowledgeScopeChange(
+                  event.target.value as 'all' | 'libraries' | 'attachments',
+                )
+              }
+              disabled={disabled || isStreaming}
+              className="rounded-md border px-2 py-1 outline-none"
+              style={{
+                backgroundColor: 'var(--marine-surface)',
+                color: 'var(--marine-text)',
+                borderColor: 'var(--marine-border)',
+              }}
+            >
+              <option value="all">All accessible documents</option>
+              <option value="libraries">Specific library</option>
+              <option value="attachments">Attachments only</option>
+            </select>
+            {knowledgeScope === 'libraries' && (
+              <select
+                value={selectedLibraryId || ''}
+                onChange={(event) =>
+                  onSelectedLibraryChange(event.target.value || undefined)
+                }
+                disabled={disabled || isStreaming || knowledgeLibraries.length === 0}
+                aria-label="Knowledge library"
+                className="min-w-44 rounded-md border px-2 py-1 outline-none"
+                style={{
+                  backgroundColor: 'var(--marine-surface)',
+                  color: 'var(--marine-text)',
+                  borderColor: 'var(--marine-border)',
+                }}
+              >
+                {knowledgeLibraries.length === 0 ? (
+                  <option value="">No accessible libraries</option>
+                ) : (
+                  knowledgeLibraries.map((library) => (
+                    <option key={library.id} value={library.id}>
+                      {library.name}
+                      {library.isPersonal ? ' (Personal)' : ''}
+                    </option>
+                  ))
+                )}
+              </select>
+            )}
+          </div>
+
           {attachments.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2">
               {attachments.map((attachment) => (

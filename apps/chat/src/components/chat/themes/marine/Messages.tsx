@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
+import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   FileText,
@@ -19,19 +19,84 @@ import type {
   MessagePart,
 } from '@jazzmind/busibox-app/types/chat';
 import { Tooltip } from './primitives/Tooltip';
-import { CitationPreview, type CitationPreviewData } from './primitives/CitationPreview';
+import type { CitationPreviewData } from './primitives/CitationPreview';
 import { MarineDebugPanel } from './DebugPanel';
 import { MarineAttachmentStatus } from './AttachmentStatus';
 
-const DOC_LINK_RE = /^doc:([^:]+)(?::(\d+))?$/;
+const INLINE_DOCUMENT_CITATION_RE = /\s*\[[^\]]+\]\(doc:[^)]+\)/g;
+const STREAMING_ACTIVITY_LABELS = [
+  'Reviewing',
+  'Gathering',
+  'Synthesizing',
+  'Curating',
+  'Connecting',
+  'Composing',
+];
 
-const preserveDocUrl = (url: string): string =>
-  url.startsWith('doc:') ? url : defaultUrlTransform(url);
+function stripInlineDocumentCitations(content: string): string {
+  return content.replace(INLINE_DOCUMENT_CITATION_RE, '').replace(/[ \t]+\n/g, '\n');
+}
+
+function MarkdownAnchor({
+  href,
+  children,
+  ...rest
+}: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
+  return (
+    <a
+      {...rest}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ color: 'var(--marine-teal)' }}
+    >
+      {children}
+    </a>
+  );
+}
 
 export type CitationPreviewLookup = (
   fileId: string,
   page?: number,
 ) => CitationPreviewData | undefined;
+
+function StreamingActivity() {
+  const [labelIndex, setLabelIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setLabelIndex((current) => {
+        if (STREAMING_ACTIVITY_LABELS.length < 2) return current;
+        const offset = 1 + Math.floor(Math.random() * (STREAMING_ACTIVITY_LABELS.length - 1));
+        return (current + offset) % STREAMING_ACTIVITY_LABELS.length;
+      });
+    }, 1400);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="mt-2 inline-flex items-center gap-2 text-xs font-medium"
+      style={{ color: 'var(--marine-text-muted)' }}
+    >
+      <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
+        <span
+          className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-35"
+          style={{ backgroundColor: 'var(--marine-teal)' }}
+        />
+        <span
+          className="relative inline-flex h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: 'var(--marine-teal)' }}
+        />
+      </span>
+      <span key={labelIndex} className="marineStatusBlink">
+        {STREAMING_ACTIVITY_LABELS[labelIndex]}…
+      </span>
+    </div>
+  );
+}
 
 interface MarineMessagesProps {
   messages: Message[];
@@ -43,99 +108,10 @@ interface MarineMessagesProps {
   isLoading?: boolean;
   activeCitation?: { fileId: string; page?: number } | null;
   onCitationClick: (fileId: string, page?: number) => void;
-  /** Optional hover-preview data for a given citation. If omitted, no preview shows. */
+  /** Retained for consumers that prepare preview data; footer sources are canonical. */
   getCitationPreview?: CitationPreviewLookup;
   /** When true, render debug panels (step timeline, thoughts, tool cards, routing). */
   debugMode?: boolean;
-}
-
-interface CitationChipProps {
-  index: number;
-  label: React.ReactNode;
-  preview?: CitationPreviewData;
-  onClick: () => void;
-}
-
-function CitationChip({ index, label, preview, onClick }: CitationChipProps) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <span
-      className="relative inline-flex"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onFocusCapture={() => setOpen(true)}
-      onBlurCapture={() => setOpen(false)}
-    >
-      <button
-        type="button"
-        onClick={onClick}
-        className="ml-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[6px] px-1 text-[10px] font-semibold transition-colors hover:brightness-95"
-        style={{ backgroundColor: 'var(--marine-teal-light)', color: 'var(--marine-teal-dark)' }}
-        aria-label="View source"
-      >
-        {index > 0 ? index : label}
-      </button>
-      {preview && <CitationPreview open={open} data={preview} />}
-    </span>
-  );
-}
-
-function makeCitationRenderer(
-  citations: MessageCitation[] | undefined,
-  onCitationClick: (fileId: string, page?: number) => void,
-  getCitationPreview?: CitationPreviewLookup,
-) {
-  return function CitationAnchor({
-    href,
-    children,
-    ...rest
-  }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
-    if (href) {
-      const match = DOC_LINK_RE.exec(href);
-      if (match) {
-        const fileId = match[1];
-        const page = match[2] ? parseInt(match[2], 10) : undefined;
-        const idx =
-          (citations || []).findIndex(
-            (c) => c.fileId === fileId && (page === undefined || c.page === page),
-          ) + 1;
-        const citation = (citations || []).find(
-          (c) => c.fileId === fileId && (page === undefined || c.page === page),
-        );
-        const preview = getCitationPreview?.(fileId, page) ||
-          (citation?.snippet
-            ? {
-                filename: citation.filename || 'Source',
-                page: citation.page,
-                snippet: citation.snippet,
-                effectiveLabel: citation.source,
-              }
-            : undefined);
-        return (
-          <sup>
-            <CitationChip
-              index={idx}
-              label={children}
-              preview={preview}
-              onClick={() => onCitationClick(fileId, page)}
-            />
-          </sup>
-        );
-      }
-    }
-    return (
-      <a
-        {...rest}
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ color: 'var(--marine-teal)' }}
-      >
-        {children}
-      </a>
-    );
-  };
 }
 
 interface SourcePillsProps {
@@ -162,10 +138,10 @@ function SourcePills({ citations, activeCitation, onCitationClick }: SourcePills
           activeCitation &&
           activeCitation.fileId === c.fileId &&
           (activeCitation.page ?? undefined) === (c.page ?? undefined);
-        const label = `${c.filename || 'Source'}${c.page ? ` · p.${c.page}` : ''}`;
+        const label = c.filename || 'Source';
         return (
           <button
-            key={`${c.fileId}-${c.page ?? idx}`}
+            key={c.fileId}
             type="button"
             onClick={() => onCitationClick(c.fileId, c.page)}
             className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-all hover:brightness-95 active:scale-[0.98]"
@@ -175,38 +151,17 @@ function SourcePills({ citations, activeCitation, onCitationClick }: SourcePills
               color: isActive ? 'var(--marine-teal-dark)' : 'var(--marine-text-body)',
             }}
           >
+            <span
+              className="inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold"
+              style={{ backgroundColor: 'var(--marine-teal-light)', color: 'var(--marine-teal-dark)' }}
+            >
+              {idx + 1}
+            </span>
             <FileText className="h-3.5 w-3.5" style={{ color: 'var(--marine-teal)' }} />
             {label}
           </button>
         );
       })}
-    </div>
-  );
-}
-
-function SourcePlaceholder() {
-  return (
-    <div
-      className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3"
-      style={{ borderColor: 'var(--marine-border)' }}
-    >
-      <span
-        className="text-[10px] font-bold uppercase tracking-wider"
-        style={{ color: 'var(--marine-text-subtle)', letterSpacing: '0.08em' }}
-      >
-        Sources
-      </span>
-      <span
-        className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium"
-        style={{
-          borderColor: 'var(--marine-border)',
-          backgroundColor: 'var(--marine-surface)',
-          color: 'var(--marine-text-subtle)',
-        }}
-      >
-        <FileText className="h-3.5 w-3.5" style={{ color: 'var(--marine-text-subtle)' }} />
-        Sources pending
-      </span>
     </div>
   );
 }
@@ -319,7 +274,6 @@ export function MarineMessages({
   isLoading,
   activeCitation = null,
   onCitationClick,
-  getCitationPreview,
   debugMode = false,
 }: MarineMessagesProps) {
   const endRef = useRef<HTMLDivElement>(null);
@@ -370,11 +324,7 @@ export function MarineMessages({
           );
         }
 
-        const renderer = makeCitationRenderer(
-          message.citations,
-          onCitationClick,
-          getCitationPreview,
-        );
+        const cleanContent = stripInlineDocumentCitations(message.content);
         const isLast = idx === messages.length - 1;
         return (
           <div
@@ -403,10 +353,9 @@ export function MarineMessages({
             >
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
-                urlTransform={preserveDocUrl}
-                components={{ a: renderer }}
+                components={{ a: MarkdownAnchor }}
               >
-                {message.content}
+                {cleanContent}
               </ReactMarkdown>
             </div>
 
@@ -416,11 +365,9 @@ export function MarineMessages({
                 activeCitation={activeCitation}
                 onCitationClick={onCitationClick}
               />
-            ) : (
-              <SourcePlaceholder />
-            )}
+            ) : null}
 
-            <MessageActions content={message.content} />
+            <MessageActions content={cleanContent} />
           </div>
         );
       })}
@@ -447,53 +394,21 @@ export function MarineMessages({
             style={{ color: 'var(--marine-text)' }}
           >
             {streamingContent ? (
-              <>
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  urlTransform={preserveDocUrl}
-                  components={{
-                    a: makeCitationRenderer(
-                      streamingCitations,
-                      onCitationClick,
-                      getCitationPreview,
-                    ),
-                  }}
-                >
-                  {streamingContent}
-                </ReactMarkdown>
-                <span
-                  className="ml-1 inline-block h-4 w-[3px] animate-pulse rounded-sm align-middle"
-                  style={{ backgroundColor: 'var(--marine-teal)' }}
-                />
-              </>
-            ) : (
-              <div className="flex items-center gap-2" style={{ color: 'var(--marine-text-muted)' }}>
-                <span className="flex gap-1">
-                  <span
-                    className="h-2 w-2 animate-bounce rounded-full"
-                    style={{ backgroundColor: 'var(--marine-teal)', animationDelay: '0ms' }}
-                  />
-                  <span
-                    className="h-2 w-2 animate-bounce rounded-full"
-                    style={{ backgroundColor: 'var(--marine-teal)', animationDelay: '150ms' }}
-                  />
-                  <span
-                    className="h-2 w-2 animate-bounce rounded-full"
-                    style={{ backgroundColor: 'var(--marine-teal)', animationDelay: '300ms' }}
-                  />
-                </span>
-                <span className="text-sm">Thinking…</span>
-              </div>
-            )}
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{ a: MarkdownAnchor }}
+              >
+                {stripInlineDocumentCitations(streamingContent)}
+              </ReactMarkdown>
+            ) : null}
           </div>
+          <StreamingActivity />
           {streamingCitations && streamingCitations.length > 0 ? (
             <SourcePills
               citations={dedupeCitations(streamingCitations)}
               activeCitation={activeCitation}
               onCitationClick={onCitationClick}
             />
-          ) : streamingContent ? (
-            <SourcePlaceholder />
           ) : null}
         </div>
       )}
@@ -511,17 +426,24 @@ export function MarineMessages({
             transform: translateY(0);
           }
         }
+        @keyframes marineStatusBlink {
+          0%, 100% { opacity: 0.55; }
+          50% { opacity: 1; }
+        }
+        .marineStatusBlink {
+          animation: marineStatusBlink 1.1s ease-in-out infinite;
+        }
       `}</style>
     </div>
   );
 }
 
-/** De-duplicates citations by fileId+page. */
+/** De-duplicates citations by document; the retained page is still used when opening it. */
 function dedupeCitations(citations: MessageCitation[]): MessageCitation[] {
   const seen = new Set<string>();
   const out: MessageCitation[] = [];
   for (const c of citations) {
-    const key = `${c.fileId}:${c.page ?? ''}`;
+    const key = c.fileId;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(c);

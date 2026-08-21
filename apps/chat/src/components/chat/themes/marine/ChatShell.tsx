@@ -33,6 +33,11 @@ import { MarineMessages } from './Messages';
 import { MarineComposer } from './Composer';
 import { MarineSourcePanel } from './SourcePanel';
 import { MarineDebugToggle, useDebugMode } from './DebugToggle';
+import {
+  buildKnowledgeScopeRequest,
+  readKnowledgeAuthority,
+  type KnowledgeScope,
+} from './knowledge-scope';
 
 function mapConversation(conv: any): Conversation {
   return {
@@ -52,7 +57,8 @@ function mapConversation(conv: any): Conversation {
 }
 
 function mapMessage(msg: any): Message {
-  const rawCitations: any[] = msg.routing_decision?.citations || [];
+  const rawCitations: any[] =
+    msg.routing_decision?.citations || msg.routingDecision?.citations || msg.citations || [];
   return {
     id: msg.id,
     conversationId: msg.conversation_id || msg.conversationId,
@@ -106,6 +112,14 @@ export function MarineChatShell({
   conversationQueryParam = 'conversation',
 }: MarineChatShellProps) {
   const resolve = useCrossAppApiPath();
+  const normalizedInitialMessages = useMemo(
+    () => initialMessages.map(mapMessage),
+    [initialMessages],
+  );
+  const initialKnowledgeAuthority = useMemo(
+    () => readKnowledgeAuthority(normalizedInitialMessages),
+    [normalizedInitialMessages],
+  );
 
   const [collapsed, setCollapsed] = useState(false);
   const [debugMode, setDebugMode] = useDebugMode();
@@ -114,7 +128,13 @@ export function MarineChatShell({
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(
     initialConversation,
   );
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>(normalizedInitialMessages);
+  const [knowledgeScope, setKnowledgeScope] = useState<KnowledgeScope>(
+    initialKnowledgeAuthority.scope,
+  );
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string | undefined>(
+    initialKnowledgeAuthority.selectedLibraryId,
+  );
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [openCitation, setOpenCitation] = useState<{
     fileId: string;
@@ -221,7 +241,11 @@ export function MarineChatShell({
         const data = await res.json();
         const mapped = (data.messages || []).map(mapMessage);
         if (currentConversationRef.current === conv.id) {
+          const authority = readKnowledgeAuthority(mapped);
           setMessages(mapped);
+          setKnowledgeScope(authority.scope);
+          setSelectedLibraryId(authority.selectedLibraryId);
+          setOpenCitation(null);
         }
       } catch (e) {
         console.error('Failed to load messages', e);
@@ -267,6 +291,9 @@ export function MarineChatShell({
       setConversations((prev) => [newConv, ...prev]);
       setCurrentConversation(newConv);
       setMessages([]);
+      setKnowledgeScope('all');
+      setSelectedLibraryId(undefined);
+      setOpenCitation(null);
       updateUrl(newConv.id);
     } catch (e) {
       console.error(e);
@@ -278,13 +305,22 @@ export function MarineChatShell({
     async (conv: Conversation) => {
       // Optimistic remove — snap the row out of the list before the request
       // resolves so the click feels instant. Restore on failure.
-      const snapshot = { conversations, currentConversation };
+      const snapshot = {
+        conversations,
+        currentConversation,
+        messages,
+        knowledgeScope,
+        selectedLibraryId,
+      };
       const wasCurrent = currentConversation?.id === conv.id;
       setConversations((prev) => prev.filter((c) => c.id !== conv.id));
       if (wasCurrent) {
         currentConversationRef.current = null;
         setCurrentConversation(null);
         setMessages([]);
+        setKnowledgeScope('all');
+        setSelectedLibraryId(undefined);
+        setOpenCitation(null);
         updateUrl(null);
       }
 
@@ -298,12 +334,23 @@ export function MarineChatShell({
         setConversations(snapshot.conversations);
         if (wasCurrent && snapshot.currentConversation) {
           setCurrentConversation(snapshot.currentConversation);
+          setMessages(snapshot.messages);
+          setKnowledgeScope(snapshot.knowledgeScope);
+          setSelectedLibraryId(snapshot.selectedLibraryId);
           currentConversationRef.current = snapshot.currentConversation.id;
           updateUrl(snapshot.currentConversation.id);
         }
       }
     },
-    [apiCall, conversations, currentConversation, updateUrl],
+    [
+      apiCall,
+      conversations,
+      currentConversation,
+      knowledgeScope,
+      messages,
+      selectedLibraryId,
+      updateUrl,
+    ],
   );
 
   const handleSendMessage = useCallback(
@@ -345,6 +392,7 @@ export function MarineChatShell({
           model: 'auto',
           selected_agents: defaultAgentIds,
           attachment_ids: attachmentIds,
+          ...buildKnowledgeScopeRequest(knowledgeScope, selectedLibraryId),
           metadata: { user_context: browserContext },
         });
 
@@ -384,7 +432,15 @@ export function MarineChatShell({
         setMessages((prev) => prev.filter((m) => m.id !== tempUser.id));
       }
     },
-    [apiCall, ensureConversation, hookSendMessage, source, defaultAgentIds],
+    [
+      apiCall,
+      ensureConversation,
+      hookSendMessage,
+      source,
+      defaultAgentIds,
+      knowledgeScope,
+      selectedLibraryId,
+    ],
   );
 
   const handleCitationClick = useCallback(
@@ -483,6 +539,10 @@ export function MarineChatShell({
             isStreaming={isStreaming}
             conversationId={currentConversation?.id}
             onEnsureConversation={ensureConversation}
+            knowledgeScope={knowledgeScope}
+            selectedLibraryId={selectedLibraryId}
+            onKnowledgeScopeChange={setKnowledgeScope}
+            onSelectedLibraryChange={setSelectedLibraryId}
           />
         </div>
       </div>
