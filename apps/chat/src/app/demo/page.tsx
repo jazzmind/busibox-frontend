@@ -274,6 +274,9 @@ export default function DemoPage() {
     filename?: string;
   } | null>(null);
   const [sourceMaximized, setSourceMaximized] = useState(false);
+  const [knowledgeScope, setKnowledgeScope] =
+    useState<'all' | 'libraries' | 'attachments'>('all');
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string>();
 
   const streamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -436,6 +439,10 @@ export default function DemoPage() {
                 onSend={handleSendMessage}
                 onStop={stopStream}
                 isStreaming={isThinking || !!streaming}
+                knowledgeScope={knowledgeScope}
+                selectedLibraryId={selectedLibraryId}
+                onKnowledgeScopeChange={setKnowledgeScope}
+                onSelectedLibraryChange={setSelectedLibraryId}
               />
             </div>
           </div>
