@@ -52,3 +52,6 @@ next-env.d.ts
 
 # Prisma
 prisma/generated/
+
+# HubSpot CLI local config (contains a personal access key)
+hubspot.config.yml
