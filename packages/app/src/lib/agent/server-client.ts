@@ -527,6 +527,9 @@ export interface ChatSettings {
   temperature: number;
   max_tokens: number;
   insights_enabled: boolean;
+  /** Email when a chat turn finishes while the user is not attached to it. */
+  notify_email_on_completion?: boolean;
+  memory_enabled?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -543,6 +546,8 @@ export async function updateChatSettings(
     temperature?: number;
     max_tokens?: number;
     insights_enabled?: boolean;
+    notify_email_on_completion?: boolean;
+    memory_enabled?: boolean;
   },
   token?: string
 ) {

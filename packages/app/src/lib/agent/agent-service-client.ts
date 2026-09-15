@@ -167,6 +167,13 @@ export function createAgentClient(config: AgentClientConfig) {
         createdAt: new Date(conv.created_at),
         updatedAt: new Date(conv.updated_at),
         lastMessageAt: conv.last_message?.created_at ? new Date(conv.last_message.created_at) : undefined,
+        lastMessage: conv.last_message
+          ? {
+              role: conv.last_message.role,
+              content: conv.last_message.content ?? '',
+              createdAt: new Date(conv.last_message.created_at),
+            }
+          : undefined,
         messageCount: conv.message_count || 0,
         model: conv.model,
         metadata: conv.metadata,

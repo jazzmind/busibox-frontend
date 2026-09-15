@@ -34,7 +34,7 @@ import toast from 'react-hot-toast';
 import { MessageList } from './MessageList';
 import type { ThoughtEvent } from './ThinkingToggle';
 import { stripThinkTags } from './chat-utils';
-import { sendChatMessage, streamChatMessageAgentic, getConversationHistory } from '../../lib/agent/chat-client';
+import { sendChatMessage, streamChatMessageAgentic, stopTurn, getConversationHistory } from '../../lib/agent/chat-client';
 import { createAccumulator, processStreamEvent } from '../../lib/agent/stream-event-processor';
 import type { ChatMessageRequest, Message, Attachment, MessagePart } from '../../types/chat';
 
@@ -118,6 +118,7 @@ export function ChatInterface({
   const [conversationId, setConversationId] = useState<string | undefined>(initialConversationId);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const activeTurnIdRef = useRef<string | undefined>(undefined);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [showVoiceComingSoon, setShowVoiceComingSoon] = useState(false);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
@@ -251,6 +252,16 @@ export function ChatInterface({
 
         for await (const event of streamChatMessageAgentic(request, { token: tokenRef.current, agentUrl, signal: controller.signal })) {
           const parsed = event.data;
+
+          // The turn runs server-side; remember its id so Stop can end it there too.
+          if (event.type === 'turn_started') {
+            activeTurnIdRef.current = parsed?.turn_id;
+            continue;
+          }
+          if (event.type === 'turn_finished') {
+            activeTurnIdRef.current = undefined;
+            continue;
+          }
 
           // message_complete and error have ChatInterface-specific side effects
           // (creating DisplayMessages, toasts) so they're handled inline.
@@ -459,6 +470,9 @@ export function ChatInterface({
   };
   
   const handleCancel = () => {
+    if (activeTurnIdRef.current) {
+      stopTurn(activeTurnIdRef.current, { token: tokenRef.current, agentUrl }).catch(() => undefined);
+    }
     if (abortController) {
       abortController.abort();
     }

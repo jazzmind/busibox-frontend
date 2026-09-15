@@ -25,9 +25,17 @@ export interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   lastMessageAt?: Date;
+  /** Short preview of the most recent message (served by GET /conversations). */
+  lastMessage?: ConversationMessagePreview;
   messageCount: number;
   model?: string;
   metadata?: Record<string, any>;
+}
+
+export interface ConversationMessagePreview {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  createdAt: Date;
 }
 
 export interface ThoughtEvent {

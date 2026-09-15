@@ -151,46 +151,39 @@ export async function* streamChatMessage(
 }
 
 /**
- * Stream a chat message using the agentic dispatcher (Server-Sent Events)
- * 
- * This provides a more interactive experience with real-time thoughts and tool progress.
- * 
- * Event types:
- * - thought: Dispatcher/agent reasoning (for collapsible thinking section)
- * - tool_start: Starting a tool execution
- * - tool_result: Tool completed with result
- * - content: Final response content (streams to chat message)
- * - complete: Execution finished
- * - error: Error occurred
- * - conversation_created: New conversation was created
- * - message_complete: Message saved to database
+ * Parsed Server-Sent Event from a chat turn stream.
+ *
+ * `id` is the server's event cursor (present on every frame since turns became
+ * server-side jobs); pass the last one seen to `streamTurn` to resume.
  */
-export async function* streamChatMessageAgentic(
-  request: ChatMessageRequest,
-  options: ChatClientOptions = {}
-): AsyncGenerator<{ type: string; data: any }> {
-  const response = await chatFetch('/chat/message/stream/agentic', {
-    ...options,
-    method: 'POST',
-    body: JSON.stringify(request),
-    timeout: 120000, // Longer timeout for agentic operations
-  });
+export interface ChatStreamEvent {
+  type: string;
+  data: any;
+  id?: string;
+}
 
+/**
+ * Read an SSE body into typed events. Handles `id:`, `event:` and `data:`
+ * lines; tolerates chunk boundaries anywhere.
+ */
+export async function* readSseEvents(
+  response: Response,
+  signal?: AbortSignal
+): AsyncGenerator<ChatStreamEvent> {
   if (!response.body) {
     throw new Error('Response body is null');
   }
-
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   let eventType = '';
+  let eventId: string | undefined;
 
   try {
     while (true) {
-      if (options.signal?.aborted) {
+      if (signal?.aborted) {
         break;
       }
-      
       const { done, value } = await reader.read();
       if (done) break;
 
@@ -199,23 +192,109 @@ export async function* streamChatMessageAgentic(
       buffer = lines.pop() || '';
 
       for (const line of lines) {
-        if (line.startsWith('event:')) {
+        if (line.startsWith('id:')) {
+          eventId = line.slice(3).trim() || undefined;
+        } else if (line.startsWith('event:')) {
           eventType = line.slice(6).trim();
         } else if (line.startsWith('data:')) {
           const data = line.slice(5).trim();
           if (data && eventType) {
             try {
-              yield { type: eventType, data: JSON.parse(data) };
+              yield { type: eventType, data: JSON.parse(data), id: eventId };
             } catch (e) {
               console.error('Failed to parse SSE data:', e);
             }
           }
+        } else if (line === '') {
+          // frame boundary: reset per-frame fields (id persists only within a frame)
+          eventId = undefined;
+          eventType = '';
         }
       }
     }
   } finally {
     reader.releaseLock();
   }
+}
+
+/**
+ * Stream a chat message using the agentic dispatcher (Server-Sent Events).
+ *
+ * The turn runs server-side; this stream is a subscription to it. If the
+ * connection drops, the turn keeps running — capture `turn_started.data.turn_id`
+ * and the last event `id`, then call `streamTurn` to resume.
+ *
+ * Event types:
+ * - turn_started: first event; `turn_id` for reattaching
+ * - conversation_created / title_update
+ * - thought, plan, progress, tool_start, tool_result, content, prompt,
+ *   clarify_parallel, interim, error
+ * - message_complete: assistant message saved (`message_id`)
+ * - turn_finished: terminal; `status` completed | failed | cancelled | interrupted
+ */
+export async function* streamChatMessageAgentic(
+  request: ChatMessageRequest,
+  options: ChatClientOptions = {}
+): AsyncGenerator<ChatStreamEvent> {
+  const response = await chatFetch('/chat/message/stream/agentic', {
+    ...options,
+    method: 'POST',
+    body: JSON.stringify(request),
+    timeout: 120000, // time to first byte; cleared once the stream starts
+  });
+  yield* readSseEvents(response, options.signal ?? undefined);
+}
+
+/**
+ * Reattach to a turn's event stream, replaying everything after `afterId`
+ * (or from the beginning) and following it live until it finishes.
+ */
+export async function* streamTurn(
+  turnId: string,
+  afterId: string | undefined,
+  options: ChatClientOptions = {}
+): AsyncGenerator<ChatStreamEvent> {
+  const qs = afterId ? `?after=${encodeURIComponent(afterId)}` : '';
+  const response = await chatFetch(`/chat/turns/${turnId}/stream${qs}`, {
+    ...options,
+    method: 'GET',
+    timeout: 60000,
+  });
+  yield* readSseEvents(response, options.signal ?? undefined);
+}
+
+export interface ChatTurnInfo {
+  id: string;
+  conversation_id: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
+  query: string;
+  user_message_id?: string | null;
+  assistant_message_id?: string | null;
+  error?: string | null;
+  event_count: number;
+  last_event_id?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+}
+
+/** The running turn in a conversation, or null. */
+export async function getActiveTurn(
+  conversationId: string,
+  options: ChatClientOptions = {}
+): Promise<ChatTurnInfo | null> {
+  const response = await chatFetch(`/chat/${conversationId}/active-turn`, { ...options, method: 'GET' });
+  const data = await response.json();
+  return (data && data.turn) || null;
+}
+
+export async function getTurn(turnId: string, options: ChatClientOptions = {}): Promise<ChatTurnInfo> {
+  const response = await chatFetch(`/chat/turns/${turnId}`, { ...options, method: 'GET' });
+  return response.json();
+}
+
+/** Ask the server to stop a running turn (partial output is kept). */
+export async function stopTurn(turnId: string, options: ChatClientOptions = {}): Promise<void> {
+  await chatFetch(`/chat/turns/${turnId}/stop`, { ...options, method: 'POST' });
 }
 
 /**
