@@ -8,7 +8,7 @@
  * to serve files through a browser-reachable URL instead of internal
  * MinIO presigned URLs.
  *
- * URL pattern: /portal/api/media/{fileId}
+ * URL pattern: /media/api/media/{fileId}[?download=1]
  */
 
 import { NextRequest } from 'next/server';
@@ -29,6 +29,7 @@ export async function GET(
     setSessionJwtForUser(user.id, sessionJwt);
 
     const { fileId } = await params;
+    const download = request.nextUrl.searchParams.get('download') === '1';
 
     // Download from data-api - RLS will verify ownership/access
     const response = await dataFetch(
@@ -40,12 +41,19 @@ export async function GET(
     );
 
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    // `?download=1` (generated Excel/Word files): keep data-api's
+    // `attachment; filename="<original name>"` so the browser saves the file
+    // under its real name instead of rendering it inline.
+    const upstreamDisposition = response.headers.get('content-disposition');
+    const contentDisposition = download
+      ? upstreamDisposition || 'attachment'
+      : 'inline';
 
     return new Response(response.body, {
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': 'inline',
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Content-Disposition': contentDisposition,
+        'Cache-Control': download ? 'private, max-age=0' : 'public, max-age=31536000, immutable',
       },
     });
   } catch (error: unknown) {
