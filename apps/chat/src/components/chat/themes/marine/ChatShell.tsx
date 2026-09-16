@@ -25,6 +25,7 @@ import type {
   Conversation,
   Message,
   MessageAttachment,
+  MessagePart,
 } from '@jazzmind/busibox-app/types/chat';
 import { stripThinkTags } from '@jazzmind/busibox-app/components/chat/chat-utils';
 
@@ -38,6 +39,8 @@ import { MarineDebugToggle, useDebugMode } from './DebugToggle';
 import { MarineNotifyToggle } from './NotifyToggle';
 import { MarineMemoryToggle } from './MemoryToggle';
 import { MarineMemoryPanel } from './MemoryPanel';
+import { MarineShareButton } from './ShareButton';
+import { Eye } from 'lucide-react';
 
 function mapConversation(conv: any): Conversation {
   return {
@@ -60,7 +63,58 @@ function mapConversation(conv: any): Conversation {
     messageCount: conv.message_count ?? conv.messageCount ?? 0,
     model: conv.model,
     metadata: conv.metadata,
+    linkAccess: conv.link_access ?? conv.linkAccess,
+    accessRole: conv.access_role ?? conv.accessRole ?? undefined,
   };
+}
+
+/**
+ * Rebuild `tool_call` parts for a stored assistant message so the activity
+ * summary ("Searched documents · Searched the web") also shows for history.
+ *
+ * The agentic stream endpoint persists tool events inside
+ * `routing_decision.thoughts` as `{type:'tool_result', source, message, data?}`;
+ * the legacy endpoints persist raw `tool_result` payloads in `tool_calls`.
+ * Both are handled; live-streamed `parts` win when present.
+ */
+function partsFromStoredMessage(msg: any, existing?: MessagePart[]): MessagePart[] | undefined {
+  if (existing && existing.length) return existing;
+  const out: MessagePart[] = [];
+
+  const thoughts: any[] = msg?.routing_decision?.thoughts || msg?.thoughts || [];
+  thoughts.forEach((t: any, i: number) => {
+    if (t?.type !== 'tool_result') return;
+    const data = t.data || {};
+    const name = String(data.tool_name || t.source || 'tool');
+    const failed = data.success === false;
+    out.push({
+      type: 'tool_call' as const,
+      id: `stored-thought-${i}-${name}`,
+      name,
+      displayName: String(data.display_name || name),
+      status: failed ? ('error' as const) : ('completed' as const),
+      error: failed ? String(t.message || 'Failed') : undefined,
+    });
+  });
+  if (out.length) return out;
+
+  const toolCalls: any[] = msg?.tool_calls || msg?.toolCalls || [];
+  toolCalls.forEach((tc: any, i: number) => {
+    // Legacy shape: the event payload itself ({tool_name, success, ...}),
+    // sometimes wrapped as {source, data:{...}}.
+    const data = tc?.data && typeof tc.data === 'object' ? tc.data : tc || {};
+    const name = String(data.tool_name || data.display_name || tc?.source || 'tool');
+    const failed = data.success === false;
+    out.push({
+      type: 'tool_call' as const,
+      id: `stored-tool-${i}-${name}`,
+      name,
+      displayName: String(data.display_name || name),
+      status: failed ? ('error' as const) : ('completed' as const),
+      error: failed ? String(tc?.message || data.error || 'Failed') : undefined,
+    });
+  });
+  return out.length ? out : undefined;
 }
 
 function mapMessage(msg: any): Message {
@@ -73,6 +127,7 @@ function mapMessage(msg: any): Message {
     model: msg.model,
     agentName: msg.agent_name || msg.agentName,
     thoughts: msg.routing_decision?.thoughts || msg.thoughts,
+    parts: partsFromStoredMessage(msg, msg.parts),
     routingDecision: msg.routing_decision || msg.routingDecision,
     toolCalls: msg.tool_calls || msg.toolCalls,
     runId: msg.run_id || msg.runId,
@@ -129,6 +184,8 @@ export function MarineChatShell({
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
+  // Bumped to ask the composer to focus its textarea ("Something else…" chip).
+  const [composerFocusSignal, setComposerFocusSignal] = useState(0);
   const [openCitation, setOpenCitation] = useState<{
     fileId: string;
     page?: number;
@@ -448,6 +505,8 @@ export function MarineChatShell({
             content: cleaned,
             agentName: result.agentName,
             citations: result.citations.length > 0 ? result.citations : undefined,
+            thoughts: result.thoughts?.length ? result.thoughts : undefined,
+            parts: result.parts?.length ? result.parts : undefined,
             createdAt: new Date(),
           };
           setMessages((prev) => {
@@ -493,22 +552,41 @@ export function MarineChatShell({
     [apiCall, ensureConversation, hookSendMessage, reloadMessages, source, defaultAgentIds],
   );
 
-  const handleCitationClick = useCallback(
-    (fileId: string, page?: number) => {
-      // Try to find filename from the clicked source first, then any older assistant citation.
-      const lastCitations =
-        [...messages].reverse().find((m) => m.role === 'assistant' && m.citations)
-          ?.citations || [];
-      const streamingMatch = streamState.citations.find(
-        (c) => c.fileId === fileId && (page === undefined || c.page === page),
-      );
-      const match = lastCitations.find(
-        (c) => c.fileId === fileId && (page === undefined || c.page === page),
-      );
-      setOpenCitation({ fileId, page, filename: streamingMatch?.filename || match?.filename });
-    },
-    [messages, streamState.citations],
+  // Read through refs so the callback identity is stable — it is a prop of
+  // every memoised AssistantMessage, and a new identity per stream chunk
+  // would re-render the whole history.
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const streamingCitationsRef = useRef(streamState.citations);
+  streamingCitationsRef.current = streamState.citations;
+
+  const handleCitationClick = useCallback((fileId: string, page?: number) => {
+    // Try to find filename from the clicked source first, then any older assistant citation.
+    const lastCitations =
+      [...messagesRef.current].reverse().find((m) => m.role === 'assistant' && m.citations)
+        ?.citations || [];
+    const streamingMatch = streamingCitationsRef.current.find(
+      (c) => c.fileId === fileId && (page === undefined || c.page === page),
+    );
+    const match = lastCitations.find(
+      (c) => c.fileId === fileId && (page === undefined || c.page === page),
+    );
+    setOpenCitation({ fileId, page, filename: streamingMatch?.filename || match?.filename });
+  }, []);
+
+  const activeCitation = useMemo(
+    () => (openCitation ? { fileId: openCitation.fileId, page: openCitation.page } : null),
+    [openCitation?.fileId, openCitation?.page], // eslint-disable-line react-hooks/exhaustive-deps
   );
+
+  // The prompt event carries confirm | choice | open; the chips render differently.
+  const promptMode = useMemo(() => {
+    for (let i = streamState.parts.length - 1; i >= 0; i--) {
+      const part = streamState.parts[i];
+      if (part.type === 'prompt') return part.promptType;
+    }
+    return undefined;
+  }, [streamState.parts]);
 
   const conversationTitle =
     currentConversation?.title ||
@@ -516,13 +594,23 @@ export function MarineChatShell({
 
   const isStreaming = streamState.isStreaming;
   const showEmpty = messages.length === 0 && !isStreaming && !streamState.content;
+  // Someone who opened this chat through a share link (or a viewer share) can
+  // read but not send. Owners and editors get the full UI.
+  const isViewer = currentConversation?.accessRole === 'viewer';
+  const canShare = !!currentConversation && !isViewer && currentConversation.accessRole !== 'editor';
   // Yes/No (etc.) chips for the assistant's pending question. The stream hook
   // clears these itself when the next message is sent.
   const showQuickReplies =
+    !isViewer &&
     !isStreaming &&
     streamState.promptActive &&
     streamState.quickReplies.length > 0 &&
     streamState.conversationId === currentConversation?.id;
+
+  const handleConversationUpdated = useCallback((conv: Conversation) => {
+    setCurrentConversation((prev) => (prev && prev.id === conv.id ? { ...prev, ...conv } : prev));
+    setConversations((prev) => prev.map((c) => (c.id === conv.id ? { ...c, ...conv } : c)));
+  }, []);
 
   return (
     <div
@@ -551,6 +639,14 @@ export function MarineChatShell({
             {conversationTitle}
           </h1>
           <div className="flex items-center gap-1">
+            {canShare && (
+              <MarineShareButton
+                conversation={currentConversation}
+                apiCall={apiCall}
+                onUpdated={handleConversationUpdated}
+                queryParam={conversationQueryParam}
+              />
+            )}
             <MarineNotifyToggle apiCall={apiCall} />
             <MarineMemoryToggle open={memoryOpen} onToggle={() => setMemoryOpen((v) => !v)} />
             <MarineDebugToggle
@@ -586,7 +682,7 @@ export function MarineChatShell({
               >
                 Loading messages…
               </div>
-            ) : showEmpty ? (
+            ) : showEmpty && !isViewer ? (
               <MarineEmptyState onPromptClick={handleSendMessage} />
             ) : (
               <MarineMessages
@@ -598,11 +694,7 @@ export function MarineChatShell({
                 streamingAgentName={streamState.agentName}
                 isLoading={isStreaming}
                 debugMode={debugMode}
-                activeCitation={
-                  openCitation
-                    ? { fileId: openCitation.fileId, page: openCitation.page }
-                    : null
-                }
+                activeCitation={activeCitation}
                 onCitationClick={handleCitationClick}
               />
             )}
@@ -611,17 +703,45 @@ export function MarineChatShell({
           {showQuickReplies && (
             <MarineQuickReplies
               replies={streamState.quickReplies}
+              mode={promptMode}
               onSelect={(reply) => void handleSendMessage(reply)}
+              onOther={() => {
+                hookResetPrompt();
+                setComposerFocusSignal((n) => n + 1);
+              }}
             />
           )}
 
-          <MarineComposer
-            onSend={handleSendMessage}
-            onStop={hookCancel}
-            isStreaming={isStreaming}
-            conversationId={currentConversation?.id}
-            onEnsureConversation={ensureConversation}
-          />
+          {isViewer ? (
+            <div
+              className="mx-auto flex w-full max-w-[820px] items-center gap-2 px-5 pb-5 pt-3 text-sm"
+              style={{ color: 'var(--marine-text-muted)' }}
+              role="status"
+            >
+              <Eye className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--marine-teal)' }} />
+              <span>
+                You're viewing a chat shared by a coworker. It's read-only — start a{' '}
+                <button
+                  type="button"
+                  onClick={handleCreateConversation}
+                  className="font-medium underline-offset-2 hover:underline"
+                  style={{ color: 'var(--marine-teal-dark)' }}
+                >
+                  new chat
+                </button>{' '}
+                to ask your own questions.
+              </span>
+            </div>
+          ) : (
+            <MarineComposer
+              onSend={handleSendMessage}
+              onStop={hookCancel}
+              isStreaming={isStreaming}
+              conversationId={currentConversation?.id}
+              onEnsureConversation={ensureConversation}
+              focusSignal={composerFocusSignal}
+            />
+          )}
         </div>
       </div>
 

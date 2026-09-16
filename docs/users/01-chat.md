@@ -95,3 +95,38 @@ From the sidebar:
 
 - **Rename**: Click the conversation name to edit
 - **Delete**: Use the delete option to remove a conversation
+
+## While the assistant is working
+
+Under the assistant's reply you'll see what it is doing right now — "Searching
+documents", "Searching the web", "Deep research in progress" — with a timer.
+Once the answer starts, that line collapses into a short summary such as
+"Searched documents · Searched the web"; click it to see each step. The summary
+stays on the message afterwards, so you can always check what a past answer was
+based on.
+
+Long answers stream in steadily. If you scroll up to re-read something while an
+answer is still arriving, the view stops following the new text; a **Jump to
+latest** button brings you back to the bottom.
+
+## Answering with a click
+
+When the assistant needs a decision from you — "Would you like me to run a deep
+research report?" or "Which project do you mean?" — it shows the likely answers
+as buttons above the message box. Click one instead of typing. For multiple
+choice questions there is also a **Something else…** button that puts the
+cursor in the message box so you can answer in your own words.
+
+## Sharing a chat
+
+Use the link icon in the header to share a conversation with coworkers.
+
+- **Only me** (default): private to you, and to anyone you've shared it with
+  directly.
+- **Anyone signed in can view**: anyone who is logged into this deployment can
+  open the link and read the chat. They cannot send messages in it, change the
+  sharing setting, or delete it — they see a read-only banner with a shortcut
+  to start their own chat.
+
+Copy the link from the same panel. Switching back to **Only me** immediately
+stops the link from working for others.

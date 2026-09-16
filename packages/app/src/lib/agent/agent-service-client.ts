@@ -177,11 +177,35 @@ export function createAgentClient(config: AgentClientConfig) {
         messageCount: conv.message_count || 0,
         model: conv.model,
         metadata: conv.metadata,
+        linkAccess: conv.link_access,
+        accessRole: conv.access_role ?? undefined,
       }));
     },
 
+    /** Raw conversation payload (snake_case, as the agent API returns it). */
     async getConversation(conversationId: string): Promise<Conversation & { messages: Message[] }> {
       return fetchJson(`/conversations/${conversationId}`);
+    },
+
+    /**
+     * A single conversation mapped to the client shape, without messages.
+     * Works for conversations the user does not own (shared or org-linked).
+     */
+    async getConversationSummary(conversationId: string): Promise<Conversation> {
+      const conv = await fetchJson<any>(`/conversations/${conversationId}?include_messages=false`);
+      return {
+        id: conv.id,
+        userId: conv.user_id,
+        title: conv.title,
+        source: conv.source,
+        createdAt: new Date(conv.created_at),
+        updatedAt: new Date(conv.updated_at),
+        messageCount: conv.message_count || 0,
+        model: conv.model,
+        metadata: conv.metadata,
+        linkAccess: conv.link_access,
+        accessRole: conv.access_role ?? undefined,
+      };
     },
 
     async createConversation(title?: string, source?: string): Promise<Conversation> {
