@@ -36,6 +36,88 @@ const MAX_EXPANDED_WIDTH = 420;
 /** Auto-collapse when the viewport is this narrow or less. */
 const AUTO_COLLAPSE_BREAKPOINT = 768;
 
+/** Collapse markdown / whitespace so a message body reads as one plain line. */
+function toPlainSnippet(raw: string, max = 140): string {
+  const text = raw
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[#>*_`~]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
+
+function formatRelative(date: Date | undefined): string {
+  if (!date) return '';
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return '';
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/** Hover card content shared by the collapsed (icon) and expanded (row) states. */
+function ConversationPreview({ conv }: { conv: Conversation }) {
+  const snippet = conv.lastMessage?.content ? toPlainSnippet(conv.lastMessage.content) : '';
+  const who =
+    conv.lastMessage?.role === 'user'
+      ? 'You'
+      : conv.lastMessage?.role === 'assistant'
+        ? 'AI'
+        : '';
+  const when = formatRelative(conv.lastMessage?.createdAt ?? conv.lastMessageAt ?? conv.updatedAt);
+  const count = conv.messageCount
+    ? `${conv.messageCount} message${conv.messageCount === 1 ? '' : 's'}`
+    : 'No messages yet';
+
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2 pb-1">
+        <MessageSquare className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--marine-teal)' }} />
+        <span
+          className="text-[10px] font-bold uppercase tracking-wider"
+          style={{ color: 'var(--marine-text-subtle)', letterSpacing: '0.08em' }}
+        >
+          Conversation
+        </span>
+      </div>
+      <p className="text-sm font-semibold leading-[20px]" style={{ color: 'var(--marine-text)' }}>
+        {conv.title || 'New Conversation'}
+      </p>
+      {snippet && (
+        <p
+          className="pt-1.5 text-xs leading-[18px]"
+          style={{
+            color: 'var(--marine-text-body)',
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          {who && (
+            <span className="font-semibold" style={{ color: 'var(--marine-text-muted)' }}>
+              {who}:{' '}
+            </span>
+          )}
+          {snippet}
+        </p>
+      )}
+      <p className="pt-1.5 text-xs" style={{ color: 'var(--marine-text-muted)' }}>
+        {count}
+        {when ? ` · ${when}` : ''}
+      </p>
+    </div>
+  );
+}
+
 function clampWidth(candidate: number): number {
   return Math.min(
     Math.max(candidate, MIN_EXPANDED_WIDTH),
@@ -324,45 +406,25 @@ export function MarineSidebar({
                   <Tooltip
                     key={conv.id}
                     side="right"
-                    preview={
-                      <div className="p-3">
-                        <div className="flex items-center gap-2 pb-1">
-                          <MessageSquare
-                            className="h-4 w-4 flex-shrink-0"
-                            style={{ color: 'var(--marine-teal)' }}
-                          />
-                          <span
-                            className="text-[10px] font-bold uppercase tracking-wider"
-                            style={{ color: 'var(--marine-text-subtle)', letterSpacing: '0.08em' }}
-                          >
-                            Conversation
-                          </span>
-                        </div>
-                        <p
-                          className="text-sm font-semibold leading-[20px]"
-                          style={{ color: 'var(--marine-text)' }}
-                        >
-                          {conv.title || 'New Conversation'}
-                        </p>
-                        <p
-                          className="pt-1 text-xs"
-                          style={{ color: 'var(--marine-text-muted)' }}
-                        >
-                          {conv.messageCount
-                            ? `${conv.messageCount} message${conv.messageCount === 1 ? '' : 's'}`
-                            : 'No messages yet'}
-                        </p>
-                      </div>
-                    }
+                    preview={<ConversationPreview conv={conv} />}
                   >
                     {selectBtn}
                   </Tooltip>
                 );
               }
 
+              // Expanded row: hover (after a short delay so scanning the list
+              // doesn't flash cards) shows the same preview card to the right.
               return (
                 <div key={conv.id} className="group relative">
-                  {selectBtn}
+                  <Tooltip
+                    side="right"
+                    delay={400}
+                    className="w-full"
+                    preview={<ConversationPreview conv={conv} />}
+                  >
+                    {selectBtn}
+                  </Tooltip>
                   {onDeleteConversation && (
                     <button
                       type="button"

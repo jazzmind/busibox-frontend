@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowDown,
   FileText,
   Paperclip,
   ThumbsUp,
@@ -22,11 +21,11 @@ import { Tooltip } from './primitives/Tooltip';
 import { CitationPreview, type CitationPreviewData } from './primitives/CitationPreview';
 import { MarineDebugPanel } from './DebugPanel';
 import { MarineAttachmentStatus } from './AttachmentStatus';
+import { MarineActivityStatus } from './ActivityStatus';
+import { StreamedMarkdown } from './StreamedMarkdown';
+import { useSmoothedText } from './hooks/useSmoothedText';
 
 const DOC_LINK_RE = /^doc:([^:]+)(?::(\d+))?$/;
-
-const preserveDocUrl = (url: string): string =>
-  url.startsWith('doc:') ? url : defaultUrlTransform(url);
 
 export type CitationPreviewLookup = (
   fileId: string,
@@ -309,6 +308,76 @@ function MessageActions({ content }: MessageActionsProps) {
   );
 }
 
+interface AssistantMessageProps {
+  message: Message;
+  isLast: boolean;
+  debugMode: boolean;
+  activeCitation: { fileId: string; page?: number } | null;
+  onCitationClick: (fileId: string, page?: number) => void;
+  getCitationPreview?: CitationPreviewLookup;
+}
+
+const AssistantMessage = memo(function AssistantMessage({
+  message,
+  isLast,
+  debugMode,
+  activeCitation,
+  onCitationClick,
+  getCitationPreview,
+}: AssistantMessageProps) {
+  const components = useMemo(
+    () => ({ a: makeCitationRenderer(message.citations, onCitationClick, getCitationPreview) }),
+    [message.citations, onCitationClick, getCitationPreview],
+  );
+  const m = message as Message & {
+    agentName?: string;
+    model?: string;
+    thoughts?: ThoughtEvent[];
+    parts?: MessagePart[];
+    routingDecision?: unknown;
+  };
+
+  return (
+    <div
+      className="flex flex-col items-start"
+      style={{
+        animation: isLast ? 'marineFadeSlideUp 260ms cubic-bezier(0.4,0,0.2,1)' : undefined,
+      }}
+    >
+      {debugMode && (
+        <div className="w-full max-w-none">
+          <MarineDebugPanel
+            agentName={m.agentName}
+            model={m.model}
+            thoughts={m.thoughts}
+            parts={m.parts}
+            routingDecision={m.routingDecision as any}
+          />
+        </div>
+      )}
+      <MarineActivityStatus thoughts={m.thoughts} parts={m.parts} active={false} hasContent />
+      <div className="prose max-w-none text-[15px] leading-[26px]" style={{ color: 'var(--marine-text)' }}>
+        <StreamedMarkdown content={message.content} components={components} />
+      </div>
+
+      {message.citations && message.citations.length > 0 ? (
+        <SourcePills
+          citations={dedupeCitations(message.citations)}
+          activeCitation={activeCitation}
+          onCitationClick={onCitationClick}
+        />
+      ) : (
+        <SourcePlaceholder />
+      )}
+
+      <MessageActions content={message.content} />
+    </div>
+  );
+});
+
+/** Pixels from the bottom within which we consider the user "at the bottom". */
+const STICK_THRESHOLD = 96;
+
 export function MarineMessages({
   messages,
   streamingContent,
@@ -323,18 +392,116 @@ export function MarineMessages({
   debugMode = false,
 }: MarineMessagesProps) {
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollerRef = useRef<HTMLElement | null>(null);
+  // True while the view should follow new content. Cleared when the user
+  // scrolls up; restored when they scroll back to the bottom, send a message,
+  // or press the jump button.
+  const stickRef = useRef(true);
+  const [showJump, setShowJump] = useState(false);
 
+  const active = !!isLoading;
+  const smoothedContent = useSmoothedText(streamingContent ?? '', active);
+  const hasStreamText = smoothedContent.length > 0;
+
+  // When the turn started — drives the elapsed counter in the status line.
+  const startedAtRef = useRef<number | undefined>(undefined);
+  if (active && startedAtRef.current === undefined) startedAtRef.current = Date.now();
+  if (!active) startedAtRef.current = undefined;
+
+  const streamingComponents = useMemo(
+    () => ({ a: makeCitationRenderer(streamingCitations, onCitationClick, getCitationPreview) }),
+    [streamingCitations, onCitationClick, getCitationPreview],
+  );
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior) => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior });
+  }, []);
+
+  // Find the scroll container once and watch the user's scrolling.
+  //
+  // Only *user-initiated* scrolling (wheel, touch, keyboard) can switch
+  // following off — our own scrollTo() calls also fire `scroll` events while
+  // a smooth scroll animates, and treating those as intent would turn
+  // following off the moment we tried to follow. The plain `scroll` handler
+  // may only switch following back on once the user reaches the bottom.
   useEffect(() => {
-    const el = endRef.current;
-    if (!el) return;
-    const scroller = el.closest<HTMLElement>('[data-chat-scroll="1"]');
-    if (scroller) {
-      scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
+    const scroller = endRef.current?.closest<HTMLElement>('[data-chat-scroll="1"]') ?? null;
+    scrollerRef.current = scroller;
+    if (!scroller) return;
+    const distanceFromBottom = () =>
+      scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    const canScroll = () => scroller.scrollHeight - scroller.clientHeight > STICK_THRESHOLD;
+    let userScrolledUpAt = 0;
+    const onScroll = () => {
+      // Brief cooldown so the first notch of an upward scroll (still within
+      // the threshold) isn't immediately undone by this handler.
+      if (Date.now() - userScrolledUpAt < 300) return;
+      if (distanceFromBottom() <= STICK_THRESHOLD) {
+        stickRef.current = true;
+        setShowJump(false);
+      }
+    };
+    const onUserScrollUp = () => {
+      // Called synchronously on the input event, before the scroll position
+      // changes, so check direction of intent rather than position.
+      if (!canScroll() || scroller.scrollTop === 0) return;
+      userScrolledUpAt = Date.now();
+      stickRef.current = false;
+      setShowJump(true);
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) onUserScrollUp();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      // Keyboard scrolling targets the last-clicked scroller even when focus
+      // is on <body>, so listen on window; ignore typing in the composer.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input,textarea,[contenteditable="true"]')) return;
+      if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'Home') onUserScrollUp();
+    };
+    let touchStartY = 0;
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartY = e.touches[0]?.clientY ?? 0;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0]?.clientY ?? 0;
+      if (y - touchStartY > 8) onUserScrollUp();
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    scroller.addEventListener('wheel', onWheel, { passive: true });
+    window.addEventListener('keydown', onKey);
+    scroller.addEventListener('touchstart', onTouchStart, { passive: true });
+    scroller.addEventListener('touchmove', onTouchMove, { passive: true });
+    return () => {
+      scroller.removeEventListener('scroll', onScroll);
+      scroller.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKey);
+      scroller.removeEventListener('touchstart', onTouchStart);
+      scroller.removeEventListener('touchmove', onTouchMove);
+    };
+  }, []);
+
+  // A new user message always re-engages following (they just sent it).
+  const lastMessage = messages[messages.length - 1];
+  useEffect(() => {
+    if (lastMessage?.role === 'user') {
+      stickRef.current = true;
+      setShowJump(false);
+      scrollToBottom('smooth');
     }
-  }, [messages.length, streamingContent]);
+  }, [lastMessage?.id, lastMessage?.role, scrollToBottom]);
+
+  // Follow streamed text with instant scrolls (smooth scrolling every frame
+  // never finishes and fights the user's wheel).
+  useEffect(() => {
+    if (!stickRef.current) return;
+    scrollToBottom(active ? 'auto' : 'smooth');
+  }, [messages.length, smoothedContent, active, scrollToBottom]);
 
   return (
-    <div className="mx-auto flex w-full max-w-[860px] flex-col gap-6 px-5 pb-10 pt-6">
+    <div className="relative mx-auto flex w-full max-w-[860px] flex-col gap-6 px-5 pb-10 pt-6">
       {messages.map((message, idx) => {
         if (message.role === 'user') {
           const hasAttachments = !!message.attachments?.length;
@@ -370,58 +537,16 @@ export function MarineMessages({
           );
         }
 
-        const renderer = makeCitationRenderer(
-          message.citations,
-          onCitationClick,
-          getCitationPreview,
-        );
-        const isLast = idx === messages.length - 1;
         return (
-          <div
+          <AssistantMessage
             key={message.id}
-            className="flex flex-col items-start"
-            style={{
-              animation: isLast
-                ? 'marineFadeSlideUp 260ms cubic-bezier(0.4,0,0.2,1)'
-                : undefined,
-            }}
-          >
-            {debugMode && (
-              <div className="w-full max-w-none">
-                <MarineDebugPanel
-                  agentName={(message as any).agentName}
-                  model={(message as any).model}
-                  thoughts={(message as any).thoughts}
-                  parts={(message as any).parts}
-                  routingDecision={(message as any).routingDecision}
-                />
-              </div>
-            )}
-            <div
-              className="prose max-w-none text-[15px] leading-[26px]"
-              style={{ color: 'var(--marine-text)' }}
-            >
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                urlTransform={preserveDocUrl}
-                components={{ a: renderer }}
-              >
-                {message.content}
-              </ReactMarkdown>
-            </div>
-
-            {message.citations && message.citations.length > 0 ? (
-              <SourcePills
-                citations={dedupeCitations(message.citations)}
-                activeCitation={activeCitation}
-                onCitationClick={onCitationClick}
-              />
-            ) : (
-              <SourcePlaceholder />
-            )}
-
-            <MessageActions content={message.content} />
-          </div>
+            message={message}
+            isLast={idx === messages.length - 1}
+            debugMode={debugMode}
+            activeCitation={activeCitation}
+            onCitationClick={onCitationClick}
+            getCitationPreview={getCitationPreview}
+          />
         );
       })}
 
@@ -442,57 +567,34 @@ export function MarineMessages({
               />
             </div>
           )}
-          <div
-            className="prose max-w-none text-[15px] leading-[26px]"
-            style={{ color: 'var(--marine-text)' }}
-          >
-            {streamingContent ? (
-              <>
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  urlTransform={preserveDocUrl}
-                  components={{
-                    a: makeCitationRenderer(
-                      streamingCitations,
-                      onCitationClick,
-                      getCitationPreview,
-                    ),
-                  }}
-                >
-                  {streamingContent}
-                </ReactMarkdown>
+          <MarineActivityStatus
+            thoughts={streamingThoughts}
+            parts={streamingParts}
+            active={active}
+            hasContent={hasStreamText}
+            startedAt={startedAtRef.current}
+          />
+          {hasStreamText && (
+            <div
+              className="prose max-w-none text-[15px] leading-[26px]"
+              style={{ color: 'var(--marine-text)' }}
+            >
+              <StreamedMarkdown content={smoothedContent} components={streamingComponents} />
+              {active && (
                 <span
                   className="ml-1 inline-block h-4 w-[3px] animate-pulse rounded-sm align-middle"
                   style={{ backgroundColor: 'var(--marine-teal)' }}
                 />
-              </>
-            ) : (
-              <div className="flex items-center gap-2" style={{ color: 'var(--marine-text-muted)' }}>
-                <span className="flex gap-1">
-                  <span
-                    className="h-2 w-2 animate-bounce rounded-full"
-                    style={{ backgroundColor: 'var(--marine-teal)', animationDelay: '0ms' }}
-                  />
-                  <span
-                    className="h-2 w-2 animate-bounce rounded-full"
-                    style={{ backgroundColor: 'var(--marine-teal)', animationDelay: '150ms' }}
-                  />
-                  <span
-                    className="h-2 w-2 animate-bounce rounded-full"
-                    style={{ backgroundColor: 'var(--marine-teal)', animationDelay: '300ms' }}
-                  />
-                </span>
-                <span className="text-sm">Thinking…</span>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
           {streamingCitations && streamingCitations.length > 0 ? (
             <SourcePills
               citations={dedupeCitations(streamingCitations)}
               activeCitation={activeCitation}
               onCitationClick={onCitationClick}
             />
-          ) : streamingContent ? (
+          ) : hasStreamText ? (
             <SourcePlaceholder />
           ) : null}
         </div>
@@ -500,7 +602,47 @@ export function MarineMessages({
 
       <div ref={endRef} />
 
+      {showJump && (
+        <div className="pointer-events-none sticky bottom-3 flex justify-center">
+          <button
+            type="button"
+            onClick={() => {
+              stickRef.current = true;
+              setShowJump(false);
+              scrollToBottom('smooth');
+            }}
+            className="pointer-events-auto inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium shadow-md transition-all hover:brightness-95"
+            style={{
+              backgroundColor: 'var(--marine-surface)',
+              borderColor: 'var(--marine-border-strong)',
+              color: 'var(--marine-teal-dark)',
+            }}
+            aria-label="Jump to latest"
+          >
+            <ArrowDown className="h-3.5 w-3.5" />
+            Jump to latest
+          </button>
+        </div>
+      )}
+
       <style jsx global>{`
+        @keyframes marineShimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        .marine-shimmer {
+          background: linear-gradient(
+            90deg,
+            var(--marine-text-muted) 0%,
+            var(--marine-teal) 50%,
+            var(--marine-text-muted) 100%
+          );
+          background-size: 200% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          animation: marineShimmer 2.2s linear infinite;
+        }
         @keyframes marineFadeSlideUp {
           from {
             opacity: 0;

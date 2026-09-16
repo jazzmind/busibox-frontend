@@ -58,8 +58,15 @@ export {
   deleteConversationInsights,
   getInsightStats,
   initializeInsights,
+  readSseEvents,
+  streamTurn,
+  getActiveTurn,
+  getTurn,
+  stopTurn,
 } from './chat-client';
 
 export type {
   ChatClientOptions,
+  ChatStreamEvent,
+  ChatTurnInfo,
 } from './chat-client';

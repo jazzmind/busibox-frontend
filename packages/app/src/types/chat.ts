@@ -25,9 +25,21 @@ export interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   lastMessageAt?: Date;
+  /** Short preview of the most recent message (served by GET /conversations). */
+  lastMessage?: ConversationMessagePreview;
+  /** 'private' (owner + explicit shares) or 'org' (anyone signed in may view via link). */
+  linkAccess?: 'private' | 'org';
+  /** How the current user may interact with this conversation. Undefined = owner (e.g. just created). */
+  accessRole?: 'owner' | 'editor' | 'viewer';
   messageCount: number;
   model?: string;
   metadata?: Record<string, any>;
+}
+
+export interface ConversationMessagePreview {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  createdAt: Date;
 }
 
 export interface ThoughtEvent {
