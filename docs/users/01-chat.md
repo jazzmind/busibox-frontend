@@ -18,6 +18,15 @@ Access chat from the navigation bar.
 2. Type your message in the input field
 3. Press Enter or click Send to submit
 
+### Starter prompts with a blank to fill in
+
+On the new-chat screen, some starter prompts have a text box in the middle of
+the sentence — for example **Deep dive into the topic** `[ topic… ]`. Type the
+subject and press Enter (or the arrow) and the whole sentence is sent as your
+question. Administrators define these in the chat app's
+`NEXT_PUBLIC_CHAT_SUGGESTED_PROMPTS` setting by writing `{{name}}` where the
+blank should go.
+
 ## Conversation Persistence
 
 Conversations are saved automatically. They appear in the sidebar and can be resumed at any time.

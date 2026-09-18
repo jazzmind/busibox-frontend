@@ -80,6 +80,31 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
+const MIME_LABELS: Record<string, string> = {
+  'application/pdf': 'PDF',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
+  'application/msword': 'DOC',
+  'application/vnd.ms-excel': 'XLS',
+  'application/vnd.ms-powerpoint': 'PPT',
+  'text/markdown': 'Markdown',
+  'text/plain': 'Text',
+  'text/csv': 'CSV',
+  'text/html': 'HTML',
+  'application/json': 'JSON',
+};
+
+/** Short, fixed-width label for the Type column; the full MIME type goes in the tooltip. */
+function formatType(mimeType?: string, filename?: string): string {
+  if (mimeType && MIME_LABELS[mimeType]) return MIME_LABELS[mimeType];
+  const ext = filename?.split('.').pop();
+  if (ext && ext !== filename && ext.length <= 5) return ext.toUpperCase();
+  if (!mimeType) return '—';
+  const subtype = mimeType.split('/').pop() || mimeType;
+  return subtype.length > 12 ? `${subtype.slice(0, 12)}…` : subtype;
+}
+
 export default function LibraryDetailPage({ params }: PageProps) {
   const { customization } = useCustomization();
   const router = useRouter();
@@ -429,7 +454,7 @@ export default function LibraryDetailPage({ params }: PageProps) {
               <p className="text-sm text-gray-500">No documents in this library yet</p>
             </div>
           ) : (
-            <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <div className="border border-gray-200 rounded-xl overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -465,8 +490,11 @@ export default function LibraryDetailPage({ params }: PageProps) {
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-xs text-gray-500">
-                        {doc.mimeType || '—'}
+                      <td
+                        className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap"
+                        title={doc.mimeType || undefined}
+                      >
+                        {formatType(doc.mimeType, doc.originalFilename || doc.name)}
                       </td>
                       <td className="px-4 py-2 text-right text-xs text-gray-700">
                         {formatBytes(doc.sizeBytes || 0)}
