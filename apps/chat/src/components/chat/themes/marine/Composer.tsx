@@ -21,6 +21,8 @@ interface MarineComposerProps {
   placeholder?: string;
   conversationId?: string;
   onEnsureConversation?: () => Promise<string | null>;
+  /** Increment to focus the textarea (e.g. after "Something else…"). */
+  focusSignal?: number;
 }
 
 interface AttachmentDraft {
@@ -60,6 +62,7 @@ export function MarineComposer({
   placeholder = marineBrand.composerPlaceholder,
   conversationId,
   onEnsureConversation,
+  focusSignal = 0,
 }: MarineComposerProps) {
   const resolve = useCrossAppApiPath();
   const [content, setContent] = useState('');
@@ -74,6 +77,10 @@ export function MarineComposer({
     ta.style.height = 'auto';
     ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
   }, [content]);
+
+  useEffect(() => {
+    if (focusSignal > 0) textareaRef.current?.focus();
+  }, [focusSignal]);
 
   const uploadFile = async (file: File, activeConversationId: string) => {
     const draftId = `attachment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

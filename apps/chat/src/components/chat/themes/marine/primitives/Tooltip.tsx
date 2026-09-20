@@ -27,6 +27,10 @@ interface TooltipProps {
   label?: string;
   preview?: ReactNode;
   side?: 'top' | 'bottom' | 'left' | 'right';
+  /** Extra classes for the trigger wrapper (e.g. `w-full` for block rows). */
+  className?: string;
+  /** Delay (ms) before the popover opens on hover. Default 0. */
+  delay?: number;
   children: ReactNode;
 }
 
@@ -36,17 +40,48 @@ interface Position {
   transformOrigin: string;
 }
 
-export function Tooltip({ label, preview, side = 'top', children }: TooltipProps) {
+export function Tooltip({
+  label,
+  preview,
+  side = 'top',
+  className,
+  delay = 0,
+  children,
+}: TooltipProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const triggerRef = useRef<HTMLSpanElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pos, setPos] = useState<Position>({ top: 0, left: 0, transformOrigin: 'center' });
 
   // Only render the portal on the client
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const clearTimer = useCallback(() => {
+    if (openTimer.current) {
+      clearTimeout(openTimer.current);
+      openTimer.current = null;
+    }
+  }, []);
+
+  const show = useCallback(() => {
+    clearTimer();
+    if (delay > 0) {
+      openTimer.current = setTimeout(() => setOpen(true), delay);
+    } else {
+      setOpen(true);
+    }
+  }, [clearTimer, delay]);
+
+  const hide = useCallback(() => {
+    clearTimer();
+    setOpen(false);
+  }, [clearTimer]);
+
+  useEffect(() => clearTimer, [clearTimer]);
 
   const computePosition = useCallback(() => {
     const trigger = triggerRef.current;
@@ -153,11 +188,11 @@ export function Tooltip({ label, preview, side = 'top', children }: TooltipProps
     <>
       <span
         ref={triggerRef}
-        className="relative inline-flex"
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocusCapture={() => setOpen(true)}
-        onBlurCapture={() => setOpen(false)}
+        className={`relative inline-flex ${className ?? ''}`}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocusCapture={show}
+        onBlurCapture={hide}
       >
         {children}
       </span>

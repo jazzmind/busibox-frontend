@@ -80,7 +80,13 @@ async function MarineChatPageContent({
   let currentConversation: any = null;
   try {
     if (initialConversationId) {
-      const conv = conversations.find((c: any) => c.id === initialConversationId);
+      let conv = conversations.find((c: any) => c.id === initialConversationId);
+      if (!conv) {
+        // Not one of the user's own chats: it may be shared with them or
+        // opened via an org-wide link. The API enforces access; a 403/404
+        // just means we fall through to the empty state.
+        conv = await client.getConversationSummary(initialConversationId).catch(() => undefined);
+      }
       if (conv) {
         const loaded = await client.getMessages(initialConversationId, {
           limit: 100,
