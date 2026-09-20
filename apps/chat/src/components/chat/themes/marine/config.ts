@@ -18,7 +18,27 @@
 
 export interface SuggestedPrompt {
   description: string;
+  /**
+   * The message to send. May contain ONE `{{placeholder}}` — the empty state
+   * then renders an inline input in its place ("Deep dive into the topic
+   * {{topic}}") and sends the filled-in sentence.
+   */
   prompt: string;
+}
+
+const TEMPLATE_RE = /^([\s\S]*?)\{\{\s*([^}]+?)\s*\}\}([\s\S]*)$/;
+
+export interface PromptTemplate {
+  before: string;
+  placeholder: string;
+  after: string;
+}
+
+/** Split "Deep dive into {{topic}} please" into its fixed and fillable parts. */
+export function parsePromptTemplate(prompt: string): PromptTemplate | null {
+  const m = TEMPLATE_RE.exec(prompt);
+  if (!m) return null;
+  return { before: m[1], placeholder: m[2], after: m[3] };
 }
 
 export interface MarineBrandConfig {
